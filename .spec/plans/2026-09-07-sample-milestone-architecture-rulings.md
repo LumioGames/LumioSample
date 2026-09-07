@@ -15,6 +15,7 @@ status: pending
 3. **客户端形态定了**：C# Bot 执行十四步；浏览器是最终核心验收场景（真玩家），残版可先只用 Bot 收口；体素进浏览器要先调研（Rust→wasm32 今天没有任何 crate 证明过能编）。
 4. **一切按正规做、不留顶替**：移动是 GAS Ability；Bot 是 Client 通用宿主 + 游戏交场景；一个体素世界一个主人；范围判定用引擎唯一一份空间索引；Local Entity 不加声明、按文件边判定；底图是快照文件不是程序化生成。
 5. **样例前置约 20 张卡、横跨 6 仓 5 Room**，整理成 wave 0–3 挂 R-00517 引用边，由主 loop 统一管；可行性盘点卡缩到三件事。
+6. **（2026-09-07 补，§2.14）** 外部审查复核又查出四条：**非 Windows CoreCLR 宿主恒定失败且无人认领**（Linux / macOS 上 DS 装载不了任何 C# 玩法，比 S-2 更靠前的 wave 0）、Windows integration 红是 Hello 关闭码另一回事、M8 已有上游卡 R-00325 别重建、装载兜底与存档切点两处隐患。同时**更正本文一处归因**：integration 两个红都不在 LumioClient，R-00495 不是根因。复核带出的两条外部性问题 Owner 当日已裁：**判据 2 第一阶段是内部验收**（Platform 镜像未公开，发镜像排 S-16）、**公开使用面随 SDK 包发**（私有架构仓不作外部手册）。
 
 ## 1. 方法与真值优先级
 
@@ -64,7 +65,7 @@ status: pending
 ### 2.6 轨 A 实情与按 wave 排法
 
 - **结论**：九张轨 A 卡里今天真能派的只有 S-7、S-9；S-2 成了所有实现卡的真 wave 0。
-- **事实依据**：S-3 / S-4 等 R-00416 与 Client Bearer 卡；S-5 等 R-00469 读路径与 Server 体素 profile（Runtime 里没有任何 public 体素读接口，`IVoxelWorldPort` 是 `Lumio.GameRuntime.Coordination` 的 internal）；S-6 要先能编译到 Runtime 程序集（S-2）；S-10 等 M8 / M9；S-8 在 S-3~S-6 之后。main 上 integration 连红 8 次（tools / managed 绿，integration ubuntu + windows 红），归 R-00495（LumioClient 会话链落 Faulted——正是 Bot 要走的链）。
+- **事实依据**：S-3 / S-4 等 R-00416 与 Client Bearer 卡；S-5 等 R-00469 读路径与 Server 体素 profile（Runtime 里没有任何 public 体素读接口，`IVoxelWorldPort` 是 `Lumio.GameRuntime.Coordination` 的 internal）；S-6 要先能编译到 Runtime 程序集（S-2）；S-10 等 M8 / M9；S-8 在 S-3~S-6 之后。main 上 integration 连红（tools / managed 绿，integration ubuntu + windows 红）。**归因已更正（2026-09-07 外部审查复核）**：两个红是两个各自独立的宿主级根因——ubuntu 死在本仓 `engine/native/modules/clr-host/src/sys.rs:248-269` 非 Windows `load_clr` 恒返 `InitFailed`（证据包 `server.log`：`create_clr_host failed with status 3 (ClrInitFailed)`），windows 死在 `LumioServer/modules/process/src/server.rs:372` Hello writer 发空 `Message::Close(None)`（1005）与 `eng/dev-run.mjs:119` 断言 `[1000,1001]` 不符；**都不在 LumioClient**。R-00495 仍要修（Bot 要走那条会话链），但不是 integration 红的根因——见 `2026-09-07-sample-external-review-audit.md`（架构仓 `.spec/reviews/2026-09-07-sample-external-review-audit.md`） §2.1 / §2.2 / §3。
 - **定了什么**：「示例前置」整理成跨 Room 的 wave 清单，全部挂 R-00517 引用边，主 loop 按 wave 派（见 §3）；「轨 A / 轨 B」改按 wave 说；可行性盘点卡缩到三件事（§5）。
 - **落卡**：主 loop 落 Workflow 引用边；卡面文件加 wave 重排说明。
 
@@ -119,21 +120,35 @@ status: pending
 - **结论**：ADR-061 定 `LumioServer/account-server/` 整目录删，但 RM-00011 的验收链（`lumio-entity-chat-replay` + LumioGame entity-chat 启动器 + 本仓 integration 作业）写死了要它；样例走 Platform 之后它是唯一还挂在旧账号服上的东西。
 - **定了什么**：Server 一张卡「replay 与验收链改接 Platform（账号 WS + launch 票）」，做完当天删旧目录；排在 R-00416 之后、与样例 S-3 同批，两条链吃同一份 Platform 拓扑。
 
+### 2.14 外部审查复核吸收项（2026-09-07 补）
+
+- **结论**：另一个 Agent 的独立审查（P01–P18）里有四条我们本轮没讨论、且已在源码与 CI 上实证的东西；全部采纳，落 ADR-077（架构仓 `.spec/decisions/ADR-077-sample-milestone-architecture-rulings.md`） 决策 13–16。逐条判定与证据见 `2026-09-07-sample-external-review-audit.md`（架构仓 `.spec/reviews/2026-09-07-sample-external-review-audit.md`）。
+- **事实依据与定案**：
+  1. **非 Windows CoreCLR 宿主恒定失败，且无人认领**——`engine/native/modules/clr-host/src/sys.rs:248-269` `#[cfg(not(windows))] load_clr` 恒返 `Err(LoadError::InitFailed)`（文件头自认 MS-00002 Wave 2 known gap）。ADR-052（架构仓 `.spec/decisions/ADR-052-ms00002-hello-wire-and-clr-host-abi.md`） 定装载链归本仓；ADR-067（架构仓 `.spec/decisions/ADR-067-browser-client-prediction-dotnet-wasm.md`）:25 的 D24 / R-00408 是 LumioServer 侧 Rust loader，**不覆盖本仓 `clr-host` 的 Unix 实现**。→ 本仓补 Unix（Linux + macOS）dlopen 路径，是判据 2（一条命令 / Docker / Linux）与 CI 转绿的 wave 0 前置。
+  2. **Hello 关闭码**——`LumioServer/modules/process/src/server.rs:372,383` 发 `Message::Close(None)`（对端读 1005），`eng/dev-run.mjs:119` 断言 `[1000,1001]`；正式传输 `entity_chat/wire.rs:820+` 一律带 `CloseFrame`，两条路径不同。→ Server 一张小卡，Hello writer 发正常关闭码；**不许**放宽 `dev-run.mjs` 断言变绿。
+  3. **M8 复用 R-00325**——`LumioConfig/.spec/plans/2026-09-02-lumioconfig-dispatch-prompt.md:49,111` 已有该卡（`backlog`，守门条件「需要架构仓合同」）。§2.3 的裁决就是那份合同。→ 不新建卡，改为复用并解除守门、按 ADR-077 §3 收窄到 C# typed Reader；M9 仍是新卡。
+  4. **装载兜底与存档切点**——`HostEntry.cs:159` 注册 DLL 缺失静默跳过、`:170` `EcsRegistry.Current ?? FindGeneratedRegistry()`（`:185` 遍历已加载程序集取第一个能用的）、`WorldManager.cs:74-76` `CreateFromSnapshot` 取全局注册表：外部用户改完 C# 却跑着别人的注册表也不报错。另 `WorldManager.cs:153-158` `CaptureSnapshot()` 自带 `CommitCreates()`——取快照本身有结构提交副作用。→ 装载绑定唯一（删兜底、启动与恢复同一注册上下文）；「可存档切点」写进失败语义，延迟结构工作未落地不得取检查点。
+- **验收补项**：`sample.md` 判据 5 加最小竞争 / 重复输入反例；判据 6 加半挖矿脉、未拾取掉落、已拾取不重生、逆序登录归属与底图身份可解析；判据 7 加两轮各自独立初始数据与世界断言（日志一致 ≠ 结果正确）。
+- **两条外部性问题 Owner 当日已裁**（复核报告 §5，落 ADR-077 决策 17 / 18）：① **判据 2 第一阶段是内部验收**——Platform 镜像现由私有仓源码构建（compose `build: .`），文档要写清「不是外部一条命令」，发镜像排 S-16 发布前，本阶段不立卡；判据 1 不受影响。② **公开使用面随 SDK 包发**——XML doc + 由 `engine/wire` / `engine/abi` 单源生成的公开 API 与错误码参考，私有架构仓不作外部手册，`LumioSample` 文档只链接公开产物；并入 S-2 产出清单，公开范围与 ADR-072 §4 一起审。
+- **落卡**：wave 0 增两张（架构仓 Unix CoreCLR 宿主、Server Hello 关闭码）；wave 1 的 M8 改为复用 R-00325；wave 表的 R-00495 行备注改写；**S-2 产出清单加「公开使用面」**（决策 18），S-16 加「发布 Platform 镜像」（决策 17）。
+
 ## 3. 排期（wave 0–3）
 
 全部卡挂 R-00517（RM-00015 原始需求）引用边；跨 Room 的由主 loop 统一按 wave 派，批间串行、批内文件集不重叠即并行。
 
 | wave | 卡 | 仓 / Room | 前置 | 备注 |
 |---|---|---|---|---|
-| 0 | S-2 重写：SDK 包含 Runtime Ecs / Replication + gen-declarations MSBuild；DS 包不带 Runtime DLL；`server.json` 指用户 `bin/`；删 `netstandard2.1` | 架构仓 + LumioSample | S-1 | 所有实现卡的真 wave 0 |
+| 0 | **非 Windows CoreCLR 宿主**：`clr-host` 补 Unix（Linux + macOS）dlopen 装载路径，Linux / Windows 双绿 | 架构仓 | — | 新卡（§2.14①）；判据 2 与 CI 转绿的真前置，排在 S-2 之前 |
+| 0 | Hello writer 发正常关闭码（对齐 `dev-run.mjs` 断言），**不放宽断言** | LumioServer | — | 新卡（§2.14②）；Windows integration 红根因 |
+| 0 | S-2 重写：SDK 包含 Runtime Ecs / Replication + gen-declarations MSBuild + **公开使用面**（XML doc + `engine/wire` / `engine/abi` 生成的公开 API / 错误码参考）；DS 包不带 Runtime DLL；`server.json` 指用户 `bin/`；删 `netstandard2.1` | 架构仓 + LumioSample | S-1 | 所有实现卡的真 wave 0；公开使用面按 §2.14 决策 18 |
 | 0 | S-7 两轮哈希对账 | LumioSample | — | 参考 entity-chat `verify-evidence.mjs` |
 | 0 | S-9 LumioGame 改导航 | LumioGame | — | |
 | 0 | R-00416 launch 端口 | LumioPlatform | — | 已有卡 |
 | 0 | Bot 改 Bearer 载体、删 connectionId 附着 | LumioClient | — | 新卡 |
-| 0 | R-00495 修 main 红 | LumioClient | — | 已有卡；Bot 要走的会话链 |
+| 0 | R-00495 会话链落 Faulted | LumioClient | — | 已有卡；Bot 要走的会话链。**不是 integration 红的根因**（§2.6 已更正），但仍要修 |
 | 1 | R-00462 追加「boot 响应带 tickRate」 | Runtime | — | 已有卡追加验收 |
 | 1 | 宿主按 boot 响应设节拍；删 `tick_hz` 与 10 ms 常量 | Server | R-00462 | 新卡 |
-| 1 | M8：导表器生成 C# typed Reader（只含类型与读法） | LumioConfig | — | 新卡 |
+| 1 | M8：导表器生成 C# typed Reader（只含类型与读法） | LumioConfig | — | **复用已有 R-00325**（`backlog`），按 §2.3 解除守门、收窄到 C# 路；不新建卡（§2.14③） |
 | 1 | M9：装载器（`server.json` 加配表目录、指纹从 manifest 读、装载时解析一次、快照存强类型） | Runtime + Server HostEntry | M8 | 新卡；S-10 改依赖它 |
 | 1 | ABI / SDK 加 voxel `capture` / `restore` 两槽 | 架构仓 | — | 新卡 |
 | 1 | S-6 前半：入场 + 聊天 | LumioSample | S-2 | |
@@ -151,7 +166,7 @@ status: pending
 | 2 | `lumio-ds` 体素派发（按视野 / pin 选 Section、首全量后增量、配额、同提交点同整帧作废） | Server | 上一行、Server 体素 profile | 新卡 |
 | 2 | Bot 宿主：按名装载玩法 + 场景程序集；驱动上下文带只读 World 视图与输入词汇表；内置 Seed 随机驱动；场景 = C# 类 + 断言 | LumioClient | R-00468 | 新卡 |
 | 2 | S-5 改写（底图快照 + restore 加载 + 首次开档建储量实体）/ S-6 后半（跑动）/ S-8 tour 前段 | LumioSample | 本 wave 引擎卡 | |
-| 3 | R-00498 / R-00507 + 轨 B 六卡（S-11 ~ S-16） | 多仓 | wave 2 | |
+| 3 | R-00498 / R-00507 + 轨 B 六卡（S-11 ~ S-16） | 多仓 | wave 2 | S-16 发布前加「发布 Platform 容器镜像、compose 改 `image:`」（§2.14 决策 17），本阶段不立卡 |
 | 3 | `lumio-spatial` 经 root 表增槽 + ECS `World.QueryAabb` | 架构仓 + NativeCore + Runtime | — | 新卡；「捡」等它 |
 | 3 | replay 与验收链改接 Platform，做完当天删 `LumioServer/account-server/` | Server | R-00416 | 新卡 |
 | 3 | R-00470（Runtime 客户端进浏览器） | LumioClient | R-00466 | 已有卡；S-16 前置 |
@@ -171,7 +186,7 @@ status: pending
 原 `2026-09-07-sample-track-a-feasibility-probe.md`（架构仓 `.spec/plans/2026-09-07-sample-track-a-feasibility-probe.md`） 的逐卡判定本文已给出，盘点卡缩到：
 
 1. S-5 读路径：从外部玩法程序集出发有没有任何公开 API 能读体素（`IVoxelWorldPort` 为 internal 的实证与替代路径）。
-2. main 上 integration 红的根因是否在样例链路上（R-00495 之外还有没有第二个根因）。
+2. ~~main 上 integration 红的根因是否在样例链路上~~ —— **已答（§2.14①②、§2.6）**：不在样例链路上，是两个各自独立的宿主级根因（ubuntu = 本仓 `clr-host` 非 Windows 未实现；windows = LumioServer Hello 关闭码）。盘点卡不必再查这条。
 3. native 体素世界句柄从 Rust 宿主交到 Runtime 的具体 ABI 路径（`create_clr_host` 三槽先例 → `boot` 请求字段形状）。
 
 ## 6. 已裁决、本次未再议
@@ -181,3 +196,14 @@ status: pending
 ## 7. 相关
 
 `sample.md`（架构仓 `.spec/knowledge/features/sample.md`） · ADR-075（架构仓 `.spec/decisions/ADR-075-sample-game-repository-and-topology.md`） · ADR-072（架构仓 `.spec/decisions/ADR-072-open-source-boundary-and-licensing.md`） · ADR-070（架构仓 `.spec/decisions/ADR-070-persistence-container-ownership.md`） · ADR-067（架构仓 `.spec/decisions/ADR-067-browser-client-prediction-dotnet-wasm.md`） · ADR-069（架构仓 `.spec/decisions/ADR-069-nativecore-audit-rulings.md`） · `2026-09-07-sample-game-cards.md`（架构仓 `.spec/plans/2026-09-07-sample-game-cards.md`） · `2026-09-07-sample-milestone-architecture-review-prompt.md`（架构仓 `.spec/plans/2026-09-07-sample-milestone-architecture-review-prompt.md`）
+
+## 8. 落单结果（2026-09-07，Workflow lumiogamesengine，蓝图 `sample-milestone-rulings-20260907/r1`）
+
+Owner 授权后全部登记（含 conditional，登记 ≠ 可开工）；21 张新卡全部挂 R-00517 引用边，另 22 条按接口依赖的引用边、16 条评论、7 条追加验收项（R-00462 ×2、R-00468 ×2、R-00469 ×3）均已读回核对。R-00296 / R-00298 为 rejected 不重开，由新卡取代；R-00416 已在 acceptance，只加评论。
+
+- **wave 0**：R-00529 Bot 以 Bearer 携带 launch 票进 lumio-ds；删除 co…（RM-00007）
+- **wave 1**：R-00536 lumio-ds 节拍取自 HostEntry boot 响应的 tickRat…（RM-00006）；R-00535 M8：导表器生成 C# typed Table Reader（只含类型与读法，不…（RM-00009）；R-00544 M9 装载器（Runtime 侧）：读 LumioConfig export →…（RM-00005）；R-00547 HostEntry 配表装载：server.json 加配表目录、content…（RM-00006）；R-00533 ABI / SDK 增 voxel capture / restore 两槽（体…（RM-00001）
+- **wave 2**：R-00538 ABI 增方块-实体绑定 set / clear / get 三槽，随 bloc…（RM-00001）；R-00542 ABI 增「按角色 + 驻留预算建世界」槽（客户端体素副本用）…（RM-00001）；R-00545 契约：Section 在 DS 连接上的帧、首全量后增量与带宽配额…（RM-00001）；R-00543 提交点切携带体素那半：Runtime 经 ABI capture 出体素切、恢复…（RM-00005）；R-00546 lumio-ds runtime+voxel profile：开机建体素世界、b…（RM-00006）；R-00531 稀疏引用表进 capture / restore；放箱子再读档两半同时在…（RM-00003）；R-00539 ECS 0-9 · Local Entity：只在 .Client.cs 声明的…（RM-00005）；R-00549 lumio-ds 体素派发：按视野 / pin 选 Section、首全量后增量…（RM-00006）；R-00548 客户端体素副本 + 本地物理端口：收首包与 Section 增量喂本地世界，技能…（RM-00007）；R-00534 Bot 宿主：CLI 按名装载玩法 + 场景程序集；驱动上下文带只读 World…（RM-00007）；R-00540 跑动：移动作为 GAS Ability（两端同一段代码），服务器权威、Bot 发…（RM-00015）
+- **wave 3**：R-00537 root 表增 spatial 槽（lumio-spatial upsert /…（RM-00001）；R-00541 ECS World.QueryAabb：实体空间索引随 LogicTransfo…（RM-00005）；R-00532 replay 与 RM-00011 验收链改接 Platform（账号 WS +…（RM-00006）；R-00530 Rust→wasm32 调研：VoxelEngine 六 crate + Nat…（RM-00003）
+
+引用边读回说明：项目级图谱按 300 节点截断、需求室子图不显示跨室引用，40 条跨室边以幂等 `PUT` 返回 200（契约「已存在」）确认，3 条室内边经子图读回。bundle 归档于 `~/LumioGames/.workflow-drafts-parked/sample-milestone-rulings-20260907/`。
