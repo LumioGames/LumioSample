@@ -1,0 +1,5 @@
+<Project>
+  <!-- Bare project: Directory.Build.targets is not auto-imported. -->
+  <Import Project="..\Directory.Build.targets" />
+  <Target Name="Build" DependsOnTargets="ResolveLumioSdk" />
+</Project>

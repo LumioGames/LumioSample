@@ -37,10 +37,7 @@ namespace Lumio.Sample.Gameplay.Map
         /// <exception cref="ArgumentNullException"><paramref name="settings"/> 为 <see langword="null"/>。</exception>
         public static MapLayout Generate(MapSettings settings)
         {
-            if (settings is null)
-            {
-                throw new ArgumentNullException(nameof(settings));
-            }
+            ArgumentNullException.ThrowIfNull(settings);
 
             int width = settings.Width;
             int depth = settings.Depth;

@@ -1,0 +1,24 @@
+<Project>
+  <!--
+    Dual-path SDK resolve (ADR-075 §6 / ADR-077 §1).
+    Default gameplay does not PackageReference Lumio.Engine.SDK: nuget.org has not
+    published it, and adding that restore would turn the required external-clone job red.
+    Set LumioRequireSdk=true (future gameplay / local consume proof) to demand a path.
+  -->
+  <Target Name="ResolveLumioSdk" BeforeTargets="BeforeBuild">
+    <PropertyGroup>
+      <_LumioRuntimeRoot Condition="'$(LumioRuntimeRoot)' != ''">$(LumioRuntimeRoot.Trim())</_LumioRuntimeRoot>
+      <_LumioServerRoot Condition="'$(LumioServerRoot)' != ''">$(LumioServerRoot.Trim())</_LumioServerRoot>
+      <_LumioEngineRoot Condition="'$(LumioEngineRoot)' != ''">$(LumioEngineRoot.Trim())</_LumioEngineRoot>
+      <_LumioLocalFeed Condition="'$(LumioLocalFeed)' != ''">$(LumioLocalFeed.Trim())</_LumioLocalFeed>
+      <_LumioRuntimeExists Condition="'$(_LumioRuntimeRoot)' != '' and Exists('$(_LumioRuntimeRoot)')">true</_LumioRuntimeExists>
+      <_LumioRuntimeInvalid Condition="'$(_LumioRuntimeRoot)' != '' and '$(_LumioRuntimeExists)' != 'true'">true</_LumioRuntimeInvalid>
+      <_LumioNupkg Condition="'$(_LumioLocalFeed)' != '' and Exists('$(_LumioLocalFeed)\Lumio.Engine.SDK.0.1.0.nupkg')">true</_LumioNupkg>
+      <LumioSdkMode Condition="'$(_LumioRuntimeExists)' == 'true'">sibling</LumioSdkMode>
+      <LumioSdkMode Condition="'$(LumioSdkMode)' == '' and '$(_LumioRuntimeInvalid)' != 'true' and '$(_LumioNupkg)' == 'true'">nuget</LumioSdkMode>
+    </PropertyGroup>
+    <Error
+      Condition="'$(LumioRequireSdk)' == 'true' and '$(LumioSdkMode)' == ''"
+      Text="LUMIO_SDK_UNRESOLVED: neither a sibling Lumio checkout nor the Lumio.Engine.SDK package was found.%0A%0AChecklist:%0A1. Internal / sibling-dev: set LumioRuntimeRoot (and LumioServerRoot, LumioEngineRoot) to the clone paths. The directories must exist. Empty or whitespace values are ignored and are not a silent fallback.%0A2. External: restore Lumio.Engine.SDK 0.1.0 from nuget.org (or another public feed). Owner has not published this package yet — package IDs are irreversible, so this tree does not push.%0A3. Local proof: pack with `node eng/pack-sdk.mjs` in LumioGameEngine and add a folder-feed (NuGet.config source or LumioLocalFeed) pointing at the nupkg directory.%0A4. There is no placeholder implementation and no silent fallback. Fix one of the three paths above." />
+  </Target>
+</Project>

@@ -52,6 +52,18 @@
 - 配表是**文件**：编译出 JSON，引擎生成只含类型的 C# 读表代码，开机装载一次、帧内不可变。
 - 前置的引擎卡横跨六个仓，按 wave 0–3 排；本仓的实现卡随各 wave 落地。第一阶段的示例是残的（挖不动石头），不当教学材料对外发。
 
+## SDK 解析（S-2）
+
+玩法工程今天仍能在没有任何同级 Lumio 仓、没有任何凭据的机器上 `dotnet build`。`Directory.Packages.props` 已预登记 `Lumio.Engine.SDK` `0.1.0`，但 **Gameplay 故意不 PackageReference 它**：公开 feed 尚未由 Owner 裁决上架，加上去会把必绿的 `external-clone` 作业打红。
+
+双路径（`Directory.Build.targets`，`LumioRequireSdk=true` 时强制）：
+
+1. 内部开发：设置 `LumioRuntimeRoot` / `LumioServerRoot`（及可选 `LumioEngineRoot`）指向同级仓。空值不是静默降级。
+2. 外部：从 nuget.org restore `Lumio.Engine.SDK`（Owner 未发布前不可用）。
+3. 本地证明：Architecture `node eng/pack-sdk.mjs` 产出 nupkg 后，用 `LumioLocalFeed` 或 NuGet.config folder source。
+
+两条都不通时打印 `LUMIO_SDK_UNRESOLVED` 检查清单，没有占位实现。
+
 ## 五分钟跑起来
 
 ```bash
