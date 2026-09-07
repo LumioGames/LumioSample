@@ -50,6 +50,7 @@
 - 一条命令的真拓扑：平台（账号 + 进房票，PostgreSQL 走 docker compose）→ `lumio-ds` → N 个 Bot → 浏览器旁观。
 - 地图是**数据**：底图是一份体素快照文件（一次性脚本经引擎写格再导出，产物不手改），服务器开机加载；不做程序化生成。
 - 配表是**文件**：编译出 JSON，引擎生成只含类型的 C# 读表代码，开机装载一次、帧内不可变。
+- 外部性边界：`dotnet build` / `dotnet test` 是真的外部验收（干净机器、无同级仓）；**一条命令跑完全程第一阶段是内部验收**（平台镜像未公开）。查契约走 SDK 包带的公开使用面，不是回私有仓读。
 - 前置的引擎卡横跨六个仓，按 wave 0–3 排；本仓的实现卡随各 wave 落地。第一阶段的示例是残的（挖不动石头），不当教学材料对外发。
 
 ## 五分钟跑起来
@@ -61,6 +62,9 @@ dotnet test  LumioSample.slnx
 ```
 
 端到端启动器（起平台 + DS + Bot + 浏览器）将落在 [`integration/`](integration/)，目前为空。
+
+> **它第一阶段只在引擎组的内部机器上跑得起来**：这条链要起账号平台，而平台镜像现在是从私有仓源码构建的（`docker-compose.yml` 用 `build: .`），外部机器拿不到。让外部也能一条命令跑通，排在对外发布前做。
+> 上面那两行 `dotnet build` / `dotnet test` 不受影响——**在没有任何同级 Lumio 仓的干净机器上必须绿**，CI 的 external-clone 作业每次都验。
 
 ## 仓库结构
 
@@ -75,9 +79,11 @@ dotnet test  LumioSample.slnx
 
 ## 契约来源
 
-公共语义的唯一事实源是架构仓 `LumioGameEngine`（私有）：ABI 在 `engine/abi/native-abi.json`，线上语义在 `engine/wire/*.json`，设计概要在 `.spec/knowledge/features/`。
+**要查字段、错误码或消息 ID，看 SDK 包带的公开使用面**——XML doc，加上由引擎的 ABI 与 wire 契约单源生成的公开 API / 错误码参考，随 `Lumio.Engine.SDK` NuGet 包一起分发。用这个仓当模板的人不需要引擎仓的权限。
 
-**本仓不复述任何公共契约字段。** 要查字段、错误码或消息 ID，回架构仓读；本仓文档只写「在示例里这条契约怎么用」。
+**本仓不复述任何公共契约字段**，只写「在示例里这条契约怎么用」。
+
+> 现状：这套公开使用面还没做（随 SDK 打包一起落地）。在那之前，契约的事实源是架构仓 `LumioGameEngine`（私有）——ABI 在 `engine/abi/native-abi.json`，线上语义在 `engine/wire/*.json`，设计概要在 `.spec/knowledge/features/`；**没有该仓权限就暂时查不到**，这是已知缺口，不是让你去申请权限。
 
 ## 许可证
 
