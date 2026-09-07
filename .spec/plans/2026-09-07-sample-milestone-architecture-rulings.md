@@ -207,3 +207,5 @@ Owner 授权后全部登记（含 conditional，登记 ≠ 可开工）；21 张
 - **wave 3**：R-00537 root 表增 spatial 槽（lumio-spatial upsert /…（RM-00001）；R-00541 ECS World.QueryAabb：实体空间索引随 LogicTransfo…（RM-00005）；R-00532 replay 与 RM-00011 验收链改接 Platform（账号 WS +…（RM-00006）；R-00530 Rust→wasm32 调研：VoxelEngine 六 crate + Nat…（RM-00003）
 
 引用边读回说明：项目级图谱按 300 节点截断、需求室子图不显示跨室引用，40 条跨室边以幂等 `PUT` 返回 200（契约「已存在」）确认，3 条室内边经子图读回。bundle 归档于 `~/LumioGames/.workflow-drafts-parked/sample-milestone-rulings-20260907/`。
+
+**2026-09-07 追记（Owner「全部做完」授权）**：RM-00015 八张样例卡（R-00519 ~ R-00525、R-00527）线上正文已 PATCH 为 ADR-077 口径（新卡面前置、原正文留作历史）；改 4 条、新增 7 条验收项；绑定 15 条「样例卡 ← 前置卡」引用边；34 项写入全部读回核对，事件日志在归档 bundle 的 `patch-events.ndjson`。
