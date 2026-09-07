@@ -1,0 +1,18 @@
+<Project>
+  <!--
+    全仓共用的编译设置。这里**只放无条件生效的属性**。
+    目标框架与工程角色相关的设置写在各自的 .csproj 里——
+    Directory.Build.props 在 csproj 顶部导入,那时 csproj 自己的属性还没赋值,
+    在这里写 Condition="'$(SomeMarker)' == 'true'" 是永远不成立的死配置。
+  -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>14.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>

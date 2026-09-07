@@ -1,0 +1,49 @@
+name: LumioSample CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build LumioSample.slnx
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      # --minimum-expected-tests 1 让「运行了零个测试」以退出码 9 失败,
+      # 不许把「零个测试」当成通过(LumioGame 踩过这个坑)。
+      - run: dotnet test LumioSample.slnx -- --minimum-expected-tests 1
+
+  external-clone:
+    # 本仓的核心尺子:外部开发者视角。必须在**没有任何同级 Lumio 仓**的干净机器上
+    # clone 后直接编译成功。S-2(SDK 打包)合入前允许红,合入后转必须绿。
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Clone into a bare directory and build
+        run: |
+          echo "::notice::S-2(SDK 打包)未合入前,本作业允许失败;合入后删掉 continue-on-error"
+          git clone --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" /tmp/external
+          cd /tmp/external
+          dotnet build LumioSample.slnx
