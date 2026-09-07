@@ -45,4 +45,8 @@ jobs:
         run: |
           git clone --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" /tmp/external
           cd /tmp/external
+          test -z "${LumioRuntimeRoot:-}"
+          test -z "${LumioServerRoot:-}"
+          test -z "${LumioEngineRoot:-}"
+          test -z "${LumioLocalFeed:-}"
           dotnet build LumioSample.slnx

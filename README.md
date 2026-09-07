@@ -53,6 +53,18 @@
 - 外部性边界：`dotnet build` / `dotnet test` 是真的外部验收（干净机器、无同级仓）；**一条命令跑完全程第一阶段是内部验收**（平台镜像未公开）。查契约走 SDK 包带的公开使用面，不是回私有仓读。
 - 前置的引擎卡横跨六个仓，按 wave 0–3 排；本仓的实现卡随各 wave 落地。第一阶段的示例是残的（挖不动石头），不当教学材料对外发。
 
+## SDK 解析（S-2）
+
+玩法工程今天仍能在没有任何同级 Lumio 仓、没有任何凭据的机器上 `dotnet build`。`Directory.Packages.props` 已预登记 `Lumio.Engine.SDK` `0.1.0`，但 **Gameplay 故意不 PackageReference 它**：公开 feed 尚未由 Owner 裁决上架，加上去会把必绿的 `external-clone` 作业打红。
+
+双路径（`Directory.Build.targets`）：
+
+1. 内部开发：设置 `LumioRuntimeRoot` / `LumioServerRoot`（及可选 `LumioEngineRoot`）指向同级仓。目录存在时注入 Runtime `ProjectReference`（Ecs / Replication）。空值不是静默降级。
+2. 外部：从 nuget.org restore `Lumio.Engine.SDK`（Owner 未发布前不可用）。已 restore 的 global-packages 或 `LumioLocalFeed` nupkg 视为 NuGet 路径。
+3. 本地证明：Architecture `node eng/pack-sdk.mjs` 产出 nupkg 后，用 `LumioLocalFeed` 或 NuGet.config folder source。`eng/ResolveLumioSdk.proj` 设 `LumioRequireSdk=true`。
+
+默认 `dotnet build` 在两条都不通且玩法仍零引擎类型引用时成功（未发布 feed 的已知权衡，保证 `external-clone` 绿）。证明工程不通时打印 `LUMIO_SDK_UNRESOLVED` 检查清单。
+
 ## 五分钟跑起来
 
 ```bash

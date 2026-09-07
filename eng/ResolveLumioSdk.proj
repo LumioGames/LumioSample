@@ -1,0 +1,8 @@
+<Project>
+  <!-- Bare proof project (not the required external-clone job). Directory.Build.targets is not auto-imported. -->
+  <PropertyGroup>
+    <LumioRequireSdk>true</LumioRequireSdk>
+  </PropertyGroup>
+  <Import Project="..\Directory.Build.targets" />
+  <Target Name="Build" DependsOnTargets="ResolveLumioSdk" />
+</Project>

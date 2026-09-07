@@ -1,16 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- 玩法程序集两端共用:服务器 net10.0,客户端 netstandard2.1(Unity / HybridCLR) -->
-    <TargetFrameworks>net10.0;netstandard2.1</TargetFrameworks>
+    <!-- 玩法程序集只编 net10.0。ADR-077 §1：不再编 netstandard2.1。 -->
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Lumio.Sample.Gameplay</AssemblyName>
     <RootNamespace>Lumio.Sample.Gameplay</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- CA1510: ArgumentNullException.ThrowIfNull 在 netstandard2.1 上不存在 -->
-    <NoWarn>$(NoWarn);CA1510</NoWarn>
   </PropertyGroup>
   <!--
-    本工程刻意不引用任何 Lumio 引擎程序集。
-    引擎依赖的解析方式由 S-2(SDK 打包)确定;在那之前只放不依赖引擎的玩法逻辑,
-    以保证「clone 即编译」从第一天起就成立。禁止 ProjectReference 到任何私有仓源码路径。
+    不 PackageReference Lumio.Engine.SDK：nuget.org 尚未上架（Owner 未裁决首次发包），
+    加上去会让必绿的 external-clone 作业 restore 失败。
+    Directory.Packages.props 已预登记包 ID/版本；真正引用等公开 feed 可用之后再开。
+    双路径：LumioRuntimeRoot 存在时 Directory.Build.targets 注入同级 Runtime
+    ProjectReference；否则走已 restore 的包 / LumioLocalFeed。两条都不通且玩法
+    仍零引擎类型引用时默认 build 成功（未发布 feed 的已知权衡）。证明工程
+    eng/ResolveLumioSdk.proj 设 LumioRequireSdk=true 才打印 LUMIO_SDK_UNRESOLVED。
+    禁止把私有仓路径写进本 csproj。
   -->
 </Project>

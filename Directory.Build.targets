@@ -1,0 +1,36 @@
+<Project>
+  <!--
+    Dual-path SDK resolve (ADR-075 §6 / ADR-077 §1).
+    Default gameplay does not PackageReference Lumio.Engine.SDK: nuget.org has not
+    published it, and adding that restore would turn the required external-clone job red.
+    Set LumioRequireSdk=true on a proof project (eng/ResolveLumioSdk.proj) to demand a path.
+    When LumioRuntimeRoot exists, sibling ProjectReferences bind so internal-dev consumes
+    the engine. Empty env (external-clone) leaves Gameplay with zero engine type references.
+  -->
+  <PropertyGroup>
+    <_LumioRuntimeRoot Condition="'$(LumioRuntimeRoot)' != ''">$(LumioRuntimeRoot.Trim())</_LumioRuntimeRoot>
+    <_LumioServerRoot Condition="'$(LumioServerRoot)' != ''">$(LumioServerRoot.Trim())</_LumioServerRoot>
+    <_LumioEngineRoot Condition="'$(LumioEngineRoot)' != ''">$(LumioEngineRoot.Trim())</_LumioEngineRoot>
+    <_LumioLocalFeed Condition="'$(LumioLocalFeed)' != ''">$(LumioLocalFeed.Trim())</_LumioLocalFeed>
+    <_LumioRuntimeExists Condition="'$(_LumioRuntimeRoot)' != '' and Exists('$(_LumioRuntimeRoot)')">true</_LumioRuntimeExists>
+    <_LumioRuntimeInvalid Condition="'$(_LumioRuntimeRoot)' != '' and '$(_LumioRuntimeExists)' != 'true'">true</_LumioRuntimeInvalid>
+    <_LumioNugetPackages Condition="'$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_LumioNugetPackages>
+    <_LumioNugetPackages Condition="'$(_LumioNugetPackages)' == '' and '$(NUGET_PACKAGES)' != ''">$(NUGET_PACKAGES)</_LumioNugetPackages>
+    <_LumioNugetPackages Condition="'$(_LumioNugetPackages)' == '' and '$(USERPROFILE)' != ''">$(USERPROFILE)/.nuget/packages</_LumioNugetPackages>
+    <_LumioNugetPackages Condition="'$(_LumioNugetPackages)' == '' and '$(HOME)' != ''">$(HOME)/.nuget/packages</_LumioNugetPackages>
+    <_LumioNupkg Condition="'$(_LumioLocalFeed)' != '' and Exists('$(_LumioLocalFeed)/Lumio.Engine.SDK.0.1.0.nupkg')">true</_LumioNupkg>
+    <_LumioNupkg Condition="'$(_LumioNupkg)' != 'true' and '$(_LumioLocalFeed)' != '' and Exists('$(_LumioLocalFeed)/lumio.engine.sdk.0.1.0.nupkg')">true</_LumioNupkg>
+    <_LumioGlobalPackage Condition="'$(_LumioNugetPackages)' != '' and Exists('$(_LumioNugetPackages)/lumio.engine.sdk/0.1.0/lumio.engine.sdk.nuspec')">true</_LumioGlobalPackage>
+    <LumioSdkMode Condition="'$(_LumioRuntimeExists)' == 'true'">sibling</LumioSdkMode>
+    <LumioSdkMode Condition="'$(LumioSdkMode)' == '' and '$(_LumioRuntimeInvalid)' != 'true' and ('$(_LumioNupkg)' == 'true' or '$(_LumioGlobalPackage)' == 'true')">nuget</LumioSdkMode>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(LumioSdkMode)' == 'sibling'">
+    <ProjectReference Include="$(LumioRuntimeRoot)/modules/ecs/src/Lumio.GameRuntime.Ecs/Lumio.GameRuntime.Ecs.csproj" Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'" />
+    <ProjectReference Include="$(LumioRuntimeRoot)/modules/replication/src/Lumio.GameRuntime.Replication/Lumio.GameRuntime.Replication.csproj" Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'" />
+  </ItemGroup>
+  <Target Name="ResolveLumioSdk" BeforeTargets="BeforeBuild">
+    <Error
+      Condition="'$(LumioRequireSdk)' == 'true' and '$(LumioSdkMode)' == ''"
+      Text="LUMIO_SDK_UNRESOLVED: neither a sibling Lumio checkout nor the Lumio.Engine.SDK package was found.%0A%0AChecklist:%0A1. Internal / sibling-dev: set LumioRuntimeRoot (and LumioServerRoot, LumioEngineRoot) to the clone paths. The directories must exist. Empty or whitespace values are ignored and are not a silent fallback.%0A2. External: restore Lumio.Engine.SDK 0.1.0 from nuget.org (or another public feed). Owner has not published this package yet — package IDs are irreversible, so this tree does not push.%0A3. Local proof: pack with `node eng/pack-sdk.mjs` in LumioGameEngine and add a folder-feed (NuGet.config source or LumioLocalFeed) pointing at the nupkg directory.%0A4. There is no placeholder implementation and no silent fallback. Fix one of the three paths above." />
+  </Target>
+</Project>
