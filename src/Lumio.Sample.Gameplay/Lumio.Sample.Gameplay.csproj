@@ -10,8 +10,10 @@
     不 PackageReference Lumio.Engine.SDK：nuget.org 尚未上架（Owner 未裁决首次发包），
     加上去会让必绿的 external-clone 作业 restore 失败。
     Directory.Packages.props 已预登记包 ID/版本；真正引用等公开 feed 可用之后再开。
-    现在的双路径：有 LumioRuntimeRoot 走同级仓；否则走包；两条都不通且
-    LumioRequireSdk=true 时打印 LUMIO_SDK_UNRESOLVED 检查清单，不许静默降级。
-    禁止 ProjectReference 到任何私有仓源码路径。
+    双路径：LumioRuntimeRoot 存在时 Directory.Build.targets 注入同级 Runtime
+    ProjectReference；否则走已 restore 的包 / LumioLocalFeed。两条都不通且玩法
+    仍零引擎类型引用时默认 build 成功（未发布 feed 的已知权衡）。证明工程
+    eng/ResolveLumioSdk.proj 设 LumioRequireSdk=true 才打印 LUMIO_SDK_UNRESOLVED。
+    禁止把私有仓路径写进本 csproj。
   -->
 </Project>
