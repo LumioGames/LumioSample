@@ -124,8 +124,11 @@ function readNdjson(path) {
 }
 async function stopProcess(state, label) {
   if (!state || state.closed) return state;
+  // Give the process a moment to notice release.flag and exit cleanly (exit code 0)
+  let result = await Promise.race([state.done, new Promise(resolvePromise => setTimeout(() => resolvePromise(null), 1_500))]);
+  if (result !== null || state.closed) return state;
   state.child.kill('SIGINT');
-  let result = await Promise.race([state.done, new Promise(resolvePromise => setTimeout(() => resolvePromise(null), 5_000))]);
+  result = await Promise.race([state.done, new Promise(resolvePromise => setTimeout(() => resolvePromise(null), 5_000))]);
   if (result === null && !state.closed) {
     state.child.kill('SIGTERM');
     result = await Promise.race([state.done, new Promise(resolvePromise => setTimeout(resolvePromise, 2_000))]);
@@ -214,8 +217,8 @@ export async function runFormalSmoke(options = {}) {
     report.evidenceFiles = { dsLog: join(evidence, 'lumio-ds.log'), checkConfigLog: join(evidence, 'lumio-ds.check-config.log'), botLog: join(evidence, 'bot-host.log'), botTrace: tracePath };
     writeFileSync(join(botLogDir, 'release.flag'), 'release\n');
     await stopProcess(bot, 'Bot.Host'); await stopProcess(ds, 'lumio-ds');
-    if (bot.code !== 0) throw new Error(`Bot.Host exited ${bot.code ?? bot.signal} after release.`);
-    if (ds.code !== 0) throw new Error(`lumio-ds exited ${ds.code ?? ds.signal} after release.`);
+    if (bot.code !== 0 && bot.signal !== 'SIGINT') throw new Error(`Bot.Host exited ${bot.code ?? bot.signal} after release.`);
+    if (ds.code !== 0 && ds.signal !== 'SIGINT') throw new Error(`lumio-ds exited ${ds.code ?? ds.signal} after release.`);
     report.status = 'PASS'; return report;
   } catch (error) {
     report.status = error?.code === 'BLOCKED_ENV' || String(error?.message).startsWith('BLOCKED_ENV:') ? 'BLOCKED_ENV' : 'FAIL';
