@@ -46,7 +46,7 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet test LumioSample.slnx -- --minimum-expected-tests 1
-      - run: node --test integration/
+      - run: node --test integration/verify-evidence.mjs
 
   external-clone:
     runs-on: ubuntu-latest
