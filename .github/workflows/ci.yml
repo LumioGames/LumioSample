@@ -128,6 +128,8 @@ jobs:
             '/home/'
             'C:\Work'
             'C:/Work'
+            # 反斜杠形态:Windows 原生路径写作 C:\Users\<user>\...,正斜杠的 '/Users/' 挡不住它。
+            'C:\Users'
             '/root/'
             'LumioGameEngineArchitecture'
             'LumioGameEngine'
