@@ -94,7 +94,7 @@ jobs:
           git clone --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" /tmp/external
           cd /tmp/external
           git fetch --depth 1 origin "${PR_HEAD}"
-          git checkout "${{ github.event.pull_request.head.sha || github.sha }}"
+          git checkout --detach "${PR_HEAD}"
           test -z "${LumioRuntimeRoot:-}"
           test -z "${LumioServerRoot:-}"
           test -z "${LumioEngineRoot:-}"

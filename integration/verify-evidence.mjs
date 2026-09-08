@@ -221,6 +221,34 @@ test('a changed tick fails and identifies its appliedTicks position', () => {
   }
 })
 
+test('a reordered event fails and identifies its eventOrder position', () => {
+  const dir = tempFixture('event-order-drift')
+  try {
+    const path = join(dir, 'round-2', 'events.ndjson')
+    const changed = readFileSync(path, 'utf8').replace('"event-2","event-3"', '"event-3","event-2"')
+    writeFileSync(path, changed)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(failure => failure.check === 'event-order-compare' && failure.message.includes('eventOrder[1]')))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a different base map hash fails across rounds', () => {
+  const dir = tempFixture('base-map-drift')
+  try {
+    const path = join(dir, 'round-2', 'events.ndjson')
+    const changed = readFileSync(path, 'utf8').replace('69e4920ba15487af6e5c7cada510a61751517f5b95ee9f1e571303564c179bbd', 'a'.repeat(64))
+    writeFileSync(path, changed)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(failure => failure.check === 'base-map-hash-compare'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('an empty log directory fails closed', () => {
   const dir = mkdtempSync(join(dirname(fileURLToPath(import.meta.url)), '.tmp-empty-'))
   try {
