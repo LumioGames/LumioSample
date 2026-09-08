@@ -3,6 +3,8 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <RestorePackagesWithLockFile Condition="'$(LumioLocalFeed)' == ''">true</RestorePackagesWithLockFile>
+    <RestorePackagesWithLockFile Condition="'$(LumioLocalFeed)' != ''">false</RestorePackagesWithLockFile>
+    <NuGetLockFilePath Condition="'$(LumioLocalFeed)' != ''">$(MSBuildProjectDirectory)/obj/packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="xunit.v3" Version="4.0.0" />
