@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using Xunit;
 
@@ -10,32 +11,64 @@ namespace Lumio.Sample.Gameplay.Tests
             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 
         [Fact]
-        public void Gameplay工程不再列出netstandard21()
+        public void GameplayBuildFailsWithoutAnEnginePath()
         {
-            string csproj = File.ReadAllText(Path.Combine(RepoRoot, "src", "Lumio.Sample.Gameplay", "Lumio.Sample.Gameplay.csproj"));
-            Assert.DoesNotContain("<TargetFrameworks>", csproj);
-            Assert.DoesNotContain("net10.0;netstandard2.1", csproj);
-            Assert.Contains("<TargetFramework>net10.0</TargetFramework>", csproj);
-            Assert.DoesNotContain("PackageReference Include=\"Lumio.Engine.SDK\"", csproj);
+            string isolatedPackages = Path.Combine(Path.GetTempPath(), "lumio-sdk-test-" + Guid.NewGuid().ToString("N"));
+            string isolatedIntermediate = Path.Combine(isolatedPackages, "obj");
+            Directory.CreateDirectory(isolatedPackages);
+
+            try
+            {
+                var start = new ProcessStartInfo
+                {
+                    FileName = "dotnet",
+                    WorkingDirectory = RepoRoot,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                };
+                start.ArgumentList.Add("build");
+                start.ArgumentList.Add(Path.Combine("src", "Lumio.Sample.Gameplay", "Lumio.Sample.Gameplay.csproj"));
+                start.ArgumentList.Add("--nologo");
+                start.ArgumentList.Add("-p:LumioRuntimeRoot=");
+                start.ArgumentList.Add("-p:LumioLocalFeed=");
+                start.ArgumentList.Add($"-p:NuGetPackageRoot={isolatedPackages}");
+                start.ArgumentList.Add($"-p:RestoreSources={isolatedPackages}");
+                start.ArgumentList.Add($"-p:BaseIntermediateOutputPath={isolatedIntermediate}{Path.DirectorySeparatorChar}");
+                start.Environment.Remove("LumioRuntimeRoot");
+                start.Environment.Remove("LumioServerRoot");
+                start.Environment.Remove("LumioEngineRoot");
+                start.Environment.Remove("LumioLocalFeed");
+
+                using Process process = Process.Start(start)!;
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+
+                Assert.NotEqual(0, process.ExitCode);
+                Assert.Contains("LUMIO_SDK_UNRESOLVED", output + Environment.NewLine + error);
+            }
+            finally
+            {
+                Directory.Delete(isolatedPackages, recursive: true);
+            }
         }
 
         [Fact]
-        public void 中央包清单已预登记引擎SDK版本()
+        public void CentralPackageManifestPinsTheEngineSdkVersion()
         {
             string props = File.ReadAllText(Path.Combine(RepoRoot, "Directory.Packages.props"));
             Assert.Contains("PackageVersion Include=\"Lumio.Engine.SDK\" Version=\"0.1.0\"", props);
         }
 
         [Fact]
-        public void 双路径在同级仓存在时绑定Runtime工程引用()
+        public void SiblingRuntimePathProvidesBothRuntimeProjectReferences()
         {
             string targets = File.ReadAllText(Path.Combine(RepoRoot, "Directory.Build.targets"));
-            Assert.Contains("ProjectReference Include=\"$(LumioRuntimeRoot)", targets);
             Assert.Contains("Lumio.GameRuntime.Ecs.csproj", targets);
             Assert.Contains("Lumio.GameRuntime.Replication.csproj", targets);
-            Assert.Contains("Condition=\"'$(LumioSdkMode)' == 'sibling'\"", targets);
-            Assert.DoesNotContain("PackageReference Include=\"Lumio.Engine.SDK\"", File.ReadAllText(Path.Combine(RepoRoot, "src", "Lumio.Sample.Gameplay", "Lumio.Sample.Gameplay.csproj")));
-            Assert.Contains("LumioRequireSdk", File.ReadAllText(Path.Combine(RepoRoot, "eng", "ResolveLumioSdk.proj")));
+            Assert.Contains("PackageReference Include=\"Lumio.Engine.SDK\"", targets);
+            Assert.Contains("Condition=\"'$(LumioSdkMode)' == ''\"", targets);
         }
     }
 }

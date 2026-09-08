@@ -7,7 +7,7 @@
   <ItemGroup>
     <PackageVersion Include="xunit.v3" Version="4.0.0" />
     <PackageVersion Include="Microsoft.Testing.Platform" Version="2.3.3" />
-    <!-- Prepared for after Owner publishes. Do not PackageReference this from Gameplay until nuget.org can restore it; that would turn required external-clone red. -->
+    <!-- Gameplay consumes this package when no sibling Runtime checkout is available. -->
     <PackageVersion Include="Lumio.Engine.SDK" Version="0.1.0" />
   </ItemGroup>
 </Project>

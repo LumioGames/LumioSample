@@ -8,3 +8,5 @@
 - [`.spec/decisions/`](.spec/decisions/README.md) —— 决策唯一落点(ADR)
 
 > 通用规程与硬红线由插件在每次会话注入(Claude Code);无此机制的宿主请主动读取上述文件。
+
+收口门槛：`dotnet build LumioSample.slnx`；`dotnet test LumioSample.slnx -- --minimum-expected-tests 1`；`node --test integration/`（至少 1 个测试）；`node .spec/tools/spec-lint.mjs`。

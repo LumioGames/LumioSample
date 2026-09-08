@@ -1,9 +1,17 @@
-# integration —— 端到端启动器与证据对账
+# integration - evidence verification
 
-一条命令起账号服 → DS → N 个 Bot → 浏览器 → 收结构化日志，然后两轮同种子逐位比哈希。
+`verify-evidence.mjs` is the deterministic S-7 evidence gate. It reads only the two
+round log directories, normalizes CRLF to LF before SHA-256, and compares
+`eventOrder` and `appliedTicks` position by position. It never synthesizes fields,
+compares lengths alone, or treats an empty log directory as success.
 
-- 日志落 `logs/<日期-各仓短SHA>/`（已 gitignore）。
-- **强杀进程不算通过证据**；**空日志必须 FAIL**。
-- 只读日志做对账，**不得合成** `eventOrder` / `appliedTicks` 任何字段。
+Run the committed minimal oracle with:
 
-> 目前为空。落地卡 S-3 / S-7 见架构仓 `.spec/plans/2026-09-07-sample-game-cards.md`。
+```bash
+node --test integration/verify-evidence.mjs
+node integration/verify-evidence.mjs --dir integration/fixtures/oracle-min
+```
+
+Real runs should write `logs/<date-short-sha>/round-1` and `round-2`; each round
+must contain NDJSON, JSONL, or log files with the authoritative fields and one
+`baseMapSha256` value.

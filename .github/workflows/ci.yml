@@ -12,8 +12,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      LumioRuntimeRoot: ${{ github.workspace }}/.runtime-source
     steps:
       - uses: actions/checkout@v7
+      - name: Checkout LumioGameRuntime
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameRuntime
+          path: .runtime-source
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -22,31 +31,73 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      LumioRuntimeRoot: ${{ github.workspace }}/.runtime-source
     steps:
       - uses: actions/checkout@v7
+      - name: Checkout LumioGameRuntime
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameRuntime
+          path: .runtime-source
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      # --minimum-expected-tests 1 让「运行了零个测试」以退出码 9 失败,
-      # 不许把「零个测试」当成通过(LumioGame 踩过这个坑)。
       - run: dotnet test LumioSample.slnx -- --minimum-expected-tests 1
+      - run: node --test integration/
 
   external-clone:
-    # 本仓的核心尺子:外部开发者视角。必须在**没有任何同级 Lumio 仓**的干净机器上
-    # clone 后直接编译成功——「clone 即编译」是这个仓存在的全部理由。
-    # 引擎包接进来(S-2)之后这条依然要绿;绿不了就是包没发好,当天修,不要放宽这里。
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v7
+        with:
+          path: sample-source
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
-      - name: Clone into a bare directory and build
+          global-json-file: sample-source/global.json
+      - name: Checkout LumioGameEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameEngine
+          path: engine-source
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioGameRuntime
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameRuntime
+          path: runtime-source
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioNativeCore
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioNativeCore
+          path: native-core-source
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioVoxelEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioVoxelEngine
+          path: voxel-source
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Clone PR head and build with a locally packed SDK
+        working-directory: sample-source
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           git clone --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" /tmp/external
           cd /tmp/external
+          git fetch --depth 1 origin "${PR_HEAD}"
+          git checkout "${{ github.event.pull_request.head.sha || github.sha }}"
           test -z "${LumioRuntimeRoot:-}"
           test -z "${LumioServerRoot:-}"
           test -z "${LumioEngineRoot:-}"
           test -z "${LumioLocalFeed:-}"
-          dotnet build LumioSample.slnx
+          node "$GITHUB_WORKSPACE/engine-source/eng/pack-sdk.mjs" --out /tmp/lumio-sdk-feed --runtime-root "$GITHUB_WORKSPACE/runtime-source" --native-core-root "$GITHUB_WORKSPACE/native-core-source" --voxel-root "$GITHUB_WORKSPACE/voxel-source"
+          dotnet build LumioSample.slnx -p:LumioLocalFeed=/tmp/lumio-sdk-feed
