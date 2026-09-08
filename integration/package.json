@@ -1,4 +1,7 @@
 {
   "type": "module",
-  "main": "./verify-evidence.mjs"
+  "main": "./test.mjs",
+  "scripts": {
+    "formal": "node formal-ds-smoke.mjs"
+  }
 }
