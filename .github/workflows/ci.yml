@@ -137,7 +137,6 @@ jobs:
             'LumioServer'
             'LumioClient'
             'LumioSample'
-            'lumio'  # TEMP(R-00560 AC4 反例自证): 必然命中，取证后立即回滚
           )
 
           # strings 来自 binutils，ubuntu-latest 自带；缺了要显式炸而不是静默跳过抽查。
