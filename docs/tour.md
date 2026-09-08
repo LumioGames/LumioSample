@@ -23,6 +23,6 @@
 
 ## 第 5 步：加载底图
 
-底图是规范快照文件，不由玩法程序集程序化生成。首次启动从 [`maps/sample.voxel`](../maps/sample.voxel) 加载；DS 开机 restore 和快照写入由 S-5（R-00522）接线。
+底图是规范快照文件，不由玩法程序集程序化生成。[`maps/sample.voxel`](../maps/sample.voxel) 为占位文件，不可 restore；真底图由 S-5 经 SDK 写格 + capture 产出；DS 开机 restore 和快照写入由 S-5（R-00522）接线。
 
 `integration/verify-evidence.mjs` 只读取两轮日志，逐位核对 `eventOrder` 与 `appliedTicks`，并比较日志中的 `baseMapSha256`。它不从其它字段推导事件，也不使用多重集比较。

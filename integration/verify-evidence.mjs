@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
@@ -103,8 +104,36 @@ function verifyRound(roundDir, label) {
         continue
       }
       if (hasOrder) {
-        eventOrder.push(...valuesOf(value.eventOrder))
-        appliedTicks.push(...valuesOf(value.appliedTicks))
+        const orders = valuesOf(value.eventOrder)
+        const ticks = valuesOf(value.appliedTicks)
+        for (let idx = 0; idx < orders.length; idx += 1) {
+          const item = orders[idx]
+          if (typeof item !== 'string' || item.length === 0) {
+            failures.push({
+              check: 'record:eventOrder-contract',
+              message: `${label}/${name}:${record.line} eventOrder[${idx}] must be a non-empty string, got ${display(item)}`,
+            })
+          }
+        }
+        for (let idx = 0; idx < ticks.length; idx += 1) {
+          const tick = ticks[idx]
+          if (tick === null || tick === undefined || typeof tick !== 'number' || !Number.isInteger(tick) || tick < 0) {
+            failures.push({
+              check: 'record:appliedTicks-contract',
+              message: `${label}/${name}:${record.line} appliedTicks[${idx}] must be a non-negative integer, got ${display(tick)}`,
+            })
+          } else if (appliedTicks.length > 0) {
+            const prev = appliedTicks[appliedTicks.length - 1]
+            if (typeof prev === 'number' && Number.isInteger(prev) && tick < prev) {
+              failures.push({
+                check: 'record:appliedTicks-monotonic',
+                message: `${label}/${name}:${record.line} appliedTicks[${idx}] must be monotonic: got ${tick}, previous was ${prev}`,
+              })
+            }
+          }
+          appliedTicks.push(tick)
+        }
+        eventOrder.push(...orders)
       }
     }
   }
@@ -280,6 +309,57 @@ test('fields are read from logs and are never synthesized', () => {
   }
 })
 
+test('appliedTicks with null fails and identifies position', () => {
+  const dir = tempFixture('tick-null')
+  try {
+    const path = join(dir, 'round-1', 'events.ndjson')
+    const changed = readFileSync(path, 'utf8').replace('"appliedTicks":[1,2,3]', '"appliedTicks":[1,null,3]')
+    writeFileSync(path, changed)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(f => f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[1]'))))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('appliedTicks with negative integer fails and identifies position', () => {
+  const dir = tempFixture('tick-negative')
+  try {
+    const path = join(dir, 'round-1', 'events.ndjson')
+    const changed = readFileSync(path, 'utf8').replace('"appliedTicks":[1,2,3]', '"appliedTicks":[1,-2,3]')
+    writeFileSync(path, changed)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(f => f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[1]'))))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('appliedTicks with non-integer fails and identifies position', () => {
+  const dir = tempFixture('tick-non-integer')
+  try {
+    const path = join(dir, 'round-1', 'events.ndjson')
+    const changed = readFileSync(path, 'utf8').replace('"appliedTicks":[1,2,3]', '"appliedTicks":[1,2.5,3]')
+    writeFileSync(path, changed)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(f => f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[1]'))))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('CLI without --dir exits with code 2 and usage message', () => {
+  const scriptPath = fileURLToPath(import.meta.url)
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT
+  const res = spawnSync(process.execPath, [scriptPath], { env, encoding: 'utf8' })
+  assert.equal(res.status, 2)
+  assert.match(res.stderr, /usage: node verify-evidence\.mjs --dir <logs>/)
+})
+
 function mkdirRoundDirs(root) {
   for (const round of ['round-1', 'round-2']) {
     mkdirSync(join(root, round), { recursive: true })
@@ -292,8 +372,8 @@ function isCliMain() {
 
 if (isCliMain() && !process.env.NODE_TEST_CONTEXT) {
   const index = process.argv.indexOf('--dir')
-  const dir = index >= 0 ? process.argv[index + 1] : join(FIXTURE)
-  if (index >= 0 && !dir) {
+  const dir = index >= 0 ? process.argv[index + 1] : undefined
+  if (!dir) {
     process.stderr.write('usage: node verify-evidence.mjs --dir <logs>\n')
     process.exitCode = 2
   } else {

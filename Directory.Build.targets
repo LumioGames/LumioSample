@@ -31,6 +31,7 @@
 
   <PropertyGroup Condition="'$(LumioSdkMode)' == 'nuget' and '$(_LumioNupkg)' == 'true'">
     <RestoreAdditionalProjectSources>$(_LumioLocalFeed);$(RestoreAdditionalProjectSources)</RestoreAdditionalProjectSources>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup Condition="'$(LumioSdkMode)' == 'nuget' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
     <PackageReference Include="Lumio.Engine.SDK" />

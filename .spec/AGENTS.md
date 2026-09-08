@@ -5,7 +5,7 @@
 
 ## 项目是什么
 
-游戏「示例」——Lumio 引擎的参考实现，也是新游戏的模板仓。C# (net10.0 + netstandard2.1) 玩法程序集 + Node 端到端启动器。
+游戏「示例」——Lumio 引擎的参考实现，也是新游戏的模板仓。C# (net10.0) 玩法程序集 + Node 端到端启动器。
 
 - **只做十四步链路**：登录 → 起服 → 进房 → 体素地图 → 入场 → 跑动 → 聊天 → 挖掘 → 储量 → 变空气 → 掉矿 → 拾取 → 存档 → 重启恢复。需求真值在架构仓 `.spec/knowledge/features/sample.md`。
 - **不做**：伤害、死亡、重生、AI、胜负、美术、性能验收。战斗面归炸弹人切片。
@@ -22,10 +22,10 @@ dotnet test  LumioSample.slnx
 碰 `integration/` 再加：
 
 ```bash
-node --test integration/
+node --test integration/verify-evidence.mjs
 ```
 
-**「运行了零个测试」不算通过**——CI 用 `--minimum-expected-tests 1` 把它判为失败（退出码 9）。
+**「运行了零个测试」不算通过**——显式指定测试文件确保至少执行 1 个测试；CI 亦显式指定目标。
 
 ## 项目专属约定
 
