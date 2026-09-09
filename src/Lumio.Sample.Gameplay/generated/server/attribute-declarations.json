@@ -1,0 +1,30 @@
+[
+  {
+    "attributeId": "ChatComponent.lastMessageText",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "utf8-string",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "ChatComponent.lastMessageTick",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "u64",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "OrePileComponent.amount",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "i32",
+    "visibility": "room-public"
+  },
+  {
+    "attributeId": "VeinReserveComponent.remaining",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "i32",
+    "visibility": "room-public"
+  }
+]

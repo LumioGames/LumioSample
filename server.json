@@ -1,0 +1,64 @@
+{
+  "allocation": {
+    "serverAudience": "replace-server-audience",
+    "gameId": "replace-game-id",
+    "gameReleaseId": "replace-release-id",
+    "contractId": "replace-contract-id",
+    "roomId": "replace-room-id",
+    "allocationId": "replace-allocation-id"
+  },
+  "admission_key_id": 1,
+  "admission_public_key_hex": "REPLACE_WITH_PLATFORM_32_BYTE_PUBLIC_KEY_HEX",
+  "clr": {
+    "engine_native": "sdk/liblumio_engine.so",
+    "hostfxr": "dotnet/libhostfxr.so",
+    "runtime_config": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.runtimeconfig.json",
+    "assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll",
+    "entry_type": "replace-host-entry-type",
+    "entry_method": "replace-host-entry-method",
+    "replication_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Replication.dll",
+    "ecs_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Ecs.dll",
+    "registry_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll"
+  },
+  "store_path": "state/room",
+  "config_dir": "config",
+  "world_profile": "runtime-only",
+  "durability": "process-crash",
+  "checkpoint_seconds": 30,
+  "checkpoint_max_bytes": 67108864,
+  "watchdog_timeout_ms": 2000,
+  "logging": {
+    "dir": "logs",
+    "min_level": "info",
+    "file_size_mb": 64,
+    "retention_days": 7,
+    "mailbox_capacity": 8192
+  },
+  "transport": {
+    "listen_address": "127.0.0.1",
+    "listen_port": 0,
+    "max_socket_tasks": 1024,
+    "max_admissions_per_second": 32,
+    "handshake_timeout_ms": 5000,
+    "write_timeout_ms": 5000,
+    "max_wire_text_bytes": 65536,
+    "egress_slots": 16,
+    "unauthenticated_quota_bytes": 1024,
+    "idle_timeout_ms": 30000
+  },
+  "host": {
+    "max_pending_admissions": 1024,
+    "max_pending_egress_per_connection": 8,
+    "max_pending_egress_connections": 1024,
+    "max_deferred_frames_per_connection": 64,
+    "max_deferred_frame_bytes_per_connection": 262144,
+    "max_deferred_frame_connections": 1024,
+    "ingress_queue_per_connection": 32,
+    "max_pending_wire_inputs": 1024,
+    "max_chat_inputs_per_tick": 32,
+    "max_pending_queries": 1024,
+    "reconnect_window_ms": 300000,
+    "owner_call_timeout_ms": 2000,
+    "owner_cold_start_timeout_ms": 30000
+  }
+}

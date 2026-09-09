@@ -1,0 +1,299 @@
+#!/usr/bin/env node
+
+/**
+ * S-3 one-command launcher (R-00520).
+ *
+ * Real topology: Platform compose + lumio-ds + N C# Bot.Host processes, staggered
+ * admit, unique launch tickets. Internal-only while the Platform image is private.
+ * Missing process-tools / Platform / DS / Bot.Host is BLOCKED_ENV (exit 2), not a pass.
+ * forceCleanup is never treated as proof.
+ */
+
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loginAndLaunch } from './account-client.mjs';
+import { buildBotArgs, buildServerArgs, findDsReady, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
+import { blocked, loadProcessTools } from './engine-tools.mjs';
+import { formatStep, planBotLogins, TOUR_STEPS } from './tour-steps.mjs';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const DEFAULT_STAGGER_MS = 250;
+const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_ACCOUNT = 'Bot1';
+
+export class UsageError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'UsageError';
+    this.code = 'USAGE';
+  }
+}
+
+function requiredValue(value, label) {
+  if (value == null || String(value).trim() === '') throw blocked(`${label} is not set.`);
+  return String(value).trim();
+}
+
+function requiredFile(path, label) {
+  const value = requiredValue(path, label);
+  if (!existsSync(value)) throw blocked(`${label} does not point to a file: ${value}`);
+  return resolve(value);
+}
+
+export function parseLaunchArgs(argv = process.argv.slice(2), environment = process.env) {
+  const options = {
+    bots: Number(environment.LUMIO_BOTS || 2),
+    staggerMs: Number(environment.LUMIO_STAGGER_MS || DEFAULT_STAGGER_MS),
+    durationMs: Number(environment.LUMIO_DURATION_MS || 0),
+    origin: environment.LUMIO_PLATFORM_ORIGIN,
+    slug: environment.LUMIO_GAME_SLUG || 'sample',
+    composeFile: environment.LUMIO_PLATFORM_COMPOSE,
+    dsExe: environment.LUMIO_DS_EXE,
+    dsConfig: environment.LUMIO_DS_CONFIG || 'server.json',
+    botDll: environment.LUMIO_BOT_DLL,
+    engineNative: environment.LUMIO_ENGINE_NATIVE,
+    endpoint: environment.LUMIO_DS_ENDPOINT,
+    dotnet: environment.LUMIO_DOTNET || 'dotnet',
+    timeoutMs: Number(environment.LUMIO_LAUNCH_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
+    evidenceDir: environment.LUMIO_LAUNCH_EVIDENCE_DIR,
+  };
+  const names = {
+    bots: 'bots',
+    'stagger-ms': 'staggerMs',
+    'duration-ms': 'durationMs',
+    origin: 'origin',
+    slug: 'slug',
+    compose: 'composeFile',
+    'ds-exe': 'dsExe',
+    'ds-config': 'dsConfig',
+    'bot-dll': 'botDll',
+    'engine-native': 'engineNative',
+    endpoint: 'endpoint',
+    dotnet: 'dotnet',
+    'timeout-ms': 'timeoutMs',
+    'evidence-dir': 'evidenceDir',
+  };
+  for (let index = 0; index < argv.length; index += 1) {
+    const flag = argv[index];
+    if (flag === '--help' || flag === '-h') return { help: true };
+    if (!flag.startsWith('--')) throw new UsageError(`unknown option: ${flag}`);
+    const key = names[flag.slice(2)];
+    if (!key) throw new UsageError(`unknown option: ${flag}`);
+    if (index + 1 >= argv.length || argv[index + 1].startsWith('--')) throw new UsageError(`${flag} requires a value`);
+    const value = argv[++index];
+    options[key] = key === 'bots' || key.endsWith('Ms') ? Number(value) : value;
+  }
+  if (!Number.isInteger(options.bots) || options.bots < 1) throw new UsageError('--bots must be a positive integer.');
+  if (!Number.isInteger(options.staggerMs) || options.staggerMs < 0) throw new UsageError('--stagger-ms must be a non-negative integer.');
+  if (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 1_000) throw new UsageError('--timeout-ms must be an integer of at least 1000.');
+  return options;
+}
+
+export function collectLaunchTickets(sessions) {
+  const tickets = sessions.map((session) => session.launch.admissionCredential);
+  const unique = new Set(tickets);
+  if (unique.size !== tickets.length) {
+    throw new Error('launch tickets must be unique per bot; reuse is forbidden.');
+  }
+  return tickets;
+}
+
+async function sleep(ms) {
+  if (ms <= 0) return;
+  await new Promise((resolvePromise) => {
+    const timer = setTimeout(resolvePromise, ms);
+    timer.unref?.();
+  });
+}
+
+function printStep(log, id, status, detail) {
+  const line = formatStep(id, status, detail);
+  log(line);
+  return line;
+}
+
+function usage() {
+  return [
+    'Usage: node integration/launcher.mjs --bots N [--stagger-ms 250] [--origin url]',
+    'Internal-only first stage: Platform image is built from a private compose file.',
+    'Required for a live run: LUMIO_PLATFORM_ORIGIN, LUMIO_DS_EXE, LUMIO_BOT_DLL,',
+    '  LUMIO_ENGINE_NATIVE, LUMIO_BOT_TOOL_CREDENTIAL, sibling process-tools.mjs.',
+    'Missing prerequisites exit 2 with VERIFICATION_STATUS=BLOCKED_ENV.',
+  ].join('\n');
+}
+
+export async function runLauncher(options = {}) {
+  const root = resolve(options.root ?? ROOT);
+  const log = options.log ?? ((line) => process.stdout.write(`${line}\n`));
+  const env = options.env ?? process.env;
+  const parent = join(root, 'integration', 'logs');
+  mkdirSync(parent, { recursive: true });
+  const evidence = options.evidenceDir ? resolve(options.evidenceDir) : mkdtempSync(join(parent, 'launch-'));
+  mkdirSync(evidence, { recursive: true });
+  const reportPath = join(evidence, 'verification.json');
+  const report = {
+    version: 1,
+    status: 'RUNNING',
+    scope: 'sample-launcher',
+    internalOnly: true,
+    evidence,
+    steps: [],
+  };
+  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+
+  const record = (id, status, detail) => {
+    const line = printStep(log, id, status, detail);
+    report.steps.push({ id, status, detail: detail || '', line });
+    return line;
+  };
+
+  let tools;
+  const children = [];
+  try {
+    try {
+      tools = options.processTools ?? await loadProcessTools({ env, repoRoot: root });
+    } catch (error) {
+      if (error?.code !== 'BLOCKED_ENV') throw error;
+      for (const step of TOUR_STEPS) record(step.id, 'BLOCKED_ENV', error.message);
+      report.status = 'BLOCKED_ENV';
+      report.error = error.message;
+      return report;
+    }
+
+    const logins = planBotLogins(options.bots ?? 2);
+    record('01', existsSync(join(root, 'config', 'movement.json')) ? 'READY' : 'BLOCKED_ENV', 'config JSON files; M8 typed reader is not wired');
+
+    let sessions = options.sessions;
+    if (!sessions) {
+      if (!options.origin) {
+        record('02', 'BLOCKED_ENV', 'LUMIO_PLATFORM_ORIGIN is not set (Platform image is not public).');
+      } else {
+        sessions = [];
+        for (const [index, loginName] of logins.entries()) {
+          if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
+          const session = await (options.loginAndLaunch ?? loginAndLaunch)({
+            origin: options.origin,
+            loginName,
+            slug: options.slug,
+            env,
+            log: (line) => log(line),
+          });
+          sessions.push(session);
+        }
+        collectLaunchTickets(sessions);
+        record('02', 'PASS', `${sessions.length} unique launch tickets`);
+      }
+    } else {
+      collectLaunchTickets(sessions);
+      record('02', 'PASS', `${sessions.length} unique launch tickets`);
+    }
+
+    if (!options.dsExe || !existsSync(options.dsExe)) {
+      record('03', 'BLOCKED_ENV', 'LUMIO_DS_EXE is not set or is not a file.');
+      for (const step of TOUR_STEPS.slice(3)) record(step.id, 'BLOCKED_ENV', 'waiting for lumio-ds');
+      report.status = 'BLOCKED_ENV';
+      return report;
+    }
+
+    const dsExe = requiredFile(options.dsExe, 'LUMIO_DS_EXE');
+    const dsConfig = requiredFile(options.dsConfig ?? join(root, 'server.json'), 'LUMIO_DS_CONFIG');
+    const dsArgs = buildServerArgs(dsConfig);
+    const check = tools.command(dsExe, [...dsArgs, '--check-config'], { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.check-config.log') });
+    log(`lumio-ds --check-config\n${check ?? ''}`);
+    const ds = tools.startLogged(dsExe, dsArgs, { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.log') });
+    children.push(ds);
+    const started = Date.now();
+    let ready = findDsReady(ds.stdout);
+    while (!ready && Date.now() - started < (options.timeoutMs ?? DEFAULT_TIMEOUT_MS)) {
+      tools.assertAlive(ds);
+      await sleep(25);
+      ready = findDsReady(ds.stdout);
+    }
+    if (!ready) throw new Error('Timed out waiting for lumio-ds DS_READY. See integration/logs.');
+    const endpoint = resolveDsEndpoint(ready, options.endpoint);
+    record('03', 'PASS', `endpoint=${endpoint}`);
+
+    if (!options.botDll || !existsSync(options.botDll)) {
+      record('04', 'BLOCKED_ENV', 'LUMIO_BOT_DLL is not set (Client Bot.Host / R-00534).');
+      for (const step of TOUR_STEPS.slice(4)) record(step.id, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
+      report.status = 'BLOCKED_ENV';
+      return report;
+    }
+
+    if (!sessions) throw blocked('no launch tickets; cannot admit bots.');
+    const engineNative = requiredFile(options.engineNative, 'LUMIO_ENGINE_NATIVE');
+    const dotnet = requiredValue(options.dotnet || 'dotnet', 'LUMIO_DOTNET');
+    for (const [index, session] of sessions.entries()) {
+      if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
+      const botLogDir = join(evidence, `bot-${index + 1}`);
+      mkdirSync(botLogDir, { recursive: true });
+      const args = buildBotArgs({
+        botDll: requiredFile(options.botDll, 'LUMIO_BOT_DLL'),
+        endpoint,
+        admissionTicket: session.launch.admissionCredential,
+        engineNative,
+        logDir: botLogDir,
+        accountFrom: session.login.loginName,
+        accountTo: session.login.loginName,
+      });
+      log(`$ ${JSON.stringify([dotnet, ...redactArgs(args, session.launch.admissionCredential)])}`);
+      children.push(tools.startLogged(dotnet, args, {
+        cwd: dirname(options.botDll),
+        log: join(evidence, `bot-${index + 1}.log`),
+      }));
+    }
+    record('04', 'PASS', `${sessions.length} bots admitted with unique tickets`);
+    record('05', 'BLOCKED_ENV', 'maps/sample.voxel is a placeholder; capture/restore ABI is not public (R-00522).');
+    record('06', 'READY', 'PlayerEntity is declared; live spawn is the DS admit path.');
+    record('07', 'BLOCKED_ENV', 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
+    record('08', 'BLOCKED_ENV', 'ChatComponent is in-tree; live chat waits Bot.Host.');
+    record('09', 'BLOCKED_ENV', 'MineAbility is in-tree; mine admit R-00468 is an engine gap.');
+    record('10', 'BLOCKED_ENV', 'VeinReserveComponent decrements in-process; voxel bind is R-00469.');
+    record('11', 'BLOCKED_ENV', 'MineAbility.TryRequestAirWrite is false until voxel batch write exists.');
+    record('12', 'BLOCKED_ENV', 'OreDropEntity is declared; structure-commit R-00462 is an engine gap.');
+    record('13', 'BLOCKED_ENV', 'PickupOreEffect is declared; Effect settlement on DS waits R-00480.');
+    record('14', 'BLOCKED_ENV', 'save/restore waits R-00498 / R-00507; world_profile is still runtime-only.');
+    report.status = report.steps.some((step) => step.status === 'BLOCKED_ENV') ? 'BLOCKED_ENV' : 'PASS';
+    return report;
+  } catch (error) {
+    report.status = error?.code === 'BLOCKED_ENV' || String(error?.message).startsWith('BLOCKED_ENV:')
+      ? 'BLOCKED_ENV'
+      : 'FAIL';
+    report.error = String(error?.message ?? error);
+    if (report.status === 'FAIL') {
+      log(`DS/Bot failure: ${report.error}`);
+      log(`evidence=${evidence}`);
+    }
+    throw error;
+  } finally {
+    if (tools) {
+      for (const child of children.reverse()) {
+        await tools.forceCleanup(child);
+      }
+    }
+    writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    process.stdout.write(`VERIFICATION_STATUS=${report.status}\nEVIDENCE_PATH=${evidence}\n`);
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+  try {
+    const options = parseLaunchArgs();
+    if (options.help) process.stdout.write(`${usage()}\n`);
+    else {
+      const report = await runLauncher(options);
+      process.exitCode = report.status === 'PASS' ? 0 : report.status === 'BLOCKED_ENV' ? 2 : 1;
+    }
+  } catch (error) {
+    if (error?.code === 'USAGE') {
+      process.stderr.write(`${error.message}\n${usage()}\n`);
+      process.exitCode = 1;
+    } else {
+      process.stderr.write(`${error?.message ?? error}\n`);
+      process.exitCode = error?.code === 'BLOCKED_ENV' || String(error?.message).startsWith('BLOCKED_ENV:') ? 2 : 1;
+    }
+  }
+}
+
+export { DEFAULT_ACCOUNT, TOUR_STEPS, formatStep, planBotLogins, usage };

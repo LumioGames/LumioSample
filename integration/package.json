@@ -2,6 +2,8 @@
   "type": "module",
   "main": "./test.mjs",
   "scripts": {
-    "formal": "node formal-ds-smoke.mjs"
+    "launch": "node launcher.mjs",
+    "stress": "node stress-move.mjs",
+    "capture-basemap": "node capture-basemap.mjs"
   }
 }

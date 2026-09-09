@@ -24,8 +24,7 @@ metadata:
 | 文档 | 一句话 |
 |------|--------|
 | [`features/_TEMPLATE.md`](features/_TEMPLATE.md) | 新功能文档模板——新增功能记录时照此建,放对 领域 / 模块 |
-
-> 暂无正式功能文档。
+| [`features/sample-gameplay.md`](features/sample-gameplay.md) | 示例玩法声明与启动器落点——实体/技能/配表/十四步脚本怎么接引擎;改玩法或启动器时查 |
 
 ## lessons(经验教训 · 复发问题暂存区)
 
