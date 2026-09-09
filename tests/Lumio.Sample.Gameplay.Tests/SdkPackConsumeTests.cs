@@ -37,8 +37,6 @@ namespace Lumio.Sample.Gameplay.Tests
                 start.ArgumentList.Add($"-p:BaseIntermediateOutputPath={isolatedIntermediate}{Path.DirectorySeparatorChar}");
                 start.ArgumentList.Add($"-p:NuGetLockFilePath={Path.Combine(isolatedIntermediate, "packages.lock.json")}");
                 start.Environment.Remove("LumioRuntimeRoot");
-                start.Environment.Remove("LumioServerRoot");
-                start.Environment.Remove("LumioEngineRoot");
                 start.Environment.Remove("LumioLocalFeed");
 
                 using Process process = Process.Start(start)!;
@@ -86,8 +84,6 @@ namespace Lumio.Sample.Gameplay.Tests
                 start.ArgumentList.Add($"-p:BaseIntermediateOutputPath={isolatedIntermediate}{Path.DirectorySeparatorChar}");
                 start.ArgumentList.Add($"-p:NuGetLockFilePath={Path.Combine(isolatedIntermediate, "packages.lock.json")}");
                 start.Environment.Remove("LumioRuntimeRoot");
-                start.Environment.Remove("LumioServerRoot");
-                start.Environment.Remove("LumioEngineRoot");
                 start.Environment.Remove("LumioLocalFeed");
 
                 using Process process = Process.Start(start)!;

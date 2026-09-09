@@ -4,7 +4,5 @@
     <AssemblyName>Lumio.Sample.Gameplay</AssemblyName>
     <RootNamespace>Lumio.Sample.Gameplay</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 </Project>
