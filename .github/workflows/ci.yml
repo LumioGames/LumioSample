@@ -62,28 +62,28 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioGameEngine
-          path: engine-source
+          path: LumioGameEngine
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - name: Checkout LumioGameRuntime
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioGameRuntime
-          path: runtime-source
+          path: LumioGameRuntime
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - name: Checkout LumioNativeCore
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioNativeCore
-          path: native-core-source
+          path: LumioNativeCore
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - name: Checkout LumioVoxelEngine
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioVoxelEngine
-          path: voxel-source
+          path: LumioVoxelEngine
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - name: Clone PR head and pack the SDK locally
@@ -96,10 +96,8 @@ jobs:
           git fetch --depth 1 origin "${PR_HEAD}"
           git checkout --detach "${{ github.event.pull_request.head.sha || github.sha }}"
           test -z "${LumioRuntimeRoot:-}"
-          test -z "${LumioServerRoot:-}"
-          test -z "${LumioEngineRoot:-}"
           test -z "${LumioLocalFeed:-}"
-          node "$GITHUB_WORKSPACE/engine-source/eng/pack-sdk.mjs" --out /tmp/lumio-sdk-feed --runtime-root "$GITHUB_WORKSPACE/runtime-source" --native-core-root "$GITHUB_WORKSPACE/native-core-source" --voxel-root "$GITHUB_WORKSPACE/voxel-source"
+          node "$GITHUB_WORKSPACE/LumioGameEngine/eng/pack-sdk.mjs" --out /tmp/lumio-sdk-feed --runtime-root "$GITHUB_WORKSPACE/LumioGameRuntime" --native-core-root "$GITHUB_WORKSPACE/LumioNativeCore" --voxel-root "$GITHUB_WORKSPACE/LumioVoxelEngine"
 
       # 这个作业是全项目唯一真在 Linux x64 上跑 pack-sdk.mjs 的地方，所以它也是
       # R-00519 AC3（发布的 native 无开发机路径 / 私仓名）唯一能取到受验产物的落点。
@@ -113,36 +111,16 @@ jobs:
           path: /tmp/lumio-sdk-feed/*.nupkg
           if-no-files-found: error
 
-      # 泄漏抽查：解开刚打出来的包，对 runtimes/<rid>/native/ 下每个二进制扫一遍词表。
-      # 命中即 exit 1——这是闸门不是提示，绝不能降级成 warning 或删词表变绿。
+      # 泄漏抽查：解开刚打出来的包，对 runtimes/<rid>/native/ 下每个二进制扫一遍。
+      # 词表与匹配语义的唯一落点是架构仓的 eng/leak-scan.mjs（R-00561 AC6）——本仓
+      # 曾手抄一份 14 项词表，两处必然漂移（上游已扩到 16 词并加了 UTF-16LE 解码）。
+      # 这里只负责「扫哪些文件」，扫出什么算命中由上游那一份定。
+      # 命中即 exit 1——这是闸门不是提示，绝不能降级成 warning 或改扫描面变绿。
       # 真命中说明上游 eng/pack-sdk.mjs 的 --remap-path-prefix / HOST_LEAKS 有缺口，
       # 应停下交回架构仓处理（见任务卡 R-00560「阻塞与升级」）。
       - name: Scan packed native binaries for host-path and private-repo leaks
         run: |
           set -euo pipefail
-
-          # 词表分两类：开发机 / CI 的绝对路径前缀，以及八个私有仓名。
-          # 顺序无所谓，命中任意一条即失败。
-          LEAK_TERMS=(
-            '/Users/'
-            '/home/'
-            'C:\Work'
-            'C:/Work'
-            # 反斜杠形态:Windows 原生路径写作 C:\Users\<user>\...,正斜杠的 '/Users/' 挡不住它。
-            'C:\Users'
-            '/root/'
-            'LumioGameEngineArchitecture'
-            'LumioGameEngine'
-            'LumioNativeCore'
-            'LumioVoxelEngine'
-            'LumioGameRuntime'
-            'LumioServer'
-            'LumioClient'
-            'LumioSample'
-          )
-
-          # strings 来自 binutils，ubuntu-latest 自带；缺了要显式炸而不是静默跳过抽查。
-          command -v strings >/dev/null || { echo "FAIL: strings(1) not available, cannot scan"; exit 1; }
 
           SCAN_DIR=/tmp/lumio-nupkg-scan
           rm -rf "$SCAN_DIR"
@@ -153,10 +131,11 @@ jobs:
           done
 
           # 只扫 runtimes/<rid>/native/ 下的真二进制；build-info.json 是 sidecar 元数据，
-          # 上游 pack-sdk.mjs 已用 SIDECAR_LEAKS 单独管它，这里跳过免得口径打架。
+          # 上游 pack-sdk.mjs 已用 SIDECAR_LEAKS（词表的超集）单独管它，这里跳过免得口径打架。
           mapfile -t FILES < <(find "$SCAN_DIR" -type f -path '*/runtimes/*/native/*' ! -name 'build-info.json' | sort)
 
           # 一个文件都没扫到 = 抽查是空的，空的抽查不算证据，判失败。
+          # 扫描器对空输入会打印 PASS，所以这一步必须留在这里，不能交给它。
           if [ "${#FILES[@]}" -eq 0 ]; then
             echo "FAIL: no native binaries found under runtimes/<rid>/native/ in the packed nupkg"
             find "$SCAN_DIR" -maxdepth 3 -type d | sort
@@ -168,35 +147,8 @@ jobs:
             printf '%10s bytes  %s\n' "$(stat -c '%s' "$f")" "${f#"$SCAN_DIR"/}"
           done
 
-          echo "=== leak terms (${#LEAK_TERMS[@]}) ==="
-          printf '  %s\n' "${LEAK_TERMS[@]}"
-
-          echo "=== scanning ==="
-          HITS=0
-          for f in "${FILES[@]}"; do
-            # 先把 strings 的输出落盘再 grep：管道里 grep 无匹配会让 pipefail 吞掉
-            # strings 自身的失败，抽查就会静默变成「没命中」。这里让 strings 失败直接炸。
-            if ! strings -a "$f" > /tmp/leak-strings.txt; then
-              echo "FAIL: strings(1) failed on ${f#"$SCAN_DIR"/}"
-              exit 1
-            fi
-            for t in "${LEAK_TERMS[@]}"; do
-              # if 条件里 set -e 不生效，grep 无匹配返回 1 属正常路径。
-              if grep -F -- "$t" /tmp/leak-strings.txt > /tmp/leak-hit.txt; then
-                HITS=$((HITS + 1))
-                echo "LEAK HIT: term '${t}' in ${f#"$SCAN_DIR"/}"
-                sed -n '1,20p' /tmp/leak-hit.txt | sed 's/^/    /'
-              fi
-            done
-          done
-
-          if [ "$HITS" -ne 0 ]; then
-            echo "RESULT: ${HITS} leak hit(s) across ${#FILES[@]} native binaries -- FAIL"
-            echo "Do not shrink the term list to go green: this means the upstream LumioGameEngine"
-            echo "pack-sdk.mjs nativeRustflags()/HOST_LEAKS coverage has a real gap. Escalate."
-            exit 1
-          fi
-          echo "RESULT: 0 hits across ${#FILES[@]} native binaries and ${#LEAK_TERMS[@]} leak terms -- PASS"
+          # 词表、UTF-16LE 解码、标识符边界匹配与 RESULT 行全部来自上游这一份。
+          node "$GITHUB_WORKSPACE/LumioGameEngine/eng/leak-scan.mjs" "${FILES[@]}"
 
       - name: Build the cloned sample against the locally packed SDK
         working-directory: /tmp/external

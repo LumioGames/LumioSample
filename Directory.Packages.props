@@ -3,12 +3,12 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <!--
-      Option 1 (B-00069): Locally packed Lumio.Engine.SDK produces fluctuating content hashes per build/machine.
-      Until the SDK is officially published to nuget.org with immutable hashes (deferred before S-16 per R-00519/ADR-075),
-      redirect lock file path away from the repo root to avoid NU1403 hash mismatch or NU1005 invalid restore inputs.
+      Option 1 (B-00069): Locally packed Lumio.Engine.SDK produces fluctuating content hashes per build/machine,
+      so a committed lock file would fail restore with NU1403 on every repack. Until the SDK is published to
+      nuget.org with immutable hashes (deferred before S-16 per R-00519/ADR-075), this tree does not lock at all.
+      No lock file is written, so there is nothing to relocate.
     -->
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
-    <NuGetLockFilePath>$(MSBuildProjectDirectory)/obj/packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="xunit.v3" Version="4.0.0" />

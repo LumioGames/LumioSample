@@ -65,6 +65,8 @@
 
 若两条路径均未命中，构建将失败并输出 `LUMIO_SDK_UNRESOLVED` 检查清单，强制必须选择内部同级仓路径或外部 SDK 包路径之一。
 
+**这棵树不写锁文件**（`Directory.Packages.props` 的 `RestorePackagesWithLockFile=false`）。理由：folder-feed / global-packages 两条路径拿到的 `Lumio.Engine.SDK` 是本地现打的包，`node eng/pack-sdk.mjs` 不产出逐字节确定的 nupkg，打包机器或时间一变 contentHash 就变，钉进锁文件的哈希会让下一次 restore 报 `NU1403`。等这个包正式发到 nuget.org（哈希不可变）之后再回来钉哈希，届时把口径与 `R-00519` 的「包字节可复现」冻结结论对齐。
+
 ## 五分钟跑起来
 
 ```bash
@@ -73,7 +75,8 @@ dotnet build LumioSample.slnx
 dotnet test  LumioSample.slnx
 ```
 
-端到端启动器、验证脚本与证据对账位于 [`integration/`](integration/)。
+[`integration/`](integration/) 现在只有验证脚本与证据对账（`verify-evidence.mjs`、`formal-ds-smoke.mjs`）。
+**端到端启动器还没有**（排在 R-00520），所以上面两行之外还跑不了一条命令的全程——与本文开头「还没有的」那一条一致。
 
 > **它第一阶段只在引擎组的内部机器上跑得起来**：这条链要起账号平台，而平台镜像现在是从私有仓源码构建的（`docker-compose.yml` 用 `build: .`），外部机器拿不到。让外部也能一条命令跑通，排在对外发布前做。
 > 上面那两行 `dotnet build` / `dotnet test` 不受影响——**在没有任何同级 Lumio 仓的干净机器上必须绿**，CI 的 external-clone 作业每次都验。
