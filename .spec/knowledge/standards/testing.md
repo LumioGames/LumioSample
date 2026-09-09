@@ -36,5 +36,6 @@ metadata:
 
 ## 项目测试栈与命令（**落地必填**）
 
-<!-- 落地项目在此填写：测试框架、各层运行命令、集成/E2E 的开关方式与环境要求。 -->
-<!-- 例：单元 `pnpm test`；E2E `pnpm test:e2e`（需本地起服务）。 -->
+- **单元**：`dotnet test LumioSample.slnx -- --minimum-expected-tests 1`（xunit.v3 + Microsoft.Testing.Platform）。本机 Homebrew `osx-x64` SDK 在 arm64 上可能报 Zero tests；同一 DLL 用 `dotnet exec` 仍可跑。
+- **集成（hermetic）**：`node --test integration/`。不启 Platform / DS。覆盖账号客户端、启动器 CLI、压测证据 schema、世界断言、底图 capture 拒绝。
+- **端到端**：`node integration/launcher.mjs --bots N`。缺 Platform / `lumio-ds` / Bot.Host / Engine `process-tools.mjs` 时 exit 2，`VERIFICATION_STATUS=BLOCKED_ENV`。100 人压测是 `node integration/stress-move.mjs`，五条 ADR-084 判据未实测前不得标 PASS。

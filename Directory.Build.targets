@@ -7,7 +7,9 @@
     <_LumioLocalFeed Condition="'$(_LumioLocalFeedRaw)' != ''">$([System.IO.Path]::GetFullPath('$(_LumioLocalFeedRaw)'))</_LumioLocalFeed>
     <_LumioRuntimeEcsProject>$(_LumioRuntimeRoot)/modules/ecs/src/Lumio.GameRuntime.Ecs/Lumio.GameRuntime.Ecs.csproj</_LumioRuntimeEcsProject>
     <_LumioRuntimeReplicationProject>$(_LumioRuntimeRoot)/modules/replication/src/Lumio.GameRuntime.Replication/Lumio.GameRuntime.Replication.csproj</_LumioRuntimeReplicationProject>
-    <_LumioRuntimeExists Condition="'$(_LumioRuntimeRoot)' != '' and Exists('$(_LumioRuntimeRoot)') and Exists('$(_LumioRuntimeEcsProject)') and Exists('$(_LumioRuntimeReplicationProject)')">true</_LumioRuntimeExists>
+    <_LumioRuntimeGasProject>$(_LumioRuntimeRoot)/modules/gas/src/Lumio.GameRuntime.Gas/Lumio.GameRuntime.Gas.csproj</_LumioRuntimeGasProject>
+    <_LumioRuntimeGenProps>$(_LumioRuntimeRoot)/tools/gen-declarations/build/Lumio.Tools.GenDeclarations.props</_LumioRuntimeGenProps>
+    <_LumioRuntimeExists Condition="'$(_LumioRuntimeRoot)' != '' and Exists('$(_LumioRuntimeRoot)') and Exists('$(_LumioRuntimeEcsProject)') and Exists('$(_LumioRuntimeReplicationProject)') and Exists('$(_LumioRuntimeGasProject)')">true</_LumioRuntimeExists>
     <_LumioRuntimeInvalid Condition="'$(_LumioRuntimeRoot)' != '' and '$(_LumioRuntimeExists)' != 'true'">true</_LumioRuntimeInvalid>
     <_LumioNugetPackages Condition="'$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_LumioNugetPackages>
     <_LumioNugetPackages Condition="'$(_LumioNugetPackages)' == '' and '$(NUGET_PACKAGES)' != ''">$(NUGET_PACKAGES)</_LumioNugetPackages>
@@ -23,6 +25,35 @@
   <ItemGroup Condition="'$(LumioSdkMode)' == 'sibling' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
     <ProjectReference Include="$(_LumioRuntimeEcsProject)" />
     <ProjectReference Include="$(_LumioRuntimeReplicationProject)" />
+    <ProjectReference Include="$(_LumioRuntimeGasProject)" />
+  </ItemGroup>
+
+  <!-- Sibling never imports the SDK nupkg props. Those defaults (generate on, exclude generated/**)
+       have to come from the Runtime checkout or the first entity day fails with CS8795. -->
+  <Import
+    Project="$(_LumioRuntimeGenProps)"
+    Condition="'$(LumioSdkMode)' == 'sibling' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and Exists('$(_LumioRuntimeGenProps)')" />
+
+  <!-- TreatWarningsAsErrors + GenerateDocumentationFile still elevates CS1591 on some
+       SDK hosts even when the gameplay csproj already lists it in NoWarn. Restate both
+       here (after the sibling import) so generated files stay machine-written. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);CS1591</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <!-- Same analyzer exemptions the SDK pack props apply when the generator is on.
+       They live here only because sibling cannot see the nupkg. Do not copy them into the gameplay csproj. -->
+  <PropertyGroup Condition="'$(LumioSdkMode)' == 'sibling' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsGenerate)' == 'true'">
+    <NoWarn>$(NoWarn);CA1051;CA1711;CA1707;CA1034;CA1822;CA1848;CA1873</NoWarn>
+  </PropertyGroup>
+
+  <!-- One gameplay tree, two compile sides. Server is the default (DS loads this assembly). -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' != 'client'">
+    <Compile Remove="**/*.Client.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client'">
+    <Compile Remove="**/*.Server.cs" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(LumioSdkMode)' == 'nuget' and '$(_LumioNupkg)' == 'true'">
@@ -31,6 +62,32 @@
   <ItemGroup Condition="'$(LumioSdkMode)' == 'nuget' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
     <PackageReference Include="Lumio.Engine.SDK" />
   </ItemGroup>
+
+  <!-- Sibling has no packed gen-declarations task. Build the Runtime tool and invoke it the
+       same way the SDK targets do (dotnet exec + Include). This is not a fourth resolve path. -->
+  <Target
+    Name="LumioSiblingGenerateDeclarations"
+    BeforeTargets="BeforeCompile"
+    Condition="'$(LumioSdkMode)' == 'sibling' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsGenerate)' == 'true'">
+    <PropertyGroup>
+      <_LumioEcsToolProject>$(_LumioRuntimeRoot)/tools/gen-declarations/Lumio.Tools.GenDeclarations.csproj</_LumioEcsToolProject>
+      <_LumioEcsToolDll>$(_LumioRuntimeRoot)/tools/gen-declarations/bin/Debug/net10.0/Lumio.Tools.GenDeclarations.dll</_LumioEcsToolDll>
+      <_LumioEcsSide Condition="'$(_LumioEcsSide)' == ''">$(LumioEcsSide)</_LumioEcsSide>
+      <_LumioEcsSide Condition="'$(_LumioEcsSide)' == ''">server</_LumioEcsSide>
+      <_LumioEcsSources Condition="'$(_LumioEcsSources)' == ''">$(MSBuildProjectDirectory)</_LumioEcsSources>
+      <_LumioEcsOut>$(MSBuildProjectDirectory)/generated/$(_LumioEcsSide)</_LumioEcsOut>
+      <_LumioEcsJson>$(_LumioEcsOut)/attribute-declarations.json</_LumioEcsJson>
+      <_LumioEcsNamespace Condition="'$(RootNamespace)' != ''">$(RootNamespace)</_LumioEcsNamespace>
+      <_LumioEcsNamespace Condition="'$(_LumioEcsNamespace)' == ''">$(MSBuildProjectName)</_LumioEcsNamespace>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_LumioEcsToolProject)')" Text="LUMIO_SDK_UNRESOLVED: sibling Runtime is missing tools/gen-declarations." />
+    <MakeDir Directories="$(_LumioEcsOut)" />
+    <Exec Command="dotnet build &quot;$(_LumioEcsToolProject)&quot; --nologo -v q" />
+    <Exec Command="dotnet exec &quot;$(_LumioEcsToolDll)&quot; --sources &quot;$(_LumioEcsSources)&quot; --side $(_LumioEcsSide) --output-dir &quot;$(_LumioEcsOut)&quot; --output &quot;$(_LumioEcsJson)&quot; --assembly-name &quot;$(AssemblyName)&quot; --namespace &quot;$(_LumioEcsNamespace)&quot;" />
+    <ItemGroup>
+      <Compile Include="$(_LumioEcsOut)/**/*.cs" Exclude="@(Compile)" />
+    </ItemGroup>
+  </Target>
 
   <Target Name="ResolveLumioSdk" BeforeTargets="BeforeBuild">
     <Error

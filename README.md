@@ -41,8 +41,10 @@
 - `git clone` 后在没有任何同级 Lumio 仓的机器上 `dotnet build` / `dotnet test` 直接绿（CI 三作业 build / test / external-clone 每次都验）。
 - 用它当模板建新仓。
 - 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。
+- 玩法声明已在 `src/Lumio.Sample.Gameplay/`：世界 / 玩家 / 聊天 / 跑动技能 / 矿脉储量 / 掉落 / 拾取 Effect。数值在 `config/*.json`。
+- 一条命令的启动器是 `node integration/launcher.mjs --bots N`。没有 Platform / `lumio-ds` / Bot.Host 时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，不会假绿。
 
-**还没有的**：玩法代码、启动器、配表、底图、存档——十四步一步都还没跑起来。旧的程序化地图生成器已删除（地图改为快照文件加载，见下）。
+**还没有的**：对着真 Platform + DS + C# Bot 跑通十四步；可 restore 的底图；100 人移动压测的五条实测证据；存档冷恢复。`maps/sample.voxel` 仍是占位，不能当底图用。旧的程序化地图生成器已删除。
 
 **怎么安排**：2026-09-07 架构讨论把整个里程碑逐题拍板，记录在 [`.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md`](.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md)（架构仓副本）。要点：
 
@@ -59,7 +61,7 @@
 
 双路径（`Directory.Build.targets`）：
 
-1. 内部开发：设置 `LumioRuntimeRoot` 指向同级仓。目录存在时注入 Runtime `ProjectReference`（Ecs / Replication）。空值不是静默降级。
+1. 内部开发：设置 `LumioRuntimeRoot` 指向同级仓。目录存在时注入 Runtime `ProjectReference`（Ecs / Replication / Gas）并跑 `gen-declarations`。空值不是静默降级。
 2. 外部：从 nuget.org restore `Lumio.Engine.SDK`（Owner 未发布前不可用）。已 restore 的 global-packages 或 `LumioLocalFeed` nupkg 视为 NuGet 路径。
 3. 本地证明：Architecture `node eng/pack-sdk.mjs` 产出 nupkg 后，用 `LumioLocalFeed` 或 NuGet.config folder source。
 

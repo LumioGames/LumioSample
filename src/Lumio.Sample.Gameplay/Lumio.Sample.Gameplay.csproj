@@ -5,4 +5,7 @@
     <RootNamespace>Lumio.Sample.Gameplay</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../config/**/*.json" Link="config/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

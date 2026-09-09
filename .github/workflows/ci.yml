@@ -47,6 +47,12 @@ jobs:
           global-json-file: global.json
       - run: dotnet test LumioSample.slnx -- --minimum-expected-tests 1
       - run: node --test integration/verify-evidence.mjs
+      - run: node --test integration/account-client.test.mjs
+      - run: node --test integration/ds-ready.test.mjs
+      - run: node --test integration/launcher.test.mjs
+      - run: node --test integration/stress-move.test.mjs
+      - run: node --test integration/world-assert.test.mjs
+      - run: node --test integration/capture-basemap.test.mjs
 
   external-clone:
     runs-on: ubuntu-latest

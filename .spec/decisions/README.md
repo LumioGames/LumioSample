@@ -30,4 +30,5 @@
 
 | 编号 | 决策 | 状态 |
 |------|------|------|
-| —    | (空;从 0001 开始) | — |
+| [0001](0001-sample-config-is-json-files.md) | 玩法数值先读仓内 JSON 文件 | 生效 |
+| [0002](0002-sibling-generate-matches-sdk-pack.md) | sibling 模式调用 Runtime 生成器并对齐 SDK 包分析器豁免 | 生效 |
