@@ -55,15 +55,15 @@
 
 ## SDK 解析（S-2）
 
-玩法工程今天仍能在没有任何同级 Lumio 仓、没有任何凭据的机器上 `dotnet build`。`Directory.Packages.props` 已预登记 `Lumio.Engine.SDK` `0.1.0`，但 **Gameplay 故意不 PackageReference 它**：公开 feed 尚未由 Owner 裁决上架，加上去会把必绿的 `external-clone` 作业打红。
+玩法工程通过双路径解析引擎依赖。`Directory.Packages.props` 登记了 `Lumio.Engine.SDK` `0.1.0`，由 `Directory.Build.targets` 根据环境在 nuget 模式下自动注入 `<PackageReference Include="Lumio.Engine.SDK" />`。
 
 双路径（`Directory.Build.targets`）：
 
-1. 内部开发：设置 `LumioRuntimeRoot` / `LumioServerRoot`（及可选 `LumioEngineRoot`）指向同级仓。目录存在时注入 Runtime `ProjectReference`（Ecs / Replication）。空值不是静默降级。
+1. 内部开发：设置 `LumioRuntimeRoot` 指向同级仓。目录存在时注入 Runtime `ProjectReference`（Ecs / Replication）。空值不是静默降级。
 2. 外部：从 nuget.org restore `Lumio.Engine.SDK`（Owner 未发布前不可用）。已 restore 的 global-packages 或 `LumioLocalFeed` nupkg 视为 NuGet 路径。
-3. 本地证明：Architecture `node eng/pack-sdk.mjs` 产出 nupkg 后，用 `LumioLocalFeed` 或 NuGet.config folder source。`eng/ResolveLumioSdk.proj` 设 `LumioRequireSdk=true`。
+3. 本地证明：Architecture `node eng/pack-sdk.mjs` 产出 nupkg 后，用 `LumioLocalFeed` 或 NuGet.config folder source。
 
-默认 `dotnet build` 在两条都不通且玩法仍零引擎类型引用时成功（未发布 feed 的已知权衡，保证 `external-clone` 绿）。证明工程不通时打印 `LUMIO_SDK_UNRESOLVED` 检查清单。
+若两条路径均未命中，构建将失败并输出 `LUMIO_SDK_UNRESOLVED` 检查清单，强制必须选择内部同级仓路径或外部 SDK 包路径之一。
 
 ## 五分钟跑起来
 
@@ -73,7 +73,7 @@ dotnet build LumioSample.slnx
 dotnet test  LumioSample.slnx
 ```
 
-端到端启动器（起平台 + DS + Bot + 浏览器）将落在 [`integration/`](integration/)，目前为空。
+端到端启动器、验证脚本与证据对账位于 [`integration/`](integration/)。
 
 > **它第一阶段只在引擎组的内部机器上跑得起来**：这条链要起账号平台，而平台镜像现在是从私有仓源码构建的（`docker-compose.yml` 用 `build: .`），外部机器拿不到。让外部也能一条命令跑通，排在对外发布前做。
 > 上面那两行 `dotnet build` / `dotnet test` 不受影响——**在没有任何同级 Lumio 仓的干净机器上必须绿**，CI 的 external-clone 作业每次都验。
@@ -95,7 +95,7 @@ dotnet test  LumioSample.slnx
 
 **本仓不复述任何公共契约字段**，只写「在示例里这条契约怎么用」。
 
-> 现状：这套公开使用面还没做（随 SDK 打包一起落地）。在那之前，契约的事实源是架构仓 `LumioGameEngine`（私有）——ABI 在 `engine/abi/native-abi.json`，线上语义在 `engine/wire/*.json`，设计概要在 `.spec/knowledge/features/`；**没有该仓权限就暂时查不到**，这是已知缺口，不是让你去申请权限。
+> 现状：SDK 包内已包含公开使用面文档（`content/docs/public-api.md`、`error-codes.md`）与托管 XML 文档。更深层的事实源仍位于架构仓 `LumioGameEngine`（私有）——ABI 在 `engine/abi/native-abi.json`，线上语义在 `engine/wire/*.json`，设计概要在 `.spec/knowledge/features/`。
 
 ## 许可证
 
