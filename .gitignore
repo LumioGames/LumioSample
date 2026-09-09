@@ -7,4 +7,6 @@ node_modules/
 bin/
 obj/
 TestResults/
-integration/logs/
+.workflow-drafts/
+integration/logs/**
+!integration/logs/README.md

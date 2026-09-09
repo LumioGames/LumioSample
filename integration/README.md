@@ -29,9 +29,12 @@ Process management is imported from Engine `eng/process-tools.mjs`
 file is missing the command exits `2` with `VERIFICATION_STATUS=BLOCKED_ENV`.
 
 This is internal-only while the Platform image is built from a private
-compose file. A force-kill is never pass evidence. The retired Game
-harness names (`lumio-entity-chat-replay`, `LumioServer/account-server`)
-do not appear here.
+compose file. The public tree does not ship that file; see
+[`compose/README.md`](compose/README.md). Runtime logs land under
+[`logs/`](logs/README.md) or `LUMIO_LAUNCH_EVIDENCE_DIR`. A force-kill
+is never pass evidence. The retired Game harness names
+(`lumio-entity-chat-replay`, `LumioServer/account-server`) do not
+appear here.
 
 ```bash
 node --test integration/launcher.test.mjs
