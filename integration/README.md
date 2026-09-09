@@ -1,5 +1,29 @@
 # integration - verification and production smoke
 
+## Platform account client (S-4)
+
+`account-client.mjs` talks to LumioPlatform only: WebSocket `/account`
+(`lumio-account-v1`, login-or-register) then `POST /api/games/{slug}/launch`
+with the unbound account-auth credential as Bearer. It does not mint
+admission tickets. `bot-credential.mjs` resolves the password
+(`LUMIO_ACCOUNT_PASSWORD` or a one-shot generated value) and a
+Platform-issued bot-tool claim (`LUMIO_BOT_TOOL_CREDENTIAL`); Bot
+namespace names refuse to connect without that claim.
+
+Hermetic protocol tests (injected transports, no live Platform):
+
+```bash
+node --test integration/account-client.test.mjs
+```
+
+The Room ticket is returned to the caller that imports the module. The
+CLI prints only a public summary so secrets never land in logs.
+The one-command launcher that actually starts Platform + DS is S-3
+(R-00520); this directory's `formal-ds-smoke.mjs` is a temporary
+loopback check and is deleted when that launcher lands.
+
+---
+
 `verify-evidence.mjs` is the deterministic S-7 evidence gate. It reads only the two
 round log directories, normalizes CRLF to LF before SHA-256, and compares
 `eventOrder` and `appliedTicks` position by position. It never synthesizes fields,

@@ -5,7 +5,7 @@
 | 步 | 做什么 | 状态 |
 |---|---|---|
 | 1 | 编译配表，生成 typed Reader | 待写（S-10） |
-| 2 | 起账号服，注册登录 | 待写（S-4） |
+| 2 | 起账号服，注册登录 | 客户端已落 [`integration/account-client.mjs`](../integration/account-client.mjs) + [`integration/bot-credential.mjs`](../integration/bot-credential.mjs)；真 Platform 换票等启动器（R-00520）接线。本步还不能一条命令跑起来。 |
 | 3 | 起 DS，加载配表快照与 tick 频率 | 待写（S-3 + S-10） |
 | 4 | 进房间（准入五步） | 待写（S-3） |
 | 5 | 加载底图并从存档恢复 | 规范快照文件 [`maps/sample.voxel`](../maps/sample.voxel)，DS 开机 restore 待 S-5（R-00522） |
@@ -20,6 +20,12 @@
 | 14 | 存档，重启 DS，地图与矿石数都还在 | 等引擎卡 R-00498 / R-00507 |
 
 > 两轮同底图哈希对账（S-7）贯穿全程，不单列一步。
+
+## 第 2 步：注册登录
+
+账号走 LumioPlatform 的 WebSocket `/account`（子协议 `lumio-account-v1`，登录即注册）。进房票只来自 `POST /api/games/sample/launch` 的 Bearer 换票——本仓不自签票据。口令来自 `LUMIO_ACCOUNT_PASSWORD` 或本轮生成，不入库、不进日志。Bot 命名空间必须带 Platform 签发的 `LUMIO_BOT_TOOL_CREDENTIAL`。
+
+今天能跑的是 hermetic 协议测试（`node --test integration/account-client.test.mjs`）。对着真 Platform + `lumio-ds` 换票准入，等 S-3（R-00520）把启动器接上。
 
 ## 第 5 步：加载底图
 

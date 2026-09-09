@@ -42,7 +42,7 @@
 - 用它当模板建新仓。
 - 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。
 
-**还没有的**：玩法代码、启动器、配表、底图、存档——十四步一步都还没跑起来。旧的程序化地图生成器已删除（地图改为快照文件加载，见下）。
+**还没有的**：玩法代码、一键启动器、配表、底图、存档——十四步一步都还没跑起来。账号客户端（S-4）已落在 `integration/account-client.mjs`，但还没有对着真 Platform + DS 跑通的启动器。旧的程序化地图生成器已删除（地图改为快照文件加载，见下）。
 
 **怎么安排**：2026-09-07 架构讨论把整个里程碑逐题拍板，记录在 [`.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md`](.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md)（架构仓副本）。要点：
 
