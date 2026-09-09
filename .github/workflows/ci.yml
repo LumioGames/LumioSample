@@ -62,28 +62,28 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioGameEngine
-          path: engine-source
+          path: LumioGameEngine
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - name: Checkout LumioGameRuntime
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioGameRuntime
-          path: runtime-source
+          path: LumioGameRuntime
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - name: Checkout LumioNativeCore
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioNativeCore
-          path: native-core-source
+          path: LumioNativeCore
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - name: Checkout LumioVoxelEngine
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioVoxelEngine
-          path: voxel-source
+          path: LumioVoxelEngine
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - name: Clone PR head and pack the SDK locally
@@ -97,7 +97,7 @@ jobs:
           git checkout --detach "${{ github.event.pull_request.head.sha || github.sha }}"
           test -z "${LumioRuntimeRoot:-}"
           test -z "${LumioLocalFeed:-}"
-          node "$GITHUB_WORKSPACE/engine-source/eng/pack-sdk.mjs" --out /tmp/lumio-sdk-feed --runtime-root "$GITHUB_WORKSPACE/runtime-source" --native-core-root "$GITHUB_WORKSPACE/native-core-source" --voxel-root "$GITHUB_WORKSPACE/voxel-source"
+          node "$GITHUB_WORKSPACE/LumioGameEngine/eng/pack-sdk.mjs" --out /tmp/lumio-sdk-feed --runtime-root "$GITHUB_WORKSPACE/LumioGameRuntime" --native-core-root "$GITHUB_WORKSPACE/LumioNativeCore" --voxel-root "$GITHUB_WORKSPACE/LumioVoxelEngine"
 
       # 这个作业是全项目唯一真在 Linux x64 上跑 pack-sdk.mjs 的地方，所以它也是
       # R-00519 AC3（发布的 native 无开发机路径 / 私仓名）唯一能取到受验产物的落点。
@@ -148,7 +148,7 @@ jobs:
           done
 
           # 词表、UTF-16LE 解码、标识符边界匹配与 RESULT 行全部来自上游这一份。
-          node "$GITHUB_WORKSPACE/engine-source/eng/leak-scan.mjs" "${FILES[@]}"
+          node "$GITHUB_WORKSPACE/LumioGameEngine/eng/leak-scan.mjs" "${FILES[@]}"
 
       - name: Build the cloned sample against the locally packed SDK
         working-directory: /tmp/external
