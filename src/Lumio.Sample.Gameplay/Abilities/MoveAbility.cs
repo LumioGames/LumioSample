@@ -14,19 +14,25 @@ namespace Lumio.Sample.Gameplay;
 [AbilityType(1u, Prediction = PredictionKind.LogicPredict)]
 public sealed class MoveAbility : AbilityType<MoveAbility.Input>
 {
+    /// <summary>Stable ability type id. Must stay <c>1</c>.</summary>
     public const uint TypeId = 1u;
 
+    /// <summary>Grid step on XZ. Zero-zero is rejected in <see cref="CanActivate"/>.</summary>
     public struct Input : IAbilityInput
     {
+        /// <summary>Signed step on X.</summary>
         public int Dx;
+        /// <summary>Signed step on Z.</summary>
         public int Dz;
 
+        /// <inheritdoc />
         public void Write(IList<object?> args)
         {
             args.Add(Dx.ToString(CultureInfo.InvariantCulture));
             args.Add(Dz.ToString(CultureInfo.InvariantCulture));
         }
 
+        /// <inheritdoc />
         public bool TryRead(IReadOnlyList<object?> args, int start)
         {
             if (args is null || start < 0 || start + 1 >= args.Count) return false;
@@ -40,8 +46,10 @@ public sealed class MoveAbility : AbilityType<MoveAbility.Input>
         }
     }
 
+    /// <summary>Registers this type on the GAS catalog.</summary>
     public static void Register() => AbilityTypeCatalog.Register<MoveAbility, Input>(TypeId);
 
+    /// <inheritdoc />
     public override bool CanActivate(in Input input) => input.Dx != 0 || input.Dz != 0;
 
     /// <summary>
@@ -54,6 +62,7 @@ public sealed class MoveAbility : AbilityType<MoveAbility.Input>
         return origin + (displacement * travelFraction);
     }
 
+    /// <inheritdoc />
     public override void Execute(in Input input, AbilityComponent owner)
     {
         float step = (float)SampleTables.StepMeters;

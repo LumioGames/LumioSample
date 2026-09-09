@@ -34,6 +34,14 @@
     Project="$(_LumioRuntimeGenProps)"
     Condition="'$(LumioSdkMode)' == 'sibling' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and Exists('$(_LumioRuntimeGenProps)')" />
 
+  <!-- TreatWarningsAsErrors + GenerateDocumentationFile still elevates CS1591 on some
+       SDK hosts even when the gameplay csproj already lists it in NoWarn. Restate both
+       here (after the sibling import) so generated files stay machine-written. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);CS1591</WarningsNotAsErrors>
+  </PropertyGroup>
+
   <!-- Same analyzer exemptions the SDK pack props apply when the generator is on.
        They live here only because sibling cannot see the nupkg. Do not copy them into the gameplay csproj. -->
   <PropertyGroup Condition="'$(LumioSdkMode)' == 'sibling' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsGenerate)' == 'true'">

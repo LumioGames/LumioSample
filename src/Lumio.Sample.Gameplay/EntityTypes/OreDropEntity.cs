@@ -4,6 +4,7 @@ using Lumio.Sample.Gameplay.Components.Ore;
 
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
+/// <summary>Dropped ore pile. Occupies no terrain cell and is not a vein bind.</summary>
 [EntityType(Mode.CS)]
 [Has(typeof(ObserverComponent))]
 [Has(typeof(LogicTransform))]

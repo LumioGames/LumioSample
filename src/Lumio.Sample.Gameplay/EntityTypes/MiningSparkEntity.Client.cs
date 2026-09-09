@@ -4,6 +4,7 @@ using Lumio.Sample.Gameplay.Components.Fx;
 
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
+/// <summary>Local FX entity. Server compilation excludes this file.</summary>
 [EntityType(Mode.Local)]
 [Has(typeof(MiningSparkComponent))]
 public abstract class MiningSparkEntity

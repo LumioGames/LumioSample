@@ -12,30 +12,41 @@ namespace Lumio.Sample.Gameplay.Config;
 /// </summary>
 public static class SampleTables
 {
+    /// <summary>Environment variable that overrides the config directory walk.</summary>
     public const string ConfigDirVariable = "LUMIO_CONFIG_DIR";
 
     private static readonly object Gate = new();
     private static string? LoadedDirectory;
     private static Dictionary<string, JsonElement>? Tables;
 
+    /// <summary>Meters per move step. From <c>movement.json</c>.</summary>
     public static double StepMeters => ReadNumber("movement", "step_meters");
 
+    /// <summary>Sweep capsule radius. From <c>movement.json</c>.</summary>
     public static double SweepRadiusMeters => ReadNumber("movement", "sweep_radius_meters");
 
+    /// <summary>Stamina spent per mine hit. From <c>mining.json</c>.</summary>
     public static long StaminaCost => ReadInt64("mining", "stamina_cost");
 
+    /// <summary>Hits that exhaust a vein. From <c>mining.json</c>.</summary>
     public static int VeinHitsToBreak => ReadInt32("mining", "vein_hits_to_break");
 
+    /// <summary>Ore dropped when a vein is exhausted. From <c>mining.json</c>.</summary>
     public static int OrePerVein => ReadInt32("mining", "ore_per_vein");
 
+    /// <summary>Starting stamina. From <c>attributes.json</c>.</summary>
     public static long StaminaInitial => ReadInt64("attributes", "stamina_initial");
 
+    /// <summary>Starting ore. From <c>attributes.json</c>.</summary>
     public static long OreInitial => ReadInt64("attributes", "ore_initial");
 
+    /// <summary>Attribute ledger name for stamina.</summary>
     public static string StaminaAttributeName => ReadString("attributes", "stamina_name");
 
+    /// <summary>Attribute ledger name for ore.</summary>
     public static string OreAttributeName => ReadString("attributes", "ore_name");
 
+    /// <summary>Drops the cached tables so a test can point at another directory.</summary>
     public static void ResetCache()
     {
         lock (Gate)
@@ -45,6 +56,7 @@ public static class SampleTables
         }
     }
 
+    /// <summary>Resolves the config directory from an override, the env var, or a walk from the assembly.</summary>
     public static string ResolveDirectory(string? overrideDirectory = null, IReadOnlyDictionary<string, string?>? environment = null)
     {
         if (!string.IsNullOrWhiteSpace(overrideDirectory))

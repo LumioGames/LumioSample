@@ -4,6 +4,7 @@ using Lumio.Sample.Gameplay.Components.Vein;
 
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
+/// <summary>Immobile vein. Remaining hits live on the entity, not in the voxel cell.</summary>
 [EntityType(Mode.CS)]
 [Has(typeof(ObserverComponent))]
 [Has(typeof(VeinReserveComponent))]

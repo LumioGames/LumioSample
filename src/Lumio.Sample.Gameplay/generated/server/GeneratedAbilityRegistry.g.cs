@@ -16,4 +16,14 @@ public static class GeneratedAbilityRegistry
             _ => 0u
         };
     }
+
+    /// <summary>
+    /// Registers every declared ability into the engine catalog so upstream Activate can route to it.
+    /// Re-registering the same declarations is idempotent; a conflicting TypeId throws.
+    /// </summary>
+    public static void RegisterAll()
+    {
+        global::Lumio.GameRuntime.Ecs.AbilityTypeCatalog.Register<global::Lumio.Sample.Gameplay.MineAbility, global::Lumio.Sample.Gameplay.MineAbility.Input>(2u);
+        global::Lumio.GameRuntime.Ecs.AbilityTypeCatalog.Register<global::Lumio.Sample.Gameplay.MoveAbility, global::Lumio.Sample.Gameplay.MoveAbility.Input>(1u);
+    }
 }

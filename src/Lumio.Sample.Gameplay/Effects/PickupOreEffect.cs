@@ -10,19 +10,26 @@ namespace Lumio.Sample.Gameplay;
 [EffectType(TypeId = 10, Instant = true)]
 public sealed class PickupOreEffect : EffectType<PickupOreEffect.Parameters>
 {
+    /// <summary>Stable effect type id. Must stay <c>10</c>.</summary>
     public const uint TypeId = 10u;
 
+    /// <summary>FX key the client spark looks up. Not a gameplay table number.</summary>
     public const string FxKeyName = "pickup-ore";
 
+    /// <summary>How much ore to credit in one settlement.</summary>
     public struct Parameters : IEffectParameters
     {
+        /// <summary>Units of ore to add.</summary>
         public long Amount;
 
+        /// <inheritdoc />
         public long Magnitude => Amount;
 
+        /// <inheritdoc />
         public string FxKey => FxKeyName;
     }
 
+    /// <summary>Registers this type on the GAS catalog.</summary>
     public static void Register() =>
         EffectTypeCatalog.Register<PickupOreEffect, Parameters>(TypeId, static (target, magnitude) =>
         {
@@ -31,6 +38,7 @@ public sealed class PickupOreEffect : EffectType<PickupOreEffect.Parameters>
             effect.Apply(target, in parameters);
         });
 
+    /// <inheritdoc />
     public override void Apply(NetEntityId target, in Parameters parameters)
     {
         World? world = EffectSettlementContext.CurrentWorld;

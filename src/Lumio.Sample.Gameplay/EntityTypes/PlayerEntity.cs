@@ -4,6 +4,7 @@ using Lumio.Sample.Gameplay.Components.Chat;
 
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
+/// <summary>Admitted player. No Identity component — chat names the speaker by net entity id.</summary>
 [EntityType(Mode.CS)]
 [Has(typeof(ObserverComponent))]
 [Has(typeof(LogicTransform))]

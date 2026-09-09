@@ -6,12 +6,15 @@ namespace Lumio.Sample.Gameplay.Components.Chat;
 
 public sealed partial class ChatComponent
 {
+    /// <summary>Last spoken text. Persisted, not replicated.</summary>
     [Persist]
     public Sync<string> LastMessageText = new(Scope.None);
 
+    /// <summary>Tick of <see cref="LastMessageText"/>.</summary>
     [Persist]
     public Sync<ulong> LastMessageTick = new(Scope.None);
 
+    /// <inheritdoc />
     public partial void SendMessage(string text)
     {
         if (text.Length == 0) return;

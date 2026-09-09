@@ -20,6 +20,7 @@ public sealed class GeneratedRegistry : EcsRegistry
     static GeneratedRegistry()
     {
         WireCodec.RegisterCommandMapping("chat.input", payload => WireCodec.TryReadUtf8Payload(payload, out string text) && WireCodec.StrictUtf8.GetByteCount(text) <= 512);
+        GeneratedAbilityRegistry.RegisterAll();
     }
 
     private GeneratedRegistry()
