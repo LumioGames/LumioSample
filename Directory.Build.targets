@@ -1,12 +1,8 @@
-<Project>
+﻿<Project>
   <!-- Resolve the engine through exactly one of the supported public paths. -->
   <PropertyGroup>
     <_LumioRuntimeRootRaw Condition="'$(LumioRuntimeRoot)' != ''">$(LumioRuntimeRoot.Trim())</_LumioRuntimeRootRaw>
-    <_LumioServerRootRaw Condition="'$(LumioServerRoot)' != ''">$(LumioServerRoot.Trim())</_LumioServerRootRaw>
-    <_LumioEngineRootRaw Condition="'$(LumioEngineRoot)' != ''">$(LumioEngineRoot.Trim())</_LumioEngineRootRaw>
     <_LumioRuntimeRoot Condition="'$(_LumioRuntimeRootRaw)' != ''">$([System.IO.Path]::GetFullPath('$(_LumioRuntimeRootRaw)'))</_LumioRuntimeRoot>
-    <_LumioServerRoot Condition="'$(_LumioServerRootRaw)' != ''">$([System.IO.Path]::GetFullPath('$(_LumioServerRootRaw)'))</_LumioServerRoot>
-    <_LumioEngineRoot Condition="'$(_LumioEngineRootRaw)' != ''">$([System.IO.Path]::GetFullPath('$(_LumioEngineRootRaw)'))</_LumioEngineRoot>
     <_LumioLocalFeedRaw Condition="'$(LumioLocalFeed)' != ''">$(LumioLocalFeed.Trim())</_LumioLocalFeedRaw>
     <_LumioLocalFeed Condition="'$(_LumioLocalFeedRaw)' != ''">$([System.IO.Path]::GetFullPath('$(_LumioLocalFeedRaw)'))</_LumioLocalFeed>
     <_LumioRuntimeEcsProject>$(_LumioRuntimeRoot)/modules/ecs/src/Lumio.GameRuntime.Ecs/Lumio.GameRuntime.Ecs.csproj</_LumioRuntimeEcsProject>
@@ -31,8 +27,6 @@
 
   <PropertyGroup Condition="'$(LumioSdkMode)' == 'nuget' and '$(_LumioNupkg)' == 'true'">
     <RestoreAdditionalProjectSources>$(_LumioLocalFeed);$(RestoreAdditionalProjectSources)</RestoreAdditionalProjectSources>
-    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
-    <NuGetLockFilePath>$(IntermediateOutputPath)packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
   <ItemGroup Condition="'$(LumioSdkMode)' == 'nuget' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
     <PackageReference Include="Lumio.Engine.SDK" />
@@ -41,6 +35,6 @@
   <Target Name="ResolveLumioSdk" BeforeTargets="BeforeBuild">
     <Error
       Condition="'$(LumioSdkMode)' == ''"
-      Text="LUMIO_SDK_UNRESOLVED: neither a sibling Lumio checkout nor the Lumio.Engine.SDK package was found.%0A%0AChecklist:%0A1. Internal / sibling-dev: set LumioRuntimeRoot (and LumioServerRoot, LumioEngineRoot) to the clone paths. The directories must exist. Empty or whitespace values are ignored and are not a silent fallback.%0A2. External: restore Lumio.Engine.SDK 0.1.0 from nuget.org (or another public feed). Owner has not published this package yet - package IDs are irreversible, so this tree does not push.%0A3. Local proof: pack with `node eng/pack-sdk.mjs` in LumioGameEngine and add a folder-feed (NuGet.config source or LumioLocalFeed) pointing at the nupkg directory.%0A4. There is no placeholder implementation and no silent fallback. Fix one of the three paths above." />
+      Text="LUMIO_SDK_UNRESOLVED: neither a sibling Lumio checkout nor the Lumio.Engine.SDK package was found.%0A%0AChecklist:%0A1. Internal / sibling-dev: set LumioRuntimeRoot to the clone path. The directory must exist. Empty or whitespace values are ignored and are not a silent fallback.%0A2. External: restore Lumio.Engine.SDK 0.1.0 from nuget.org (or another public feed). Owner has not published this package yet - package IDs are irreversible, so this tree does not push.%0A3. Local proof: pack with `node eng/pack-sdk.mjs` in LumioGameEngine and add a folder-feed (NuGet.config source or LumioLocalFeed) pointing at the nupkg directory.%0A4. There is no placeholder implementation and no silent fallback. Fix one of the three paths above." />
   </Target>
 </Project>
