@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { SHA_REPOS, createStressDocument, criteriaPassed, runStress } from './stress-move.mjs';
+import { SHA_REPOS, createStressDocument, criteriaPassed, runStress, stressExitCode } from './stress-move.mjs';
 
 test('stress evidence schema names ten repos and the NativeCore clock', () => {
   const document = createStressDocument();
@@ -37,4 +37,22 @@ test('live stress without Platform stays BLOCKED_ENV', async () => {
   });
   assert.equal(document.status, 'BLOCKED_ENV');
   assert.equal(criteriaPassed(document), false);
+});
+
+test('runStress does not PASS when launcher is PASS but criteria stay null', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-stress-'));
+  const document = await runStress({
+    root: isolated,
+    env: {},
+    evidenceDir: join(isolated, 'evidence'),
+    log() {},
+    async runLauncher() {
+      return { status: 'PASS' };
+    },
+  });
+  assert.equal(document.launchStatus, 'PASS');
+  assert.equal(document.criteria.admitted.actual, null);
+  assert.notEqual(document.status, 'PASS');
+  assert.equal(criteriaPassed(document), false);
+  assert.notEqual(stressExitCode(document.status), 0);
 });

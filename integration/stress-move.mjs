@@ -66,13 +66,19 @@ export function criteriaPassed(document) {
   return document.status === 'PASS';
 }
 
+export function stressExitCode(status) {
+  return status === 'PASS' ? 0 : status === 'BLOCKED_ENV' ? 2 : 1;
+}
+
 export async function runStress(options = {}) {
+  const launchFn = options.runLauncher ?? runLauncher;
   const parsed = {
     ...parseLaunchArgs([], options.env ?? process.env),
     ...options,
     bots: options.bots ?? STRESS_BOTS,
     durationMs: options.durationMs ?? STRESS_DURATION_SECONDS * 1000,
   };
+  delete parsed.runLauncher;
   const evidence = parsed.evidenceDir ?? join(options.root ?? ROOT, 'integration', 'logs', 'stress-move');
   mkdirSync(evidence, { recursive: true });
   const document = createStressDocument({
@@ -80,9 +86,14 @@ export async function runStress(options = {}) {
     durationSeconds: Math.round(parsed.durationMs / 1000),
     shas: options.shas,
   });
-  const launch = await runLauncher({ ...parsed, evidenceDir: evidence, root: options.root ?? ROOT });
+  const launch = await launchFn({ ...parsed, evidenceDir: evidence, root: options.root ?? ROOT });
   document.launchStatus = launch.status;
-  document.status = launch.status === 'PASS' && criteriaPassed({ ...document, status: 'PASS' }) ? 'PASS' : launch.status;
+  // Launch PASS is not evidence. The default criteria are null, so criteriaPassed
+  // is false; falling through to launch.status would keep PASS — a green lie.
+  // ADR-088: the verifier is the only source of truth while red merges are allowed.
+  document.status = launch.status === 'PASS' && criteriaPassed({ ...document, status: 'PASS' })
+    ? 'PASS'
+    : launch.status === 'PASS' ? 'FAIL' : launch.status;
   writeFileSync(join(evidence, 'verification.json'), `${JSON.stringify(document, null, 2)}\n`);
   writeFileSync(join(evidence, 'timing.csv'), 'tick,frame_ms,clock\n');
   writeFileSync(join(evidence, 'memory.csv'), 'minute,rss_bytes\n');
@@ -93,7 +104,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   try {
     const document = await runStress(parseLaunchArgs());
     process.stdout.write(`VERIFICATION_STATUS=${document.status}\n`);
-    process.exitCode = document.status === 'PASS' ? 0 : document.status === 'BLOCKED_ENV' ? 2 : 1;
+    process.exitCode = stressExitCode(document.status);
   } catch (error) {
     process.stderr.write(`${error?.message ?? error}\n`);
     process.exitCode = error?.code === 'BLOCKED_ENV' || String(error?.message).startsWith('BLOCKED_ENV:') ? 2 : 1;
