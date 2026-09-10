@@ -25,6 +25,80 @@ public sealed class MoveAbilityTests
     {
         Assert.False(new MoveAbility().CanActivate(new MoveAbility.Input { Dx = 0, Dz = 0 }));
         Assert.True(new MoveAbility().CanActivate(new MoveAbility.Input { Dx = 1, Dz = 0 }));
+        Assert.True(new MoveAbility().CanActivate(new MoveAbility.Input { Dx = 1, Dz = 1 }));
+    }
+
+    [Fact]
+    public void MissingPhysicsPortIsRejectedAndLeavesPositionUnchanged()
+    {
+        var origin = new Vector3(3f, 0f, 4f);
+        var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
+
+        bool admitted = MoveAbility.TryAdmitMove(
+            input,
+            origin,
+            stepMeters: 1f,
+            hasPhysicsPort: false,
+            sweepOk: true,
+            collided: false,
+            travelFraction: 1f,
+            out Vector3 next);
+
+        Assert.False(admitted);
+        Assert.Equal(origin, next);
+    }
+
+    [Fact]
+    public void AbnormalSweepIsRejectedAndLeavesPositionUnchanged()
+    {
+        var origin = new Vector3(3f, 0f, 4f);
+        var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
+
+        bool threw = MoveAbility.TryAdmitMove(
+            input,
+            origin,
+            stepMeters: 1f,
+            hasPhysicsPort: true,
+            sweepOk: false,
+            collided: false,
+            travelFraction: 1f,
+            out Vector3 afterThrow);
+        bool outOfRange = MoveAbility.TryAdmitMove(
+            input,
+            origin,
+            stepMeters: 1f,
+            hasPhysicsPort: true,
+            sweepOk: true,
+            collided: true,
+            travelFraction: 2f,
+            out Vector3 afterBadFraction);
+
+        Assert.False(threw);
+        Assert.Equal(origin, afterThrow);
+        Assert.False(outOfRange);
+        Assert.Equal(origin, afterBadFraction);
+    }
+
+    [Fact]
+    public void OversizeStepIsRejectedAndLeavesPositionUnchanged()
+    {
+        var origin = new Vector3(3f, 0f, 4f);
+        var input = new MoveAbility.Input { Dx = 1_000_000, Dz = 0 };
+
+        Assert.False(new MoveAbility().CanActivate(input));
+
+        bool admitted = MoveAbility.TryAdmitMove(
+            input,
+            origin,
+            stepMeters: 1f,
+            hasPhysicsPort: true,
+            sweepOk: true,
+            collided: false,
+            travelFraction: 1f,
+            out Vector3 next);
+
+        Assert.False(admitted);
+        Assert.Equal(origin, next);
     }
 
     [Fact]

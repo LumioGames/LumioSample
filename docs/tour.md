@@ -8,11 +8,11 @@
 |---|---|---|
 | 1 | 编译配表 | [`config/movement.json`](../config/movement.json) · [`SampleTables`](../src/Lumio.Sample.Gameplay/Config/SampleTables.cs#L13) |
 | 2 | 注册登录 | [`account-client.mjs`](../integration/account-client.mjs#L313) |
-| 3 | 起 DS | [`server.json`](../server.json#L24) · [`launcher.mjs`](../integration/launcher.mjs#L126) |
+| 3 | 起 DS | [`server.json`](../server.json#L24) · [`launcher.mjs`](../integration/launcher.mjs#L216) |
 | 4 | 进房间 | [`collectLaunchTickets`](../integration/launcher.mjs#L93) |
 | 5 | 加载底图 | [`maps/sample.voxel`](../maps/sample.voxel) · [`capture-basemap.mjs`](../integration/capture-basemap.mjs) |
 | 6 | 玩家入场 | [`PlayerEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/PlayerEntity.cs#L8) |
-| 7 | 跑动 | [`MoveAbility.SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L87) |
+| 7 | 跑动 | [`MoveAbility.SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L136) |
 | 8 | 聊天 | [`ChatComponent.SendMessage`](../src/Lumio.Sample.Gameplay/Components/Chat/ChatComponent.cs#L10) |
 | 9–14 | 挖掘到存档 | 占位，见文末；等对应引擎卡 |
 
@@ -33,7 +33,7 @@ node --test tests/Lumio.Sample.Gameplay.Tests  # 或 dotnet exec 该测试 DLL
 
 **应该看到的日志**
 
-- 启动器：`step=01 status=READY config JSON files; M8 typed reader is not wired`（[`launcher.mjs` 第 165 行](../integration/launcher.mjs#L165)）
+- 启动器：`step=01 status=READY config JSON files; M8 typed reader is not wired`（[`launcher.mjs` 第 188 行](../integration/launcher.mjs#L188)）
 - 没有 `1.25` / `0.35` 等配表数字出现在玩法 `.cs` 里（`SampleTablesTests` 会扫）
 
 ## 第 2 步：注册登录
@@ -49,7 +49,7 @@ node --test integration/account-client.test.mjs
 **应该看到的日志**
 
 - hermetic 测试通过；CLI 摘要只有 AccountId / 绑定字段，没有口令
-- 启动器无 `LUMIO_PLATFORM_ORIGIN` 时：`step=02 status=BLOCKED_ENV LUMIO_PLATFORM_ORIGIN is not set`（[第 170 行](../integration/launcher.mjs#L170)）
+- 启动器无 `LUMIO_PLATFORM_ORIGIN` 时：`step=02 status=BLOCKED_ENV LUMIO_PLATFORM_ORIGIN is not set`（[第 193 行](../integration/launcher.mjs#L193)）
 - 真 Platform 换票成功时：启动器继续第 3 步，日志里仍不得出现口令或 admission ticket 明文（`redact` / `summarizeSession`）
 
 ## 第 3 步：起 DS
@@ -65,12 +65,12 @@ node integration/launcher.mjs --bots 2 --stagger-ms 250
 
 **应该看到的日志**
 
-- 无 `lumio-ds`：`step=03 status=BLOCKED_ENV LUMIO_DS_EXE is not set or is not a file`（[第 193 行](../integration/launcher.mjs#L193)），exit 2
+- 无 `lumio-ds`：`step=03 status=BLOCKED_ENV LUMIO_DS_EXE is not set or is not a file`（[第 216 行](../integration/launcher.mjs#L216)），exit 2
 - 真 DS 起来：一行 `DS_READY { "pid": …, "endpoint": "ws://127.0.0.1:…" }`，endpoint 不得带凭据或 query
 
 ## 第 4 步：进房间
 
-启动器按 `--bots N` 规划 `Bot1`…`BotN`，错峰 `--stagger-ms`，每名 Bot 一张 [`loginAndLaunch`](../integration/account-client.mjs#L313) 票。[`collectLaunchTickets`](../integration/launcher.mjs#L93) 拒绝复用。票交给 Client `Bot.Host`（`LUMIO_BOT_DLL`），本仓不写场景类去顶替宿主接口。
+启动器按 `--bots N` 规划 `Bot1`…`BotN`，错峰 `--stagger-ms`，每名 Bot 一张 [`loginAndLaunch`](../integration/account-client.mjs#L313) 票。[`collectLaunchTickets`](../integration/launcher.mjs#L93) 拒绝复用。票交给 Client `Bot.Host`（`LUMIO_BOT_DLL`），并带 `--gameplay`（`LUMIO_GAMEPLAY` 或本仓 `Lumio.Sample.Gameplay.dll`）。本仓不写场景类去顶替宿主接口。
 
 **今天能跑**
 
@@ -80,7 +80,7 @@ node --test integration/launcher.test.mjs
 
 **应该看到的日志**
 
-- 无 Bot.Host：`step=04 status=BLOCKED_ENV LUMIO_BOT_DLL is not set`（[第 218 行](../integration/launcher.mjs#L218)）
+- 无 Bot.Host：`step=04 status=BLOCKED_ENV LUMIO_BOT_DLL is not set`（[第 241 行](../integration/launcher.mjs#L241)）
 - 注入两张相同票：测试失败，信息含 `unique`
 - 真准入成功：每名 Bot 一条进房记录；日志经 redact，看不到 ticket
 
@@ -99,21 +99,21 @@ node --test integration/capture-basemap.test.mjs
 
 **应该看到的日志**
 
-- 启动器：`step=05 status=BLOCKED_ENV maps/sample.voxel is a placeholder`（[第 247 行](../integration/launcher.mjs#L247)）
+- 启动器：`step=05 status=BLOCKED_ENV maps/sample.voxel is a placeholder`（[第 280 行](../integration/launcher.mjs#L280)）
 - fixture `integration/fixtures/oracle-min` 两轮比对退出码 0；空目录 FAIL
 
 ## 第 6 步：玩家入场
 
-[`PlayerEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/PlayerEntity.cs#L8) 声明 Observer + LogicTransform + Chat + Ability + Attribute + Effect，**不挂 Identity**。直播入场是 DS 准入五步，不在本仓另写一套。
+[`PlayerEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/PlayerEntity.cs#L8) 声明 Observer + Identity + LogicTransform + Chat + Ability + Attribute + Effect。Identity 只承接平台 accountId / 用户名；聊天说话人仍是 `NetEntityId` hex。直播入场是 DS 准入五步，不在本仓另写一套。
 
 **应该看到的日志**
 
-- 启动器在缺 Bot.Host 时第 6 步也是 `BLOCKED_ENV`（[第 219 行](../integration/launcher.mjs#L219)）
+- 启动器在缺 Bot.Host 时第 6 步也是 `BLOCKED_ENV`（[第 242 行](../integration/launcher.mjs#L242)）
 - 真入场后：Bot 日志出现本玩家的 `NetEntityId` hex；聊天将用同一个 hex 当说话人
 
 ## 第 7 步：跑动
 
-[`MoveAbility`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L15) 是唯一调用 [`SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L87) 的手写文件。步长与扫掠半径来自 [`config/movement.json`](../config/movement.json)。硬墙依赖 `IAbilityPhysicsPort`；端口缺失按空空间处理。直播 `Activate` 等 Client R-00534 AC10。
+[`MoveAbility`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L17) 是唯一调用 [`SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L136) 的手写文件。步长与扫掠半径来自 [`config/movement.json`](../config/movement.json)。硬墙依赖 `IAbilityPhysicsPort`；端口缺失时拒绝本次位移、不写坐标。直播 `Activate` 等 Client R-00534 AC10。
 
 **今天能跑**
 
@@ -124,7 +124,7 @@ dotnet exec tests/Lumio.Sample.Gameplay.Tests/bin/Debug/net10.0/Lumio.Sample.Gam
 **应该看到的日志**
 
 - `MoveAbilityTests` 通过；`SourceHygieneTests` 保证其它手写文件不再写坐标
-- 启动器：`step=07 status=BLOCKED_ENV MoveAbility is in-tree; live Activate waits Client R-00534 AC10`（[第 249 行](../integration/launcher.mjs#L249)）
+- 启动器：`step=07 status=BLOCKED_ENV MoveAbility is in-tree; live Activate waits Client R-00534 AC10`（[第 282 行](../integration/launcher.mjs#L282)）
 - 真 Activate 后：Bot 向硬墙跑应停下；对家同帧看到位移。这一条还没有直播证据
 
 ## 第 8 步：聊天
@@ -133,7 +133,7 @@ dotnet exec tests/Lumio.Sample.Gameplay.Tests/bin/Debug/net10.0/Lumio.Sample.Gam
 
 **应该看到的日志**
 
-- 启动器：`step=08 status=BLOCKED_ENV ChatComponent is in-tree; live chat waits Bot.Host`（[第 250 行](../integration/launcher.mjs#L250)）
+- 启动器：`step=08 status=BLOCKED_ENV ChatComponent is in-tree; live chat waits Bot.Host`（[第 283 行](../integration/launcher.mjs#L283)）
 - 真双 Bot：A 发言后 B 按序收到 `OnChatMessage`；服务器信息日志形如 `{hex} says: {text}`（[Server 第 26 行](../src/Lumio.Sample.Gameplay/Components/Chat/ChatComponent.Server.cs#L26)）
 - 两轮同输入的 `eventOrder` 由 S-7 对账，不在本步另造哈希
 
@@ -156,7 +156,7 @@ node integration/launcher.mjs --bots 2 --stagger-ms 250
 | 13 | 拾取（Effect 改两本账） | **R-00480** / **R-00541**；S-14 | [`PickupOreEffect`](../src/Lumio.Sample.Gameplay/Effects/PickupOreEffect.cs) |
 | 14 | 存档并重启恢复 | **R-00498** / **R-00507**；S-15 | `world_profile` 仍是 `runtime-only`。后段正文归 S-16 |
 
-启动器这六步的 `BLOCKED_ENV` 文案在 [`launcher.mjs` 第 251–256 行](../integration/launcher.mjs#L251)。
+启动器这六步的 `BLOCKED_ENV` 文案在 [`launcher.mjs` 第 284–289 行](../integration/launcher.mjs#L284)。
 
 ## 100 人压测门
 

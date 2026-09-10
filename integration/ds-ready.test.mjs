@@ -6,7 +6,7 @@ test('server invocation is the production lumio-ds config entrypoint', () => {
   assert.deepEqual(buildServerArgs('server.json'), ['--config', 'server.json']);
 });
 
-test('Bot.Host invocation carries server, ticket, native SDK and log directory', () => {
+test('Bot.Host invocation carries server, ticket, native SDK, log directory and gameplay', () => {
   const args = buildBotArgs({
     botDll: 'Lumio.Client.Bot.Host.dll',
     endpoint: 'ws://127.0.0.1:9110/',
@@ -15,10 +15,28 @@ test('Bot.Host invocation carries server, ticket, native SDK and log directory',
     logDir: 'logs/bot',
     accountFrom: 'Bot1',
     accountTo: 'Bot1',
+    gameplay: 'Lumio.Sample.Gameplay.dll',
   });
   assert.deepEqual(args.slice(1, 7), ['--server', 'ws://127.0.0.1:9110/', '--admission-ticket', 'ticket_123', '--engine-native', 'lumio.dll']);
   assert.ok(args.includes('--log-dir'));
+  const gameplayAt = args.indexOf('--gameplay');
+  assert.ok(gameplayAt >= 0);
+  assert.equal(args[gameplayAt + 1], 'Lumio.Sample.Gameplay.dll');
   assert.ok(!args.includes('test-harness'));
+});
+
+test('Bot.Host invocation refuses to omit --gameplay', () => {
+  assert.throws(
+    () => buildBotArgs({
+      botDll: 'Lumio.Client.Bot.Host.dll',
+      endpoint: 'ws://127.0.0.1:9110/',
+      admissionTicket: 'ticket_123',
+      engineNative: 'lumio.dll',
+      logDir: 'logs/bot',
+      accountFrom: 'Bot1',
+    }),
+    /--gameplay/,
+  );
 });
 
 test('DS_READY parses production readiness payload and derives port', () => {

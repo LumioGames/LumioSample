@@ -19,7 +19,7 @@ public sealed partial class ChatComponent
     {
         if (text.Length == 0) return;
 
-        // 不挂 Identity：说话人就是网络身份。512 是生成器给 chat.input 写死的 UTF-8 上限，不是玩法配表。
+        // 说话人用网络身份，不用 Identity.Name。512 是生成器给 chat.input 写死的 UTF-8 上限，不是玩法配表。
         string line = Entity.ToHex() + ": " + text;
         if (Encoding.UTF8.GetByteCount(line) > 512) return;
 

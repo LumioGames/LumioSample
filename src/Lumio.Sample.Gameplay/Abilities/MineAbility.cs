@@ -1,15 +1,16 @@
-﻿using System.Collections.Generic;
-using System.Globalization;
+using System.Collections.Generic;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
+using Lumio.Sample.Gameplay.Components.Vein;
 
 namespace Lumio.Sample.Gameplay;
 
 /// <summary>
 /// Decrements vein reserve on the bound entity. Voxel cell writes and M6a bind are
 /// engine slots that are not public yet (R-00469); this ability does not invent them.
+/// Cost names the stamina Base ledger for admit step 3 (R-00468 G2).
 /// </summary>
-[AbilityType(2u, Prediction = PredictionKind.AuthorityOnly)]
+[AbilityType(2u, Prediction = PredictionKind.AuthorityOnly, Cost = "Stamina")]
 public sealed partial class MineAbility : AbilityType<MineAbility.Input>
 {
     /// <summary>Stable ability type id. Must stay <c>2</c>.</summary>
@@ -39,7 +40,23 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
     public static void Register() => AbilityTypeCatalog.Register<MineAbility, Input>(TypeId);
 
     /// <inheritdoc />
-    public override bool CanActivate(in Input input) => NetEntityId.TryParse(input.TargetHex, out _);
+    public override bool CanActivate(in Input input)
+    {
+        if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId)) return false;
+        AbilityComponent? owner = SampleAbilityAdmission.CurrentOwner;
+        if (owner is null) return false;
+        return AdmitTarget(owner, veinId);
+    }
+
+    /// <summary>Live vein with remaining hits. Stamina belongs to admit step 3, not this method.</summary>
+    public static bool AdmitTarget(AbilityComponent owner, NetEntityId veinId)
+    {
+        if (owner is null) return false;
+        World world = owner.World;
+        if (!world.IsLive(veinId)) return false;
+        VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
+        return reserve.Remaining.Value > 0;
+    }
 
     /// <inheritdoc />
     public override void Execute(in Input input, AbilityComponent owner) => ExecuteCore(in input, owner);

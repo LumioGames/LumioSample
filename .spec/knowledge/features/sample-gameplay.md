@@ -15,13 +15,15 @@ metadata:
 | 东西 | 落点 |
 |---|---|
 | 世界单例 | `WorldEntity`（恰好一个 `World = true`，`TickRateHz = 20`） |
-| 玩家 | `PlayerEntity`：Observer + LogicTransform + Chat + Ability + Attribute + Effect。不挂 Identity |
+| 玩家 | `PlayerEntity`：Observer + Identity + LogicTransform + Chat + Ability + Attribute + Effect。Identity 承接平台 accountId；聊天说话人仍是 `NetEntityId` hex |
 | 矿脉储量 | `VeinEntity` + `VeinReserveComponent`。不挂 LogicTransform |
 | 掉落矿石 | `OreDropEntity` + `OrePileComponent` + LogicTransform |
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |
 | 跑动 | `MoveAbility`：唯一调用 `LogicTransform.SetLocalPosition` 的地方 |
-| 挖掘 | `MineAbility`：储量 -1；`TryRequestAirWrite` 在体素 ABI 未公开前恒为 false |
-| 拾取 | `PickupOreEffect`：瞬时 Effect 改矿石 BASE 账 |
+| 挖掘 | `MineAbility`：准入在 `CanActivate`（目标活、储量大于 0）；体力不足走引擎消耗步。`Execute` 扣体力 **基础账**。`TryRequestAirWrite` 在体素 ABI 未公开前恒为 false |
+| 四条账 | 体力 / 矿石各 Base+Current。初值经 `SampleAttributeSeed` 读 `config/attributes.json`（ADR-090）。引擎 `IAttributeSeed` / PostAttribute 问值要等 R-00468 G1 |
+| 矿脉出现 | `SampleVein.Queue` 下结构单；`VeinReserveComponent.PostAttribute` 把储量写成 `vein_hits_to_break`。稀疏引用走 `ISampleVoxelBinding`（宿主接 R-00469；端口空则返回 false，不假绑） |
+| 拾取 | `PickupOreEffect` 由 `SampleGameplay` 模块初始化注册；`SampleOrePickup.TryPickup` 调用 `Effects.Apply` 再 `EffectSettlement.Settle` |
 
 聊天说话人用 `NetEntityId.ToHex()`，不另造名字属性。
 
@@ -33,7 +35,7 @@ metadata:
 
 `integration/launcher.mjs` 是判据 2 的内部启动器：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。进程管理只 import 架构仓 `eng/process-tools.mjs`（`LUMIO_ENGINE_ROOT` 或同级 `LumioGameEngine`）。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`docs/tour.md`](../../../docs/tour.md)。
 
-缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。`forceCleanup` 不是通过证据。`maps/sample.voxel` 仍是占位，不可 restore。
+缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`maps/sample.voxel` 仍是占位，不可 restore。
 
 ## 压测门
 
@@ -42,8 +44,8 @@ metadata:
 ## 待解决
 
 - 直播准入、聊天、Activate 上行等 Client R-00534 / Platform。
-- 体素 bind / capture / restore / 变空气（R-00469、R-00522）。
-- 结构单掉落与 Effect 结算在 DS 上的闭环（R-00462、R-00480）。
+- 体素 bind / capture / restore / 变空气（R-00469、R-00522）。引擎 `IAttributeSeed` 合入后用它替换 `SampleGameplay.BindPlayer` 播种。
+- 结构单掉落与 Effect 结算在 DS 上的闭环（R-00462、R-00480）。`GeneratedEffectRegistry.RegisterAll` 仍待生成器。
 - 存档冷恢复（R-00498 / R-00507）。
 - M8 / M9 换成 typed Reader 后删掉 `SampleTables` 的 JSON 解析。
 

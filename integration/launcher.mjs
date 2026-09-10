@@ -6,7 +6,9 @@
  * Real topology: Platform compose + lumio-ds + N C# Bot.Host processes, staggered
  * admit, unique launch tickets. Internal-only while the Platform image is private.
  * Missing process-tools / Platform / DS / Bot.Host is BLOCKED_ENV (exit 2), not a pass.
- * forceCleanup is never treated as proof.
+ * Bot.Host production mode requires --gameplay (Client FoundationHostCommand).
+ * Live children stay up for the acceptance window (--duration-ms, else --timeout-ms)
+ * before forceCleanup. forceCleanup is never treated as proof.
  */
 
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -52,6 +54,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     dsExe: environment.LUMIO_DS_EXE,
     dsConfig: environment.LUMIO_DS_CONFIG || 'server.json',
     botDll: environment.LUMIO_BOT_DLL,
+    gameplay: environment.LUMIO_GAMEPLAY,
     engineNative: environment.LUMIO_ENGINE_NATIVE,
     endpoint: environment.LUMIO_DS_ENDPOINT,
     dotnet: environment.LUMIO_DOTNET || 'dotnet',
@@ -68,6 +71,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     'ds-exe': 'dsExe',
     'ds-config': 'dsConfig',
     'bot-dll': 'botDll',
+    gameplay: 'gameplay',
     'engine-native': 'engineNative',
     endpoint: 'endpoint',
     dotnet: 'dotnet',
@@ -86,6 +90,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
   }
   if (!Number.isInteger(options.bots) || options.bots < 1) throw new UsageError('--bots must be a positive integer.');
   if (!Number.isInteger(options.staggerMs) || options.staggerMs < 0) throw new UsageError('--stagger-ms must be a non-negative integer.');
+  if (!Number.isInteger(options.durationMs) || options.durationMs < 0) throw new UsageError('--duration-ms must be a non-negative integer.');
   if (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 1_000) throw new UsageError('--timeout-ms must be an integer of at least 1000.');
   return options;
 }
@@ -99,12 +104,30 @@ export function collectLaunchTickets(sessions) {
   return tickets;
 }
 
-async function sleep(ms) {
+async function sleep(ms, { keepAlive = false } = {}) {
   if (ms <= 0) return;
   await new Promise((resolvePromise) => {
     const timer = setTimeout(resolvePromise, ms);
-    timer.unref?.();
+    if (!keepAlive) timer.unref?.();
   });
+}
+
+function defaultGameplayPath(root) {
+  return join(root, 'src', 'Lumio.Sample.Gameplay', 'bin', 'Debug', 'net10.0', 'Lumio.Sample.Gameplay.dll');
+}
+
+async function waitForAcceptance(options, tools, children) {
+  if (!children.length) return;
+  // Resident Bot.Host does not exit. Hold the configured window so
+  // record('04','PASS') is not immediately followed by SIGKILL.
+  const holdMs = (Number.isInteger(options.durationMs) && options.durationMs > 0)
+    ? options.durationMs
+    : (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const started = Date.now();
+  while (Date.now() - started < holdMs) {
+    for (const child of children) tools.assertAlive(child);
+    await sleep(25, { keepAlive: true });
+  }
 }
 
 function printStep(log, id, status, detail) {
@@ -118,7 +141,7 @@ function usage() {
     'Usage: node integration/launcher.mjs --bots N [--stagger-ms 250] [--origin url]',
     'Internal-only first stage: Platform image is built from a private compose file.',
     'Required for a live run: LUMIO_PLATFORM_ORIGIN, LUMIO_DS_EXE, LUMIO_BOT_DLL,',
-    '  LUMIO_ENGINE_NATIVE, LUMIO_BOT_TOOL_CREDENTIAL, sibling process-tools.mjs.',
+    '  LUMIO_GAMEPLAY, LUMIO_ENGINE_NATIVE, LUMIO_BOT_TOOL_CREDENTIAL, sibling process-tools.mjs.',
     'Missing prerequisites exit 2 with VERIFICATION_STATUS=BLOCKED_ENV.',
   ].join('\n');
 }
@@ -221,8 +244,17 @@ export async function runLauncher(options = {}) {
       return report;
     }
 
+    const gameplayCandidate = options.gameplay || defaultGameplayPath(root);
+    if (!existsSync(gameplayCandidate)) {
+      record('04', 'BLOCKED_ENV', 'LUMIO_GAMEPLAY is not set (Client Bot.Host requires --gameplay).');
+      for (const step of TOUR_STEPS.slice(4)) record(step.id, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
+      report.status = 'BLOCKED_ENV';
+      return report;
+    }
+
     if (!sessions) throw blocked('no launch tickets; cannot admit bots.');
     const engineNative = requiredFile(options.engineNative, 'LUMIO_ENGINE_NATIVE');
+    const gameplay = requiredFile(gameplayCandidate, 'LUMIO_GAMEPLAY');
     const dotnet = requiredValue(options.dotnet || 'dotnet', 'LUMIO_DOTNET');
     for (const [index, session] of sessions.entries()) {
       if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
@@ -236,6 +268,7 @@ export async function runLauncher(options = {}) {
         logDir: botLogDir,
         accountFrom: session.login.loginName,
         accountTo: session.login.loginName,
+        gameplay,
       });
       log(`$ ${JSON.stringify([dotnet, ...redactArgs(args, session.launch.admissionCredential)])}`);
       children.push(tools.startLogged(dotnet, args, {
@@ -255,6 +288,8 @@ export async function runLauncher(options = {}) {
     record('13', 'BLOCKED_ENV', 'PickupOreEffect is declared; Effect settlement on DS waits R-00480.');
     record('14', 'BLOCKED_ENV', 'save/restore waits R-00498 / R-00507; world_profile is still runtime-only.');
     report.status = report.steps.some((step) => step.status === 'BLOCKED_ENV') ? 'BLOCKED_ENV' : 'PASS';
+    // Hold until the acceptance window ends, then let finally forceCleanup.
+    await waitForAcceptance(options, tools, children);
     return report;
   } catch (error) {
     report.status = error?.code === 'BLOCKED_ENV' || String(error?.message).startsWith('BLOCKED_ENV:')

@@ -23,7 +23,7 @@
     <LumioSdkMode Condition="'$(LumioSdkMode)' == '' and '$(_LumioRuntimeInvalid)' != 'true' and ('$(_LumioNupkg)' == 'true' or '$(_LumioGlobalPackage)' == 'true')">nuget</LumioSdkMode>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(LumioSdkMode)' == 'sibling' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
+  <ItemGroup Condition="'$(LumioSdkMode)' == 'sibling' and ('$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' or '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay.Tests')">
     <ProjectReference Include="$(_LumioRuntimeEcsProject)" />
     <ProjectReference Include="$(_LumioRuntimeReplicationProject)" />
     <ProjectReference Include="$(_LumioRuntimeGasProject)" />
@@ -66,7 +66,7 @@
   <PropertyGroup Condition="'$(LumioSdkMode)' == 'nuget' and '$(_LumioNupkg)' == 'true'">
     <RestoreAdditionalProjectSources>$(_LumioLocalFeed);$(RestoreAdditionalProjectSources)</RestoreAdditionalProjectSources>
   </PropertyGroup>
-  <ItemGroup Condition="'$(LumioSdkMode)' == 'nuget' and '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
+  <ItemGroup Condition="'$(LumioSdkMode)' == 'nuget' and ('$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' or '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay.Tests')">
     <PackageReference Include="Lumio.Engine.SDK" />
   </ItemGroup>
 
@@ -89,7 +89,10 @@
     </PropertyGroup>
     <Error Condition="!Exists('$(_LumioEcsToolProject)')" Text="LUMIO_SDK_UNRESOLVED: sibling Runtime is missing tools/gen-declarations." />
     <MakeDir Directories="$(_LumioEcsOut)" />
-    <Exec Command="dotnet build &quot;$(_LumioEcsToolProject)&quot; --nologo -v q" />
+    <!-- Skip restore when the tool DLL already exists: a sibling Runtime restore lock
+         otherwise hangs Sample generate. Fresh checkouts still restore once. -->
+    <Exec Command="dotnet build &quot;$(_LumioEcsToolProject)&quot; --nologo -v q --no-restore" Condition="Exists('$(_LumioEcsToolDll)')" />
+    <Exec Command="dotnet build &quot;$(_LumioEcsToolProject)&quot; --nologo -v q" Condition="!Exists('$(_LumioEcsToolDll)')" />
     <Exec Command="dotnet exec &quot;$(_LumioEcsToolDll)&quot; --sources &quot;$(_LumioEcsSources)&quot; --side $(_LumioEcsSide) --output-dir &quot;$(_LumioEcsOut)&quot; --output &quot;$(_LumioEcsJson)&quot; --assembly-name &quot;$(AssemblyName)&quot; --namespace &quot;$(_LumioEcsNamespace)&quot;" />
     <ItemGroup>
       <Compile Include="$(_LumioEcsOut)/**/*.cs" Exclude="@(Compile)" />
