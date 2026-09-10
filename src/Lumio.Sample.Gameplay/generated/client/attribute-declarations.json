@@ -1,0 +1,9 @@
+[
+  {
+    "attributeId": "IdentityComponent.name",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "utf8-string",
+    "visibility": "room-public"
+  }
+]

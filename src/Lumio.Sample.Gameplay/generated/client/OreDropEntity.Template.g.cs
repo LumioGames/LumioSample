@@ -3,19 +3,21 @@
 using Lumio.GameRuntime.Ecs;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Chat;
+using Lumio.Sample.Gameplay.Components.Fx;
 using Lumio.Sample.Gameplay.Components.Identity;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.EntityTypes;
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
-internal sealed class VeinEntityTemplate
+internal sealed class OreDropEntityTemplate
 {
-    internal static readonly int ComponentCount = 2;
+    internal static readonly int ComponentCount = 3;
     internal static readonly int ObserverIndex = 0;
     internal static Component[] CreateComponents() => new Component[]
     {
         new ObserverComponent(),
-        new VeinReserveComponent()
+        new LogicTransform(),
+        new OrePileComponent()
     };
 }

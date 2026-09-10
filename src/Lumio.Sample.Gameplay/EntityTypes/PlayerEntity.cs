@@ -1,16 +1,19 @@
-// 声明类必须 abstract、无成员。Sample 不挂 Identity：说话人用 NetEntityId 十六进制，避免再造一份名字属性。
+﻿// 声明类必须 abstract、无成员。挂 IdentityComponent 承接平台 accountId 绑定与用户名。
 using Lumio.GameRuntime.Ecs;
 using Lumio.Sample.Gameplay.Components.Chat;
+using Lumio.Sample.Gameplay.Components.Identity;
 
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
 /// <summary>
-/// Admitted player. No Identity component — chat names the speaker by net entity id.
+/// Admitted player. Identity binds platform accountId and display name;
+/// chat still names the speaker by net entity id.
 /// ADR-090 ledgers: Stamina and Ore, each Base + Current. Initials come from
 /// <c>config/attributes.json</c> via <c>SampleAttributeSeed</c> (R-00468 G1 annotation not in the package yet).
 /// </summary>
 [EntityType(Mode.CS)]
 [Has(typeof(ObserverComponent))]
+[Has(typeof(IdentityComponent))]
 [Has(typeof(LogicTransform))]
 [Has(typeof(ChatComponent))]
 [Has(typeof(AbilityComponent))]

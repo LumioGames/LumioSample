@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.RegularExpressions;
 using Xunit;
@@ -27,14 +27,14 @@ public sealed class DeclarationShapeTests
     }
 
     [Fact]
-    public void PlayerEntityUsesObserverTransformChatAndAbilityWithoutIdentity()
+    public void PlayerEntityUsesObserverIdentityTransformChatAndAbility()
     {
         string text = File.ReadAllText(Path.Combine(GameplayRoot, "EntityTypes", "PlayerEntity.cs"));
         Assert.Contains("ObserverComponent", text);
+        Assert.Contains("IdentityComponent", text);
         Assert.Contains("LogicTransform", text);
         Assert.Contains("ChatComponent", text);
         Assert.Contains("AbilityComponent", text);
-        Assert.DoesNotContain("IdentityComponent", text);
         Assert.DoesNotContain("#if", text);
     }
 

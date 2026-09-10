@@ -104,7 +104,7 @@ node --test integration/capture-basemap.test.mjs
 
 ## 第 6 步：玩家入场
 
-[`PlayerEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/PlayerEntity.cs#L8) 声明 Observer + LogicTransform + Chat + Ability + Attribute + Effect，**不挂 Identity**。直播入场是 DS 准入五步，不在本仓另写一套。
+[`PlayerEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/PlayerEntity.cs#L8) 声明 Observer + Identity + LogicTransform + Chat + Ability + Attribute + Effect。Identity 只承接平台 accountId / 用户名；聊天说话人仍是 `NetEntityId` hex。直播入场是 DS 准入五步，不在本仓另写一套。
 
 **应该看到的日志**
 

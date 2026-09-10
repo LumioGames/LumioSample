@@ -15,7 +15,7 @@ metadata:
 | 东西 | 落点 |
 |---|---|
 | 世界单例 | `WorldEntity`（恰好一个 `World = true`，`TickRateHz = 20`） |
-| 玩家 | `PlayerEntity`：Observer + LogicTransform + Chat + Ability + Attribute + Effect。不挂 Identity |
+| 玩家 | `PlayerEntity`：Observer + Identity + LogicTransform + Chat + Ability + Attribute + Effect。Identity 承接平台 accountId；聊天说话人仍是 `NetEntityId` hex |
 | 矿脉储量 | `VeinEntity` + `VeinReserveComponent`。不挂 LogicTransform |
 | 掉落矿石 | `OreDropEntity` + `OrePileComponent` + LogicTransform |
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |
