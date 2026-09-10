@@ -30,6 +30,12 @@ test('CLI parses --bots and --stagger-ms over environment', () => {
   assert.equal(options.staggerMs, 40);
 });
 
+test('CLI parses --gameplay and --duration-ms', () => {
+  const options = parseLaunchArgs(['--gameplay', 'Lumio.Sample.Gameplay.dll', '--duration-ms', '80'], {});
+  assert.equal(options.gameplay, 'Lumio.Sample.Gameplay.dll');
+  assert.equal(options.durationMs, 80);
+});
+
 test('process-tools resolution is Engine-root only and does not invent a helper', () => {
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-'));
   assert.equal(resolveProcessToolsPath({ env: {}, repoRoot: isolated }), null);
@@ -79,6 +85,62 @@ test('injected tickets must stay unique per bot', async () => {
     }),
     /unique/,
   );
+});
+
+test('started bots stay up for --duration-ms before forceCleanup', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-hold-'));
+  const touch = (name) => {
+    const path = join(isolated, name);
+    writeFileSync(path, '');
+    return path;
+  };
+  const events = [];
+  const session = {
+    login: { loginName: 'Bot1', accountId: 'acct_00000000000000000000000000000001' },
+    launch: { admissionCredential: 'ticket-one' },
+  };
+  const report = await runLauncher({
+    root: isolated,
+    env: {},
+    bots: 1,
+    staggerMs: 0,
+    durationMs: 80,
+    timeoutMs: 5_000,
+    sessions: [session],
+    dsExe: touch('lumio-ds'),
+    dsConfig: touch('server.json'),
+    botDll: touch('Lumio.Client.Bot.Host.dll'),
+    gameplay: touch('Lumio.Sample.Gameplay.dll'),
+    engineNative: touch('lumio.dll'),
+    processTools: {
+      command() { return ''; },
+      startLogged() {
+        events.push({ kind: 'start', at: Date.now() });
+        return {
+          stdout: 'DS_READY {"pid":1,"endpoint":"ws://127.0.0.1:9110"}\n',
+          child: { pid: 1, kill() {} },
+          closed: false,
+        };
+      },
+      assertAlive() {},
+      waitExit() { return Promise.resolve(); },
+      forceCleanup() {
+        events.push({ kind: 'cleanup', at: Date.now() });
+        return Promise.resolve();
+      },
+    },
+    log() {},
+    evidenceDir: join(isolated, 'evidence'),
+  });
+  const firstStart = events.find((event) => event.kind === 'start');
+  const firstCleanup = events.find((event) => event.kind === 'cleanup');
+  assert.ok(firstStart);
+  assert.ok(firstCleanup);
+  assert.ok(firstCleanup.at - firstStart.at >= 70, `cleanup raced start by ${firstCleanup.at - firstStart.at}ms`);
+  assert.equal(report.steps.find((step) => step.id === '04').status, 'PASS');
+  assert.equal(report.steps.find((step) => step.id === '05').status, 'BLOCKED_ENV');
+  assert.equal(report.steps.find((step) => step.id === '07').detail, 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
+  assert.equal(report.steps.find((step) => step.id === '14').status, 'BLOCKED_ENV');
 });
 
 test('launcher and helpers contain no retired Game harness paths', () => {

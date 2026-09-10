@@ -50,7 +50,10 @@ export function buildServerArgs(configPath) {
   return ['--config', configPath];
 }
 
-export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, logDir, accountFrom, accountTo }) {
+export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, logDir, accountFrom, accountTo, gameplay }) {
+  if (gameplay == null || String(gameplay).trim() === '') {
+    throw new TypeError('gameplay assembly path is required (--gameplay).');
+  }
   return [
     botDll,
     '--server', endpoint,
@@ -59,6 +62,7 @@ export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, 
     '--log-dir', logDir,
     '--account-from', accountFrom,
     '--account-to', accountTo ?? accountFrom,
+    '--gameplay', gameplay,
   ];
 }
 
