@@ -1,6 +1,7 @@
-﻿<Project>
+<Project>
   <!-- Resolve the engine through exactly one of the supported public paths. -->
   <PropertyGroup>
+    <LumioRuntimeRoot Condition="'$(LumioRuntimeRoot)' == '' and Exists('$(MSBuildThisFileDirectory)../LumioGameRuntime')">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../LumioGameRuntime'))</LumioRuntimeRoot>
     <_LumioRuntimeRootRaw Condition="'$(LumioRuntimeRoot)' != ''">$(LumioRuntimeRoot.Trim())</_LumioRuntimeRootRaw>
     <_LumioRuntimeRoot Condition="'$(_LumioRuntimeRootRaw)' != ''">$([System.IO.Path]::GetFullPath('$(_LumioRuntimeRootRaw)'))</_LumioRuntimeRoot>
     <_LumioLocalFeedRaw Condition="'$(LumioLocalFeed)' != ''">$(LumioLocalFeed.Trim())</_LumioLocalFeedRaw>
@@ -49,9 +50,15 @@
   </PropertyGroup>
 
   <!-- One gameplay tree, two compile sides. Server is the default (DS loads this assembly). -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' != 'client'">
+    <DefineConstants>$(DefineConstants);LUMIO_SERVER</DefineConstants>
+  </PropertyGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' != 'client'">
     <Compile Remove="**/*.Client.cs" />
   </ItemGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client'">
+    <DefineConstants>$(DefineConstants);LUMIO_CLIENT</DefineConstants>
+  </PropertyGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client'">
     <Compile Remove="**/*.Server.cs" />
   </ItemGroup>

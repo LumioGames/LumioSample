@@ -6,6 +6,7 @@ using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Ecs.Annotations;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Chat;
+using Lumio.Sample.Gameplay.Components.Fx;
 using Lumio.Sample.Gameplay.Components.Identity;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
@@ -59,7 +60,7 @@ public sealed class GeneratedRegistry : EcsRegistry
     }
 
     /// <inheritdoc />
-    public override RegistrySide Side => RegistrySide.Server;
+    public override RegistrySide Side => RegistrySide.Client;
 
     /// <inheritdoc />
     public override Type WorldEntityType => typeof(WorldEntity);
@@ -76,6 +77,10 @@ public sealed class GeneratedRegistry : EcsRegistry
     /// <inheritdoc />
     public override Component[] CreateComponents(Type entityType)
     {
+        if (entityType == typeof(MiningSparkEntity))
+        {
+            return MiningSparkEntityTemplate.CreateComponents();
+        }
         if (entityType == typeof(OreDropEntity))
         {
             return OreDropEntityTemplate.CreateComponents();
@@ -98,6 +103,11 @@ public sealed class GeneratedRegistry : EcsRegistry
     /// <inheritdoc />
     public override int ComponentIndex(Type entityType, Type componentType)
     {
+        if (entityType == typeof(MiningSparkEntity))
+        {
+            if (componentType == typeof(MiningSparkComponent)) return 0;
+            return -1;
+        }
         if (entityType == typeof(OreDropEntity))
         {
             if (componentType == typeof(ObserverComponent)) return 0;
@@ -133,6 +143,11 @@ public sealed class GeneratedRegistry : EcsRegistry
     /// <inheritdoc />
     public override int ComponentIndex(Type entityType, string componentName)
     {
+        if (entityType == typeof(MiningSparkEntity))
+        {
+            if (string.Equals(componentName, "MiningSparkComponent", StringComparison.Ordinal)) return 0;
+            return -1;
+        }
         if (entityType == typeof(OreDropEntity))
         {
             if (string.Equals(componentName, "ObserverComponent", StringComparison.Ordinal)) return 0;
@@ -169,6 +184,7 @@ public sealed class GeneratedRegistry : EcsRegistry
     public override string WireName(Type entityType)
     {
         if (entityType is null) throw new ArgumentNullException(nameof(entityType));
+        if (entityType == typeof(MiningSparkEntity)) return "miningSpark";
         if (entityType == typeof(OreDropEntity)) return "oreDrop";
         if (entityType == typeof(PlayerEntity)) return "player";
         if (entityType == typeof(VeinEntity)) return "vein";
@@ -180,6 +196,8 @@ public sealed class GeneratedRegistry : EcsRegistry
     public override bool TryResolveEntityType(string name, out Type entityType)
     {
         entityType = null!;
+        if (string.Equals(name, "miningSpark", StringComparison.Ordinal) || string.Equals(name, "MiningSparkEntity", StringComparison.Ordinal))
+        { entityType = typeof(MiningSparkEntity); return true; }
         if (string.Equals(name, "oreDrop", StringComparison.Ordinal) || string.Equals(name, "OreDropEntity", StringComparison.Ordinal))
         { entityType = typeof(OreDropEntity); return true; }
         if (string.Equals(name, "player", StringComparison.Ordinal) || string.Equals(name, "PlayerEntity", StringComparison.Ordinal))
@@ -208,12 +226,7 @@ public sealed class GeneratedRegistry : EcsRegistry
     {
         return new FieldAttributeDeclaration[]
         {
-            new FieldAttributeDeclaration("ChatComponent.lastMessageText", "utf8-string", "persistent", "not-replicated", "server-only"),
-            new FieldAttributeDeclaration("ChatComponent.lastMessageTick", "u64", "persistent", "not-replicated", "server-only"),
-            new FieldAttributeDeclaration("IdentityComponent.accountId", "utf8-string", "persistent", "not-replicated", "server-only"),
-            new FieldAttributeDeclaration("IdentityComponent.name", "utf8-string", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("OrePileComponent.amount", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "room-public")
+            new FieldAttributeDeclaration("IdentityComponent.name", "utf8-string", "persistent", "replicated", "room-public")
         };
     }
 

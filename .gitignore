@@ -10,3 +10,4 @@ TestResults/
 .workflow-drafts/
 integration/logs/**
 !integration/logs/README.md
+.run/
