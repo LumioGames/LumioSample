@@ -11,5 +11,7 @@
     <ProjectReference Include="../../src/Lumio.Sample.Gameplay/Lumio.Sample.Gameplay.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Testing.Platform" />
+    <!-- WorldManager.Create needs this at runtime; sibling ProjectReference does not copy Ecs NuGet deps. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="10.0.11" />
   </ItemGroup>
 </Project>
