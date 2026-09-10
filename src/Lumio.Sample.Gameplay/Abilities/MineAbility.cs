@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using System.Globalization;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
 using Lumio.Sample.Gameplay.Components.Ore;
@@ -12,8 +12,9 @@ namespace Lumio.Sample.Gameplay;
 /// <summary>
 /// Decrements vein reserve on the bound entity. Voxel cell writes and M6a bind are
 /// engine slots that are not public yet (R-00469); this ability does not invent them.
+/// Cost names the stamina Base ledger for admit step 3 (R-00468 G2).
 /// </summary>
-[AbilityType(2u, Prediction = PredictionKind.AuthorityOnly)]
+[AbilityType(2u, Prediction = PredictionKind.AuthorityOnly, Cost = "Stamina")]
 public sealed class MineAbility : AbilityType<MineAbility.Input>
 {
     /// <summary>Stable ability type id. Must stay <c>2</c>.</summary>
@@ -43,31 +44,44 @@ public sealed class MineAbility : AbilityType<MineAbility.Input>
     public static void Register() => AbilityTypeCatalog.Register<MineAbility, Input>(TypeId);
 
     /// <inheritdoc />
-    public override bool CanActivate(in Input input) => NetEntityId.TryParse(input.TargetHex, out _);
+    public override bool CanActivate(in Input input)
+    {
+        if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId)) return false;
+        AbilityComponent? owner = SampleAbilityAdmission.CurrentOwner;
+        if (owner is null) return false;
+        return AdmitTarget(owner, veinId);
+    }
+
+    /// <summary>Live vein with remaining hits. Stamina belongs to admit step 3, not this method.</summary>
+    public static bool AdmitTarget(AbilityComponent owner, NetEntityId veinId)
+    {
+        if (owner is null) return false;
+        World world = owner.World;
+        if (!world.IsLive(veinId)) return false;
+        VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
+        return reserve.Remaining.Value > 0;
+    }
 
     /// <inheritdoc />
     public override void Execute(in Input input, AbilityComponent owner)
     {
-        if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId)) return;
+        if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId))
+            throw new InvalidOperationException("MineAbility.Execute requires a parsed target.");
+        if (!AdmitTarget(owner, veinId))
+            throw new InvalidOperationException("MineAbility.Execute requires a passed CanActivate.");
 
         AttributeComponent attributes = owner.Get<AttributeComponent>();
-        long stamina = attributes.GetCurrentValue(SampleTables.StaminaAttributeName);
-        if (stamina < SampleTables.StaminaCost) return;
-
-        World world = owner.World;
-        if (!world.IsLive(veinId)) return;
+        long stamina = attributes.GetBaseValue(SampleTables.StaminaAttributeName);
+        // Deduct the table cost from Base. Current is recomputed from Base at settle; writing Current is wiped.
+        attributes.SetBaseValue(SampleTables.StaminaAttributeName, stamina - SampleTables.StaminaCost);
 
         VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
-        if (reserve.Remaining.Value <= 0) return;
-
-        attributes.SetCurrentValue(SampleTables.StaminaAttributeName, stamina - SampleTables.StaminaCost);
         reserve.Remaining.Value -= 1;
-
         if (reserve.Remaining.Value > 0) return;
 
         // R-00469: no public voxel batch-write ABI. Do not pretend the cell became air.
         _ = TryRequestAirWrite(veinId);
-        EntityOrder drop = world.Commands.Create<OreDropEntity>();
+        EntityOrder drop = owner.World.Commands.Create<OreDropEntity>();
         drop.Get<OrePileComponent>().Amount.Value = SampleTables.OrePerVein;
     }
 

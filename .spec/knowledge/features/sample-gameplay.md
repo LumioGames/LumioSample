@@ -20,8 +20,10 @@ metadata:
 | 掉落矿石 | `OreDropEntity` + `OrePileComponent` + LogicTransform |
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |
 | 跑动 | `MoveAbility`：唯一调用 `LogicTransform.SetLocalPosition` 的地方 |
-| 挖掘 | `MineAbility`：储量 -1；`TryRequestAirWrite` 在体素 ABI 未公开前恒为 false |
-| 拾取 | `PickupOreEffect`：瞬时 Effect 改矿石 BASE 账 |
+| 挖掘 | `MineAbility`：准入在 `CanActivate`（目标活、储量大于 0）；体力不足走引擎消耗步。`Execute` 扣体力 **基础账**。`TryRequestAirWrite` 在体素 ABI 未公开前恒为 false |
+| 四条账 | 体力 / 矿石各 Base+Current。初值经 `SampleAttributeSeed` 读 `config/attributes.json`（ADR-090）。引擎 `IAttributeSeed` / PostAttribute 问值要等 R-00468 G1 |
+| 矿脉出现 | `SampleVein.Queue` 下结构单；`VeinReserveComponent.PostAttribute` 把储量写成 `vein_hits_to_break`。稀疏引用走 `ISampleVoxelBinding`（宿主接 R-00469；端口空则返回 false，不假绑） |
+| 拾取 | `PickupOreEffect` 由 `SampleGameplay` 模块初始化注册；`SampleOrePickup.TryPickup` 调用 `Effects.Apply` 再 `EffectSettlement.Settle` |
 
 聊天说话人用 `NetEntityId.ToHex()`，不另造名字属性。
 
@@ -42,8 +44,8 @@ metadata:
 ## 待解决
 
 - 直播准入、聊天、Activate 上行等 Client R-00534 / Platform。
-- 体素 bind / capture / restore / 变空气（R-00469、R-00522）。
-- 结构单掉落与 Effect 结算在 DS 上的闭环（R-00462、R-00480）。
+- 体素 bind / capture / restore / 变空气（R-00469、R-00522）。引擎 `IAttributeSeed` 合入后用它替换 `SampleGameplay.BindPlayer` 播种。
+- 结构单掉落与 Effect 结算在 DS 上的闭环（R-00462、R-00480）。`GeneratedEffectRegistry.RegisterAll` 仍待生成器。
 - 存档冷恢复（R-00498 / R-00507）。
 - M8 / M9 换成 typed Reader 后删掉 `SampleTables` 的 JSON 解析。
 
