@@ -14,8 +14,8 @@
     "hostfxr": "dotnet/libhostfxr.so",
     "runtime_config": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.runtimeconfig.json",
     "assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll",
-    "entry_type": "replace-host-entry-type",
-    "entry_method": "replace-host-entry-method",
+    "entry_type": "Lumio.Server.EntityChat.HostEntry.HostEntry, Lumio.Server.EntityChat.HostEntry",
+    "entry_method": "LumioEntityChatEntry",
     "replication_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Replication.dll",
     "ecs_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Ecs.dll",
     "registry_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll"

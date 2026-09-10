@@ -11,8 +11,8 @@
  * before forceCleanup. forceCleanup is never treated as proof.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loginAndLaunch } from './account-client.mjs';
 import { buildBotArgs, buildServerArgs, findDsReady, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
@@ -104,6 +104,113 @@ export function collectLaunchTickets(sessions) {
   return tickets;
 }
 
+const LOG_EXTENSIONS = new Set(['.log', '.ndjson', '.jsonl']);
+
+function listLogFiles(root, result = []) {
+  if (!root || !existsSync(root)) return result;
+  const info = statSync(root);
+  if (info.isFile()) {
+    if (LOG_EXTENSIONS.has(extname(root).toLowerCase())) result.push(root);
+    return result;
+  }
+  if (!info.isDirectory()) return result;
+  for (const name of readdirSync(root).sort()) {
+    listLogFiles(join(root, name), result);
+  }
+  return result;
+}
+
+function readTextIfPresent(path) {
+  if (!path || !existsSync(path)) return '';
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+export function collectBotEvidenceText({ evidenceDir, index, child } = {}) {
+  const chunks = [];
+  if (child?.stdout) chunks.push(String(child.stdout));
+  if (evidenceDir && Number.isInteger(index) && index >= 0) {
+    chunks.push(readTextIfPresent(join(evidenceDir, `bot-${index + 1}.log`)));
+    for (const file of listLogFiles(join(evidenceDir, `bot-${index + 1}`))) {
+      chunks.push(readTextIfPresent(file));
+    }
+  }
+  return chunks.join('\n');
+}
+
+/**
+ * Client Bot.Host (ADR-081) writes one lifecycle line per transition:
+ * `session state changed {account} {state} {previous} {reason} …`
+ * Active + reason established is the admit receipt. Process start is not.
+ */
+export function parseBotAdmit(text) {
+  const lines = String(text ?? '').split(/\r?\n/);
+  let admitted = false;
+  let rejected = false;
+  let faulted = false;
+  for (const line of lines) {
+    if (!line) continue;
+    if (line.includes('session login requested')) {
+      if (/\baccepted=(False|false)\b/.test(line) || /\sFalse\s*$/.test(line) || /\sFalse\s/.test(line)) {
+        rejected = true;
+      }
+    }
+    if (line.includes('session state changed')) {
+      const active = /\bstate=Active\b/.test(line) || /\sActive\s/.test(line);
+      const established = /\breason=established\b/.test(line) || /\bestablished\b/.test(line);
+      if (active && established) admitted = true;
+      if (/\bstate=Faulted\b/.test(line) || /\bsession_faulted\b/.test(line)) faulted = true;
+    }
+  }
+  return { admitted, rejected, faulted };
+}
+
+export function inspectBotAdmit(source) {
+  return parseBotAdmit(typeof source === 'string' ? source : collectBotEvidenceText(source ?? {}));
+}
+
+export function countAdmittedBots(bots, { evidenceDir, children = [] } = {}) {
+  let admitted = 0;
+  const details = [];
+  for (let index = 0; index < bots; index += 1) {
+    const parsed = inspectBotAdmit({ evidenceDir, index, child: children[index] });
+    details.push(parsed);
+    if (parsed.admitted && !parsed.rejected && !parsed.faulted) admitted += 1;
+  }
+  return { admitted, details };
+}
+
+async function waitBotsAdmitted({
+  bots,
+  evidenceDir,
+  botChildren,
+  liveChildren,
+  timeoutMs,
+  tools,
+  sleepFn,
+}) {
+  const waitMs = timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const started = Date.now();
+  let latest = countAdmittedBots(bots, { evidenceDir, children: botChildren });
+  while (Date.now() - started < waitMs) {
+    for (const child of liveChildren) tools.assertAlive(child);
+    latest = countAdmittedBots(bots, { evidenceDir, children: botChildren });
+    if (latest.details.some((item) => item.rejected || item.faulted)) return latest;
+    if (latest.admitted === bots) return latest;
+    await sleepFn(25);
+  }
+  return latest;
+}
+
+function reportStatusFromSteps(steps) {
+  if (steps.some((step) => step.status === 'FAIL')) return 'FAIL';
+  if (steps.some((step) => step.status === 'BLOCKED_ENV')) return 'BLOCKED_ENV';
+  return 'PASS';
+}
+
 async function sleep(ms, { keepAlive = false } = {}) {
   if (ms <= 0) return;
   await new Promise((resolvePromise) => {
@@ -174,18 +281,22 @@ export async function runLauncher(options = {}) {
   let tools;
   const children = [];
   try {
+    const logins = planBotLogins(options.bots ?? 2);
+    record(
+      '01',
+      existsSync(join(root, 'config', 'manifest.json')) ? 'READY' : 'BLOCKED_ENV',
+      'LumioConfig export + typed Reader via M9 loader',
+    );
+
     try {
       tools = options.processTools ?? await loadProcessTools({ env, repoRoot: root });
     } catch (error) {
       if (error?.code !== 'BLOCKED_ENV') throw error;
-      for (const step of TOUR_STEPS) record(step.id, 'BLOCKED_ENV', error.message);
-      report.status = 'BLOCKED_ENV';
+      for (const step of TOUR_STEPS.slice(1)) record(step.id, 'BLOCKED_ENV', error.message);
+      report.status = reportStatusFromSteps(report.steps);
       report.error = error.message;
       return report;
     }
-
-    const logins = planBotLogins(options.bots ?? 2);
-    record('01', existsSync(join(root, 'config', 'movement.json')) ? 'READY' : 'BLOCKED_ENV', 'config JSON files; M8 typed reader is not wired');
 
     let sessions = options.sessions;
     if (!sessions) {
@@ -215,7 +326,7 @@ export async function runLauncher(options = {}) {
     if (!options.dsExe || !existsSync(options.dsExe)) {
       record('03', 'BLOCKED_ENV', 'LUMIO_DS_EXE is not set or is not a file.');
       for (const step of TOUR_STEPS.slice(3)) record(step.id, 'BLOCKED_ENV', 'waiting for lumio-ds');
-      report.status = 'BLOCKED_ENV';
+      report.status = reportStatusFromSteps(report.steps);
       return report;
     }
 
@@ -240,7 +351,7 @@ export async function runLauncher(options = {}) {
     if (!options.botDll || !existsSync(options.botDll)) {
       record('04', 'BLOCKED_ENV', 'LUMIO_BOT_DLL is not set (Client Bot.Host / R-00534).');
       for (const step of TOUR_STEPS.slice(4)) record(step.id, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
-      report.status = 'BLOCKED_ENV';
+      report.status = reportStatusFromSteps(report.steps);
       return report;
     }
 
@@ -248,7 +359,7 @@ export async function runLauncher(options = {}) {
     if (!existsSync(gameplayCandidate)) {
       record('04', 'BLOCKED_ENV', 'LUMIO_GAMEPLAY is not set (Client Bot.Host requires --gameplay).');
       for (const step of TOUR_STEPS.slice(4)) record(step.id, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
-      report.status = 'BLOCKED_ENV';
+      report.status = reportStatusFromSteps(report.steps);
       return report;
     }
 
@@ -256,6 +367,7 @@ export async function runLauncher(options = {}) {
     const engineNative = requiredFile(options.engineNative, 'LUMIO_ENGINE_NATIVE');
     const gameplay = requiredFile(gameplayCandidate, 'LUMIO_GAMEPLAY');
     const dotnet = requiredValue(options.dotnet || 'dotnet', 'LUMIO_DOTNET');
+    const botChildren = [];
     for (const [index, session] of sessions.entries()) {
       if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
       const botLogDir = join(evidence, `bot-${index + 1}`);
@@ -271,13 +383,30 @@ export async function runLauncher(options = {}) {
         gameplay,
       });
       log(`$ ${JSON.stringify([dotnet, ...redactArgs(args, session.launch.admissionCredential)])}`);
-      children.push(tools.startLogged(dotnet, args, {
+      const bot = tools.startLogged(dotnet, args, {
         cwd: dirname(options.botDll),
         log: join(evidence, `bot-${index + 1}.log`),
-      }));
+      });
+      botChildren.push(bot);
+      children.push(bot);
     }
-    record('04', 'PASS', `${sessions.length} bots admitted with unique tickets`);
-    record('05', 'BLOCKED_ENV', 'maps/sample.voxel is a placeholder; capture/restore ABI is not public (R-00522).');
+    const admit = await waitBotsAdmitted({
+      bots: sessions.length,
+      evidenceDir: evidence,
+      botChildren,
+      liveChildren: children,
+      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      tools,
+      sleepFn: sleep,
+    });
+    report.requiredBots = sessions.length;
+    report.admittedBots = admit.admitted;
+    if (admit.admitted !== sessions.length) {
+      record('04', 'FAIL', `${admit.admitted} of ${sessions.length} bots admitted (reject/no welcome/timeout)`);
+    } else {
+      record('04', 'PASS', `${admit.admitted} bots admitted with unique tickets`);
+    }
+    record('05', 'BLOCKED_ENV', 'maps/sample.voxel is a placeholder; Sample write-cell consume is not wired (R-00522).');
     record('06', 'READY', 'PlayerEntity is declared; live spawn is the DS admit path.');
     record('07', 'BLOCKED_ENV', 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
     record('08', 'BLOCKED_ENV', 'ChatComponent is in-tree; live chat waits Bot.Host.');
@@ -287,9 +416,11 @@ export async function runLauncher(options = {}) {
     record('12', 'BLOCKED_ENV', 'OreDropEntity is declared; structure-commit R-00462 is an engine gap.');
     record('13', 'BLOCKED_ENV', 'PickupOreEffect is declared; Effect settlement on DS waits R-00480.');
     record('14', 'BLOCKED_ENV', 'save/restore waits R-00498 / R-00507; world_profile is still runtime-only.');
-    report.status = report.steps.some((step) => step.status === 'BLOCKED_ENV') ? 'BLOCKED_ENV' : 'PASS';
+    report.status = reportStatusFromSteps(report.steps);
     // Hold until the acceptance window ends, then let finally forceCleanup.
-    await waitForAcceptance(options, tools, children);
+    if (admit.admitted === sessions.length) {
+      await waitForAcceptance(options, tools, children);
+    }
     return report;
   } catch (error) {
     report.status = error?.code === 'BLOCKED_ENV' || String(error?.message).startsWith('BLOCKED_ENV:')

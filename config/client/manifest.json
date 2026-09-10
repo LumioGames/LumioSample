@@ -1,0 +1,89 @@
+{
+  "tables": [
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "da2ec368ea9f4a2aaf1949af035b5a8e783270e366c9f8748499a31f6ebf6831",
+          "path": "client/attributes.json"
+        }
+      ],
+      "contentFingerprint": "6de68b10cbd42fc0729507bc184f9eaba2244d4605330963c9ad7edddd9d0ab7",
+      "packageFingerprint": "da2ec368ea9f4a2aaf1949af035b5a8e783270e366c9f8748499a31f6ebf6831",
+      "path": "client/attributes.json",
+      "sourceFingerprint": "53fb0524baadd15b28181ffe06cf86c2422ecdaaa638742b67c943c1d1af9796",
+      "table": "attributes"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "6e24fe9d693e3fafe286be86265e2d5805f85e85ed48262ca1b54bfc889c45ea",
+          "path": "client/drops.json"
+        }
+      ],
+      "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+      "packageFingerprint": "6e24fe9d693e3fafe286be86265e2d5805f85e85ed48262ca1b54bfc889c45ea",
+      "path": "client/drops.json",
+      "sourceFingerprint": "3ea963e5ded01171a0ed4a0b70f2154688648f3d14055ef56d478b8ba1bd0357",
+      "table": "drops"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "f257abff63dcd2293b9e3715493019ad49c905086b35e0e7cf436195cffb0294",
+          "path": "client/effects.json"
+        }
+      ],
+      "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
+      "packageFingerprint": "f257abff63dcd2293b9e3715493019ad49c905086b35e0e7cf436195cffb0294",
+      "path": "client/effects.json",
+      "sourceFingerprint": "c800925661133fd9cb1b6591eeb3038de7253f813c6b03bbb2c9f05f622d2bf7",
+      "table": "effects"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "ec5886b41a3b4d1231be133b436eb8a9f96b456a505736c3ff0555ac6ec1a93b",
+          "path": "client/mining.json"
+        }
+      ],
+      "contentFingerprint": "070b3ab710eef26b19953b028900e85e427e7e7af8ccfe4adb5366b419c988d1",
+      "packageFingerprint": "ec5886b41a3b4d1231be133b436eb8a9f96b456a505736c3ff0555ac6ec1a93b",
+      "path": "client/mining.json",
+      "sourceFingerprint": "f7134809c07ddea9a956f877d000b330ee3c90dfe0152d9db286b630384bae56",
+      "table": "mining"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "f4ab54c6152ab439bfc21df55f01d0dec7b1c29b966aebeb756d63e207acdbc7",
+          "path": "client/movement.json"
+        }
+      ],
+      "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
+      "packageFingerprint": "f4ab54c6152ab439bfc21df55f01d0dec7b1c29b966aebeb756d63e207acdbc7",
+      "path": "client/movement.json",
+      "sourceFingerprint": "923ea0373d6071141748b66727a693d0e83e95e45738a266e7798350f1af32bd",
+      "table": "movement"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "535cac127aa7e402e23ba179fae81a0518296cfa75dc2bf90f1cc7f1f36f3dd4",
+          "path": "client/skills.json"
+        }
+      ],
+      "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+      "packageFingerprint": "535cac127aa7e402e23ba179fae81a0518296cfa75dc2bf90f1cc7f1f36f3dd4",
+      "path": "client/skills.json",
+      "sourceFingerprint": "a10eb3b674957381a510f243e95c4a55bd6b6a22af78405329af4184acfc3325",
+      "table": "skills"
+    }
+  ],
+  "target": "C"
+}

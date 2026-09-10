@@ -1,0 +1,17 @@
+{
+  "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+  "rows": [
+    {
+      "display_name": "Ember Cache",
+      "id": 60001,
+      "name": "ember_cache"
+    },
+    {
+      "display_name": "Winter Cache",
+      "id": 60002,
+      "name": "winter_cache"
+    }
+  ],
+  "table": "drops",
+  "target": "C"
+}

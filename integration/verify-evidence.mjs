@@ -7,6 +7,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test as nodeTest } from 'node:test'
+import { assertWorld } from './world-assert.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURE = join(ROOT, 'integration', 'fixtures', 'oracle-min')
@@ -192,6 +193,54 @@ export function compareRuns(round1, round2) {
   return { ok: failures.length === 0, failures, round1, round2 }
 }
 
+function loadJsonObject(path, check) {
+  if (!existsSync(path)) {
+    return { ok: false, failures: [{ check, message: `missing ${path}` }] }
+  }
+  try {
+    const value = JSON.parse(readFileSync(path, 'utf8'))
+    if (!isObject(value)) {
+      return { ok: false, failures: [{ check, message: `${path} must be a JSON object` }] }
+    }
+    return { ok: true, value, failures: [] }
+  } catch (error) {
+    return { ok: false, failures: [{ check, message: `${path} invalid JSON: ${error.message}` }] }
+  }
+}
+
+function prefixWorldFailures(label, failures) {
+  return failures.map((failure) => ({
+    ...failure,
+    message: `${label}: ${failure.message}`,
+  }))
+}
+
+export function verifyWorldRounds(root, round1Dir, round2Dir) {
+  const failures = []
+  const expectedPath = join(root, 'expected.json')
+  const expected = loadJsonObject(expectedPath, 'world:expected')
+  if (!expected.ok) return { ok: false, failures: expected.failures }
+
+  for (const [label, dir] of [['round-1', round1Dir], ['round-2', round2Dir]]) {
+    const loaded = loadJsonObject(join(dir, 'world.json'), 'world:missing')
+    if (!loaded.ok) {
+      failures.push(...prefixWorldFailures(label, loaded.failures))
+      continue
+    }
+    failures.push(...prefixWorldFailures(label, assertWorld(loaded.value, expected.value)))
+  }
+  return { ok: failures.length === 0, failures }
+}
+
+export function verifyIndependentRoundLayout(round1Dir, round2Dir) {
+  const left = resolve(round1Dir)
+  const right = resolve(round2Dir)
+  if (left === right) {
+    return { ok: false, failures: [{ check: 'rounds:independent', message: 'round-1 and round-2 must be distinct directories' }] }
+  }
+  return { ok: true, failures: [] }
+}
+
 export function verifyEvidenceDir(dir) {
   const root = resolve(String(dir ?? ''))
   if (!root || !existsSync(root) || !statSync(root).isDirectory()) {
@@ -202,7 +251,11 @@ export function verifyEvidenceDir(dir) {
   if (!existsSync(round1Dir) || !existsSync(round2Dir)) {
     return { ok: false, failures: [{ check: 'logs:rounds', message: 'both round-1 and round-2 directories are required' }] }
   }
-  return compareRuns(verifyRound(round1Dir, 'round-1'), verifyRound(round2Dir, 'round-2'))
+  const layout = verifyIndependentRoundLayout(round1Dir, round2Dir)
+  const logs = compareRuns(verifyRound(round1Dir, 'round-1'), verifyRound(round2Dir, 'round-2'))
+  const worlds = verifyWorldRounds(root, round1Dir, round2Dir)
+  const failures = [...layout.failures, ...logs.failures, ...worlds.failures]
+  return { ok: failures.length === 0, failures, round1: logs.round1, round2: logs.round2 }
 }
 
 export function verifyTourLinks(root = ROOT) {
@@ -294,10 +347,92 @@ test('tour markdown links resolve to files in this repository', () => {
   assert.deepEqual(verifyTourLinks(), [])
 })
 
+test('tour can be walked: fourteen steps, no stale ABI-does-not-exist copy', () => {
+  const markdown = readFileSync(join(ROOT, 'docs', 'tour.md'), 'utf8')
+  assert.match(markdown, /第 1 步/)
+  assert.match(markdown, /第 4 步/)
+  assert.match(markdown, /第 8 步/)
+  assert.match(markdown, /第 9–14 步/)
+  for (const step of [9, 10, 11, 12, 13, 14]) {
+    assert.match(markdown, new RegExp(`\\| ${step} \\|`))
+  }
+  assert.doesNotMatch(markdown, /上游 write ABI 不存在|ABI does not exist/)
+  assert.match(markdown, /world-assert/)
+  assert.match(markdown, /established/)
+  assert.match(markdown, /typed Reader/)
+})
+
+test('both rounds wrong one cell fail even when logs match', () => {
+  const dir = tempFixture('wrong-cell')
+  try {
+    const expected = JSON.parse(readFileSync(join(FIXTURE, 'expected.json'), 'utf8'))
+    const wrong = {
+      ...expected,
+      cells: expected.cells.map((cell, index) => (index === 1 ? { ...cell, block: 'stone' } : cell)),
+    }
+    writeFileSync(join(dir, 'round-1', 'world.json'), `${JSON.stringify(wrong)}\n`)
+    writeFileSync(join(dir, 'round-2', 'world.json'), `${JSON.stringify(wrong)}\n`)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some((failure) => failure.check === 'world:cell'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('wrong ore count fails independently of matching logs', () => {
+  const dir = tempFixture('wrong-ore')
+  try {
+    const expected = JSON.parse(readFileSync(join(FIXTURE, 'expected.json'), 'utf8'))
+    const wrong = { ...expected, oreCount: 99 }
+    writeFileSync(join(dir, 'round-1', 'world.json'), `${JSON.stringify(wrong)}\n`)
+    writeFileSync(join(dir, 'round-2', 'world.json'), `${JSON.stringify(wrong)}\n`)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some((failure) => failure.check === 'world:ore'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('CLI swapped eventOrder in one round exits 1', () => {
+  const dir = tempFixture('cli-event-order')
+  try {
+    const path = join(dir, 'round-1', 'events.ndjson')
+    const changed = readFileSync(path, 'utf8').replace('"event-2","event-3"', '"event-3","event-2"')
+    writeFileSync(path, changed)
+    const env = { ...process.env }
+    delete env.NODE_TEST_CONTEXT
+    const res = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--dir', dir], { env, encoding: 'utf8' })
+    assert.equal(res.status, 1)
+    assert.match(res.stdout, /event-order-compare/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('CLI empty logs exit 1', () => {
+  const dir = mkdtempSync(join(dirname(fileURLToPath(import.meta.url)), '.tmp-cli-empty-'))
+  try {
+    mkdirRoundDirs(dir)
+    writeFileSync(join(dir, 'expected.json'), readFileSync(join(FIXTURE, 'expected.json')))
+    const env = { ...process.env }
+    delete env.NODE_TEST_CONTEXT
+    const res = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--dir', dir], { env, encoding: 'utf8' })
+    assert.equal(res.status, 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('fields are read from logs and are never synthesized', () => {
   const dir = mkdtempSync(join(dirname(fileURLToPath(import.meta.url)), '.tmp-fields-'))
   try {
     mkdirRoundDirs(dir)
+    writeFileSync(join(dir, 'expected.json'), readFileSync(join(FIXTURE, 'expected.json')))
+    const world = readFileSync(join(FIXTURE, 'round-1', 'world.json'))
+    writeFileSync(join(dir, 'round-1', 'world.json'), world)
+    writeFileSync(join(dir, 'round-2', 'world.json'), world)
     const content = '{"baseMapSha256":"' + 'a'.repeat(64) + '","kind":"tick","appliedTick":1}\n'
     writeFileSync(join(dir, 'round-1', 'events.ndjson'), content)
     writeFileSync(join(dir, 'round-2', 'events.ndjson'), content)

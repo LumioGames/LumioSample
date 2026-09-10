@@ -226,7 +226,9 @@ public sealed class GeneratedRegistry : EcsRegistry
     {
         return new FieldAttributeDeclaration[]
         {
-            new FieldAttributeDeclaration("IdentityComponent.name", "utf8-string", "persistent", "replicated", "room-public")
+            new FieldAttributeDeclaration("IdentityComponent.name", "utf8-string", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("OrePileComponent.amount", "i32", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "room-public")
         };
     }
 

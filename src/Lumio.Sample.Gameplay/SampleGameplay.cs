@@ -13,7 +13,7 @@ public static class SampleAbilityAdmission
     [ThreadStatic]
     private static AbilityComponent? _owner;
 
-    /// <summary>Owner of the Activate currently being admitted. Null outside <see cref="SampleGameplay.ActivateMine"/>.</summary>
+    /// <summary>Owner of the Activate currently being admitted. Set by BindPlayer's cost reader for generic Activate.</summary>
     public static AbilityComponent? CurrentOwner
     {
         get => _owner;
@@ -50,24 +50,22 @@ public static class SampleGameplay
         string stamina = SampleTables.StaminaAttributeName;
         // R-00468 G2 still rejects only when the cost Base is <= 0. Map "below table cost" to 0 so
         // insufficient stamina is admit step 3 on today's engine. Execute still deducts the table cost from Base.
+        // Generic Activate (AbilityComponent.Activate / catalog RPC) uses this context; readCostBase
+        // publishes the owner so CanActivate can see the world without SampleGameplay.ActivateMine.
         abilities.ActivationContext = new AbilityActivationContext(
-            () => attributes.GetBaseValue(stamina) < SampleTables.StaminaCost ? 0L : attributes.GetBaseValue(stamina),
+            () =>
+            {
+                SampleAbilityAdmission.CurrentOwner = abilities;
+                return attributes.GetBaseValue(stamina) < SampleTables.StaminaCost ? 0L : attributes.GetBaseValue(stamina);
+            },
             _ => { },
             _ => attributes.SetCurrentValue(stamina, attributes.GetBaseValue(stamina)));
     }
 
-    /// <summary>Activate mine with the admission owner so <see cref="MineAbility.CanActivate"/> can see the world.</summary>
+    /// <summary>Generic Activate. Owner for CanActivate comes from <see cref="BindPlayer"/>'s context, not this wrapper.</summary>
     public static AbilityActivateResult ActivateMine(AbilityComponent owner, in MineAbility.Input input, ulong sequence = 0)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        SampleAbilityAdmission.CurrentOwner = owner;
-        try
-        {
-            return owner.Activate<MineAbility, MineAbility.Input>(in input, sequence);
-        }
-        finally
-        {
-            SampleAbilityAdmission.CurrentOwner = null;
-        }
+        return owner.Activate<MineAbility, MineAbility.Input>(in input, sequence);
     }
 }

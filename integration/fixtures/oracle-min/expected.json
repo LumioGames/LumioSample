@@ -1,0 +1,8 @@
+{
+  "cells": [
+    { "x": 0, "y": 0, "z": 0, "block": "stone" },
+    { "x": 1, "y": 0, "z": 0, "block": "ore" },
+    { "x": 2, "y": 0, "z": 0, "block": "air" }
+  ],
+  "oreCount": 2
+}

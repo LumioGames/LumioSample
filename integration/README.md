@@ -56,16 +56,17 @@ world or a “same hash, wrong blocks” snapshot fails.
 ## Base map capture (R-00522)
 
 `capture-basemap.mjs` refuses `maps/sample.voxel`. That file is a
-placeholder. Engine ABI has capture/restore slots, but this repo does
-not yet wire a public write-cell + capture path, so the placeholder
-must not be treated as a restorable base map.
+placeholder. VoxelFacade already exposes Capture/Restore; this repo has
+not wired write-cell consume, so the placeholder must not be treated as
+a restorable base map. Do not report that as "upstream ABI does not exist".
 
 ---
 
-`verify-evidence.mjs` is the deterministic S-7 evidence gate. It reads only the two
-round log directories, normalizes CRLF to LF before SHA-256, and compares
-`eventOrder` and `appliedTicks` position by position. It never synthesizes fields,
-compares lengths alone, or treats an empty log directory as success.
+`verify-evidence.mjs` is the deterministic S-7 evidence gate. It reads two
+independent round directories, normalizes CRLF to LF before SHA-256, compares
+`eventOrder` and `appliedTicks`, and runs `world-assert.mjs` against each
+round's `world.json`. It never synthesizes fields or treats an empty log
+directory as success.
 
 ```bash
 node --test integration/verify-evidence.mjs

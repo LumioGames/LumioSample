@@ -5,5 +5,19 @@
     "replication": "replicated",
     "valueType": "utf8-string",
     "visibility": "room-public"
+  },
+  {
+    "attributeId": "OrePileComponent.amount",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "i32",
+    "visibility": "room-public"
+  },
+  {
+    "attributeId": "VeinReserveComponent.remaining",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "i32",
+    "visibility": "room-public"
   }
 ]

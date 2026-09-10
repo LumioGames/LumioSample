@@ -7,11 +7,14 @@ namespace Lumio.Sample.Gameplay.Components.Ore;
 
 public sealed partial class OrePileComponent : IGeneratedComponent, IGeneratedSyncMetadata
 {
+    partial void OnAmountChanging(int old, int @new, ChangeReason reason);
+    partial void OnAmountChanged(int old, int @new, ChangeReason reason);
     partial void OnClientWrite(in SyncWrite w, ref bool accept);
 
 
     void IGeneratedComponent.BindFields(ISyncHost host)
     {
+        Amount = Amount.Bound(host, this, 0, "OrePileComponent.amount");
     }
 
     void IGeneratedComponent.InvokePostAttribute() => PostAttribute();
@@ -19,10 +22,12 @@ public sealed partial class OrePileComponent : IGeneratedComponent, IGeneratedSy
 
     void IGeneratedComponent.InvokeFieldChanging(int ordinal, object? oldValue, object? newValue, ChangeReason reason)
     {
+        if (ordinal == 0) OnAmountChanging((int)oldValue!, (int)newValue!, reason);
     }
 
     void IGeneratedComponent.InvokeFieldChanged(int ordinal, object? oldValue, object? newValue, ChangeReason reason)
     {
+        if (ordinal == 0) OnAmountChanged((int)oldValue!, (int)newValue!, reason);
     }
 
     bool IGeneratedComponent.DispatchClientWrite(in SyncWrite write)
@@ -54,20 +59,29 @@ public sealed partial class OrePileComponent : IGeneratedComponent, IGeneratedSy
 
     object? IGeneratedComponent.ReadField(string fieldId)
     {
+        if (string.Equals(fieldId, "amount", StringComparison.Ordinal)) return Amount.Value;
         return null;
     }
 
     void IGeneratedComponent.WriteField(string fieldId, object? value, bool silent)
     {
+        if (string.Equals(fieldId, "amount", StringComparison.Ordinal))
+        {
+            if (silent) Amount.SetSilent((int)value!);
+            else Amount.Value = (int)value!;
+            return;
+        }
     }
 
     bool IGeneratedSyncMetadata.TryGetSyncField(string fieldId, out ISyncField field)
     {
+        if (string.Equals(fieldId, "amount", StringComparison.Ordinal)) { field = Amount; return true; }
         field = null!;
         return false;
     }
 
     void IGeneratedComponent.ResetToDefault()
     {
+        Amount.SetSilent(0);
     }
 }

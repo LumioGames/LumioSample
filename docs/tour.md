@@ -2,25 +2,25 @@
 
 这份导览按真实文件与行号记录示例游戏的十四步。需求真值在架构仓；本文不复述引擎契约字段。
 
-前八步今天能在本仓走完的是**声明 + hermetic 测试 + 启动器逐步打印**。对着真 Platform / `lumio-ds` / Bot.Host 跑到第八步，还要等 Client R-00534 与内部 compose。缺依赖时启动器印 `step=NN status=BLOCKED_ENV` 并以 exit 2 离开——那不是通过。
+前八步今天能在本仓走完的是**声明 + hermetic 测试 + 启动器逐步打印**。对着真 Platform / `lumio-ds` / Bot.Host 跑到第八步，还要等 Client R-00534 与内部 compose。缺依赖时启动器印 `step=NN status=BLOCKED_ENV` 并以 exit 2 离开——那不是通过。第 04 步只有 Bot 日志出现 `session state changed … Active … established` 才 PASS；进程起来不算入房。
 
 | 步 | 做什么 | 本仓落点 |
 |---|---|---|
-| 1 | 编译配表 | [`config/movement.json`](../config/movement.json) · [`SampleTables`](../src/Lumio.Sample.Gameplay/Config/SampleTables.cs#L13) |
+| 1 | 编译配表 | [`config/manifest.json`](../config/manifest.json) · [`SampleTables`](../src/Lumio.Sample.Gameplay/Config/SampleTables.cs) |
 | 2 | 注册登录 | [`account-client.mjs`](../integration/account-client.mjs#L313) |
 | 3 | 起 DS | [`server.json`](../server.json#L24) · [`launcher.mjs`](../integration/launcher.mjs#L216) |
-| 4 | 进房间 | [`collectLaunchTickets`](../integration/launcher.mjs#L93) |
+| 4 | 进房间 | [`parseBotAdmit`](../integration/launcher.mjs) · [`collectLaunchTickets`](../integration/launcher.mjs) |
 | 5 | 加载底图 | [`maps/sample.voxel`](../maps/sample.voxel) · [`capture-basemap.mjs`](../integration/capture-basemap.mjs) |
 | 6 | 玩家入场 | [`PlayerEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/PlayerEntity.cs#L8) |
 | 7 | 跑动 | [`MoveAbility.SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L136) |
 | 8 | 聊天 | [`ChatComponent.SendMessage`](../src/Lumio.Sample.Gameplay/Components/Chat/ChatComponent.cs#L10) |
 | 9–14 | 挖掘到存档 | 占位，见文末；等对应引擎卡 |
 
-> 两轮同底图哈希对账（S-7）贯穿全程，不单列一步。[`verify-evidence.mjs`](../integration/verify-evidence.mjs) 只读日志。世界对错另走 [`world-assert.mjs`](../integration/world-assert.mjs)。
+> 两轮同底图哈希对账（S-7）贯穿全程，不单列一步。[`verify-evidence.mjs`](../integration/verify-evidence.mjs) 读两轮独立目录的日志，并经 [`world-assert.mjs`](../integration/world-assert.mjs) 核对格子与矿石数。
 
 ## 第 1 步：编译配表
 
-数值在 [`config/movement.json`](../config/movement.json)、[`config/mining.json`](../config/mining.json)、[`config/attributes.json`](../config/attributes.json)。[`SampleTables`](../src/Lumio.Sample.Gameplay/Config/SampleTables.cs#L13) 读这些文件；M8 typed Reader 还没接到本仓。
+数值在 [`config/server/movement.json`](../config/server/movement.json)、[`config/server/mining.json`](../config/server/mining.json)、[`config/server/attributes.json`](../config/server/attributes.json)，由 [`manifest.json`](../config/manifest.json) 钉指纹。[`SampleTables`](../src/Lumio.Sample.Gameplay/Config/SampleTables.cs) 经 Runtime M9 装载 typed Reader，不扫父目录。
 
 世界单例声明在 [`WorldEntity.cs` 第 7 行](../src/Lumio.Sample.Gameplay/EntityTypes/WorldEntity.cs#L7)：`TickRateHz = 20`。生成注册表把同一数字写进 [`GeneratedRegistry.DeclaredTickRateHz`](../src/Lumio.Sample.Gameplay/generated/server/Lumio.Sample.Gameplay.Registry.g.cs#L66)。
 
@@ -33,7 +33,7 @@ node --test tests/Lumio.Sample.Gameplay.Tests  # 或 dotnet exec 该测试 DLL
 
 **应该看到的日志**
 
-- 启动器：`step=01 status=READY config JSON files; M8 typed reader is not wired`（[`launcher.mjs` 第 188 行](../integration/launcher.mjs#L188)）
+- 启动器：`step=01 status=READY LumioConfig export + typed Reader via M9 loader`
 - 没有 `1.25` / `0.35` 等配表数字出现在玩法 `.cs` 里（`SampleTablesTests` 会扫）
 
 ## 第 2 步：注册登录
@@ -49,7 +49,7 @@ node --test integration/account-client.test.mjs
 **应该看到的日志**
 
 - hermetic 测试通过；CLI 摘要只有 AccountId / 绑定字段，没有口令
-- 启动器无 `LUMIO_PLATFORM_ORIGIN` 时：`step=02 status=BLOCKED_ENV LUMIO_PLATFORM_ORIGIN is not set`（[第 193 行](../integration/launcher.mjs#L193)）
+- 启动器无 `LUMIO_PLATFORM_ORIGIN` 时：`step=02 status=BLOCKED_ENV LUMIO_PLATFORM_ORIGIN is not set`（[launcher.mjs](../integration/launcher.mjs)）
 - 真 Platform 换票成功时：启动器继续第 3 步，日志里仍不得出现口令或 admission ticket 明文（`redact` / `summarizeSession`）
 
 ## 第 3 步：起 DS
@@ -65,7 +65,7 @@ node integration/launcher.mjs --bots 2 --stagger-ms 250
 
 **应该看到的日志**
 
-- 无 `lumio-ds`：`step=03 status=BLOCKED_ENV LUMIO_DS_EXE is not set or is not a file`（[第 216 行](../integration/launcher.mjs#L216)），exit 2
+- 无 `lumio-ds`：`step=03 status=BLOCKED_ENV LUMIO_DS_EXE is not set or is not a file`（[launcher.mjs](../integration/launcher.mjs)），exit 2
 - 真 DS 起来：一行 `DS_READY { "pid": …, "endpoint": "ws://127.0.0.1:…" }`，endpoint 不得带凭据或 query
 
 ## 第 4 步：进房间
@@ -80,15 +80,16 @@ node --test integration/launcher.test.mjs
 
 **应该看到的日志**
 
-- 无 Bot.Host：`step=04 status=BLOCKED_ENV LUMIO_BOT_DLL is not set`（[第 241 行](../integration/launcher.mjs#L241)）
+- 无 Bot.Host：`step=04 status=BLOCKED_ENV LUMIO_BOT_DLL is not set`（[launcher.mjs](../integration/launcher.mjs)）
 - 注入两张相同票：测试失败，信息含 `unique`
-- 真准入成功：每名 Bot 一条进房记录；日志经 redact，看不到 ticket
+- 真准入成功：每名 Bot 的滚动日志出现 `state=Active` 且 `reason=established`；进程启动、拒票、无 welcome 都不得把第 04 步标 PASS
+- 日志经 redact，看不到 ticket
 
 ## 第 5 步：加载底图
 
-底图是规范快照文件，不由玩法程序集程序化生成。[`maps/sample.voxel`](../maps/sample.voxel) 为占位，**不可 restore**。[`capture-basemap.mjs`](../integration/capture-basemap.mjs) 在 write-cell / capture ABI 未公开前保持 `BLOCKED_ENV`（R-00522 / R-00533）。
+底图是规范快照文件，不由玩法程序集程序化生成。[`maps/sample.voxel`](../maps/sample.voxel) 为占位，**不可 restore**。[`capture-basemap.mjs`](../integration/capture-basemap.mjs) 承认 VoxelFacade 已有 Capture/Restore；Sample 还没接 write-cell 消费，所以保持 `BLOCKED_ENV`（R-00522）。不得把「本仓未接线」写成「上游 ABI 不存在」。
 
-[`verify-evidence.mjs`](../integration/verify-evidence.mjs) 只读取两轮日志，逐位核对 `eventOrder` 与 `appliedTicks`，并比较日志中的 `baseMapSha256`。它不从其它字段推导事件。
+[`verify-evidence.mjs`](../integration/verify-evidence.mjs) 读取两轮独立目录的日志，逐位核对 `eventOrder` 与 `appliedTicks`，并经 [`world-assert.mjs`](../integration/world-assert.mjs) 核对格子与矿石数。空日志或「哈希一致但世界错」都失败。
 
 **今天能跑**
 
@@ -99,7 +100,7 @@ node --test integration/capture-basemap.test.mjs
 
 **应该看到的日志**
 
-- 启动器：`step=05 status=BLOCKED_ENV maps/sample.voxel is a placeholder`（[第 280 行](../integration/launcher.mjs#L280)）
+- 启动器：`step=05 status=BLOCKED_ENV maps/sample.voxel is a placeholder`
 - fixture `integration/fixtures/oracle-min` 两轮比对退出码 0；空目录 FAIL
 
 ## 第 6 步：玩家入场
@@ -108,12 +109,12 @@ node --test integration/capture-basemap.test.mjs
 
 **应该看到的日志**
 
-- 启动器在缺 Bot.Host 时第 6 步也是 `BLOCKED_ENV`（[第 242 行](../integration/launcher.mjs#L242)）
+- 启动器在缺 Bot.Host 时第 6 步也是 `BLOCKED_ENV`（[launcher.mjs](../integration/launcher.mjs)）
 - 真入场后：Bot 日志出现本玩家的 `NetEntityId` hex；聊天将用同一个 hex 当说话人
 
 ## 第 7 步：跑动
 
-[`MoveAbility`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L17) 是唯一调用 [`SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L136) 的手写文件。步长与扫掠半径来自 [`config/movement.json`](../config/movement.json)。硬墙依赖 `IAbilityPhysicsPort`；端口缺失时拒绝本次位移、不写坐标。直播 `Activate` 等 Client R-00534 AC10。
+[`MoveAbility`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L17) 是唯一调用 [`SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L136) 的手写文件。步长与扫掠半径来自 [`config/server/movement.json`](../config/server/movement.json)。硬墙依赖 `IAbilityPhysicsPort`；端口缺失时拒绝本次位移、不写坐标。直播 `Activate` 等 Client R-00534 AC10。
 
 **今天能跑**
 
@@ -124,7 +125,7 @@ dotnet exec tests/Lumio.Sample.Gameplay.Tests/bin/Debug/net10.0/Lumio.Sample.Gam
 **应该看到的日志**
 
 - `MoveAbilityTests` 通过；`SourceHygieneTests` 保证其它手写文件不再写坐标
-- 启动器：`step=07 status=BLOCKED_ENV MoveAbility is in-tree; live Activate waits Client R-00534 AC10`（[第 282 行](../integration/launcher.mjs#L282)）
+- 启动器：`step=07 status=BLOCKED_ENV MoveAbility is in-tree; live Activate waits Client R-00534 AC10`（[launcher.mjs](../integration/launcher.mjs)）
 - 真 Activate 后：Bot 向硬墙跑应停下；对家同帧看到位移。这一条还没有直播证据
 
 ## 第 8 步：聊天
@@ -133,7 +134,7 @@ dotnet exec tests/Lumio.Sample.Gameplay.Tests/bin/Debug/net10.0/Lumio.Sample.Gam
 
 **应该看到的日志**
 
-- 启动器：`step=08 status=BLOCKED_ENV ChatComponent is in-tree; live chat waits Bot.Host`（[第 283 行](../integration/launcher.mjs#L283)）
+- 启动器：`step=08 status=BLOCKED_ENV ChatComponent is in-tree; live chat waits Bot.Host`（[launcher.mjs](../integration/launcher.mjs)）
 - 真双 Bot：A 发言后 B 按序收到 `OnChatMessage`；服务器信息日志形如 `{hex} says: {text}`（[Server 第 26 行](../src/Lumio.Sample.Gameplay/Components/Chat/ChatComponent.Server.cs#L26)）
 - 两轮同输入的 `eventOrder` 由 S-7 对账，不在本步另造哈希
 
@@ -156,7 +157,7 @@ node integration/launcher.mjs --bots 2 --stagger-ms 250
 | 13 | 拾取（Effect 改两本账） | **R-00480** / **R-00541**；S-14 | [`PickupOreEffect`](../src/Lumio.Sample.Gameplay/Effects/PickupOreEffect.cs) |
 | 14 | 存档并重启恢复 | **R-00498** / **R-00507**；S-15 | `world_profile` 仍是 `runtime-only`。后段正文归 S-16 |
 
-启动器这六步的 `BLOCKED_ENV` 文案在 [`launcher.mjs` 第 284–289 行](../integration/launcher.mjs#L284)。
+启动器这六步的 `BLOCKED_ENV` 文案在 [`launcher.mjs`](../integration/launcher.mjs) 的第 9–14 步记录处。
 
 ## 100 人压测门
 

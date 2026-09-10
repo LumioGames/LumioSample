@@ -30,6 +30,7 @@ public sealed class SourceHygieneTests
     [Fact]
     public void MineAbilityDoesNotClaimAVoxelWrite()
     {
+        Lumio.Sample.Gameplay.MineAbility.Writer = null;
         Assert.False(Lumio.Sample.Gameplay.MineAbility.TryRequestAirWrite(default));
     }
 
@@ -42,5 +43,8 @@ public sealed class SourceHygieneTests
         Assert.DoesNotContain("LumioGameEngine/", text);
         Assert.Contains("\"world_profile\": \"runtime-only\"", text);
         Assert.Contains("\"config_dir\": \"config\"", text);
+        Assert.Contains("Lumio.Server.EntityChat.HostEntry.HostEntry, Lumio.Server.EntityChat.HostEntry", text);
+        Assert.Contains("LumioEntityChatEntry", text);
+        Assert.DoesNotContain("replace-host-entry", text);
     }
 }

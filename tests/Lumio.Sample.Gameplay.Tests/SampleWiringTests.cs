@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using System.Text.Json;
 using System.Threading;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
@@ -35,6 +33,7 @@ public sealed class SampleWiringTests : IDisposable
     {
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, null);
         SampleTables.ResetCache();
+        MineAbility.Writer = null;
     }
 
     [Fact]
@@ -85,6 +84,79 @@ public sealed class SampleWiringTests : IDisposable
     }
 
     [Fact]
+    public void GenericActivateWithoutActivateMineWrapperStillAdmits()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        var input = new MineAbility.Input { TargetHex = world.Vein.ToHex() };
+        AbilityComponent abilities = world.World.Get<AbilityComponent>(world.Player);
+        AbilityActivateResult result = abilities.Activate<MineAbility, MineAbility.Input>(in input);
+        Assert.True(result.Succeeded);
+        Assert.Equal(0, result.RejectedStep);
+    }
+
+    [Fact]
+    public void VoxelWriteFailureOnLastHitDoesNotDeductOrDrop()
+    {
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        long stamina = world.StaminaBase;
+        int remaining = world.Remaining;
+        MineAbility.Writer = new FailingVoxelWriter();
+        try
+        {
+            AbilityActivateResult result = world.Mine();
+            Assert.True(result.Succeeded);
+            Assert.Equal(stamina, world.StaminaBase);
+            Assert.Equal(remaining, world.Remaining);
+            world.FlushCreates();
+            int piles = 0;
+            foreach (OrePileComponent _ in world.World.Each<OrePileComponent>())
+                piles += 1;
+            Assert.Equal(0, piles);
+        }
+        finally
+        {
+            MineAbility.Writer = new SucceedingVoxelWriter();
+        }
+    }
+
+    [Fact]
+    public void RejectedStep1WhenOwnerIsDead()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent abilities = world.World.Get<AbilityComponent>(world.Player);
+        var input = new MineAbility.Input { TargetHex = world.Vein.ToHex() };
+        world.World.Commands.Destroy(world.Player);
+        world.FlushCreates();
+        AbilityActivateResult result = abilities.Activate<MineAbility, MineAbility.Input>(in input);
+        Assert.False(result.Succeeded);
+        Assert.Equal(1, result.RejectedStep);
+    }
+
+    [Fact]
+    public void RejectedStep2WhenOnCooldown()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent abilities = world.World.Get<AbilityComponent>(world.Player);
+        abilities.SetCooldown(MineAbility.TypeId, world.World.Tick + 10);
+        AbilityActivateResult result = world.Mine();
+        Assert.False(result.Succeeded);
+        Assert.Equal(2, result.RejectedStep);
+        Assert.Equal(SampleTables.VeinHitsToBreak, world.Remaining);
+    }
+
+    [Fact]
+    public void RejectedStep5WhenTargetIsNotLive()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        world.World.Commands.Destroy(world.Vein);
+        world.FlushCreates();
+        AbilityActivateResult result = world.Mine();
+        Assert.False(result.Succeeded);
+        Assert.Equal(5, result.RejectedStep);
+    }
+
+    [Fact]
     public void MineDeductsStaminaBaseAndLeavesCurrentUntouchedUntilCopy()
     {
         using SampleWorldHarness world = SampleWorldHarness.Boot();
@@ -105,6 +177,9 @@ public sealed class SampleWiringTests : IDisposable
     {
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         Assert.True(world.Mine().Succeeded);
+        // GAS sets cooldown to Tick+1 on a successful Activate. Advance one tick so
+        // admit step 2 is clear and the leftover Base (17-13=4 < table cost) is step 3.
+        world.FlushCreates();
         long stamina = world.StaminaBase;
         int remaining = world.Remaining;
         OnFxLog.Items.Clear();
@@ -121,7 +196,6 @@ public sealed class SampleWiringTests : IDisposable
     public void ExhaustingTheVeinQueuesAnOreDropWithTableAmount()
     {
         using TempConfig config = TempConfig.WithHits(1);
-        PointAt(config.Directory);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         Assert.Equal(1, world.Remaining);
 
@@ -143,7 +217,6 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(PickupOreEffect.TypeId, EffectTypeCatalog.TypeIdOf(typeof(PickupOreEffect)));
 
         using TempConfig config = TempConfig.WithHits(1);
-        PointAt(config.Directory);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         long oreBefore = world.OreBase;
         Assert.True(world.Mine().Succeeded);
@@ -197,6 +270,24 @@ internal sealed class RecordingVoxelBinding : ISampleVoxelBinding
     }
 }
 
+internal sealed class SucceedingVoxelWriter : ISampleVoxelWriter
+{
+    public bool TryWriteAir(NetEntityId veinId)
+    {
+        _ = veinId;
+        return true;
+    }
+}
+
+internal sealed class FailingVoxelWriter : ISampleVoxelWriter
+{
+    public bool TryWriteAir(NetEntityId veinId)
+    {
+        _ = veinId;
+        return false;
+    }
+}
+
 internal sealed class TempConfig : IDisposable
 {
     private TempConfig(string directory) => Directory = directory;
@@ -205,44 +296,13 @@ internal sealed class TempConfig : IDisposable
 
     public static TempConfig WithHits(int hits)
     {
-        string repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "config"));
-        string dir = Path.Combine(Path.GetTempPath(), "lumio-sample-wiring-" + Guid.NewGuid().ToString("N"));
-        System.IO.Directory.CreateDirectory(dir);
-        foreach (string file in System.IO.Directory.GetFiles(repo, "*.json"))
-            File.Copy(file, Path.Combine(dir, Path.GetFileName(file)));
-
-        string miningPath = Path.Combine(dir, "mining.json");
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(miningPath));
-        var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        foreach (JsonProperty property in document.RootElement.EnumerateObject())
-            values[property.Name] = property.Value.Clone();
-
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream))
-        {
-            writer.WriteStartObject();
-            foreach (KeyValuePair<string, JsonElement> pair in values)
-            {
-                writer.WritePropertyName(pair.Key);
-                if (string.Equals(pair.Key, "vein_hits_to_break", StringComparison.Ordinal))
-                    writer.WriteNumberValue(hits);
-                else
-                    pair.Value.WriteTo(writer);
-            }
-
-            writer.WriteEndObject();
-        }
-
-        File.WriteAllBytes(miningPath, stream.ToArray());
-        return new TempConfig(dir);
+        SampleTables.OverrideMiningHits(hits);
+        return new TempConfig(":memory:");
     }
 
     public void Dispose()
     {
-        try { System.IO.Directory.Delete(Directory, recursive: true); }
-        catch (IOException)
-        {
-        }
+        SampleTables.ResetCache();
     }
 }
 
@@ -267,13 +327,16 @@ internal sealed class SampleWorldHarness : IDisposable
 
     public static SampleWorldHarness Boot()
     {
+        MineAbility.Writer ??= new SucceedingVoxelWriter();
         WorldManager manager = SampleGameplay.CreateWorld(11UL);
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
         manager.Start(Thread.CurrentThread);
 
         MethodInfo commit = typeof(WorldManager).GetMethod("CommitCommandBuffer", BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("WorldManager.CommitCommandBuffer is missing; cannot appear entities without Simulation.");
-        manager.BindTickLoop(new CommitTickLoop(manager, commit));
+        MethodInfo publish = typeof(WorldManager).GetMethod("PublishEgress", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("WorldManager.PublishEgress is missing; GAS one-tick cooldown cannot expire.");
+        manager.BindTickLoop(new CommitTickLoop(manager, commit, publish));
 
         EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
         EntityOrder vein = SampleVein.Queue(manager.World);
@@ -297,13 +360,19 @@ internal sealed class SampleWorldHarness : IDisposable
     {
         private readonly WorldManager _manager;
         private readonly MethodInfo _commit;
+        private readonly MethodInfo _publish;
 
-        public CommitTickLoop(WorldManager manager, MethodInfo commit)
+        public CommitTickLoop(WorldManager manager, MethodInfo commit, MethodInfo publish)
         {
             _manager = manager;
             _commit = commit;
+            _publish = publish;
         }
 
-        public void ExecuteTick() => _commit.Invoke(_manager, null);
+        public void ExecuteTick()
+        {
+            _commit.Invoke(_manager, null);
+            _publish.Invoke(_manager, null);
+        }
     }
 }

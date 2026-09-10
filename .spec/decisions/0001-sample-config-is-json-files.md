@@ -9,7 +9,7 @@
 
 ## 决策
 
-本仓用 `config/*.json` + `SampleTables` 开机读文件。这只是文件读取，不发明第二套配表 schema，也不生成 typed C#。`server.json` 的 `config_dir` 指向该目录；覆盖用 `LUMIO_CONFIG_DIR`。M8/M9 落地后用生成 Reader 替换解析，不改文件里的数字契约。
+本仓 `config/` 是一份 LumioConfig export 根（`manifest.json` + 三端投影）。`SampleTables` 经 Runtime M9 `LumioConfigLoader` 装载，查询 Config 生成的 typed Reader。不扫父目录、不自造第二套 schema。`server.json` 的 `config_dir` 指向该目录；覆盖用 `LUMIO_CONFIG_DIR`。根上的平面 `*.json` 只保留数字契约对照，不再被读取。
 
 ## 后果
 

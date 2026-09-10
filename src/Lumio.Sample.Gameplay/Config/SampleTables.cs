@@ -1,62 +1,91 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.Text.Json;
+using Lumio.Config.Generated.Server;
+using Lumio.GameRuntime.Config;
 
 namespace Lumio.Sample.Gameplay.Config;
 
 /// <summary>
-/// Reads gameplay numbers from JSON files. Typed LumioConfig M8/M9 is not wired yet;
-/// this is a file reader, not a second engine schema.
+/// Gameplay numbers from the LumioConfig export in <c>config/</c>.
+/// M9 (<see cref="LumioConfigLoader"/>) parses JSON once; this type only queries typed Readers.
 /// </summary>
 public static class SampleTables
 {
-    /// <summary>Environment variable that overrides the config directory walk.</summary>
+    /// <summary>Environment variable that points at a LumioConfig export root (must contain manifest.json).</summary>
     public const string ConfigDirVariable = "LUMIO_CONFIG_DIR";
 
     private static readonly object Gate = new();
-    private static string? LoadedDirectory;
-    private static Dictionary<string, JsonElement>? Tables;
+    private static readonly string[] RequiredTables = { "mining", "movement", "attributes" };
+    private static SampleTypedTables? Tables;
 
-    /// <summary>Meters per move step. From <c>movement.json</c>.</summary>
-    public static double StepMeters => ReadNumber("movement", "step_meters");
+    /// <summary>Meters per move step. From movement table.</summary>
+    public static double StepMeters => MovementRow().StepMeters;
 
-    /// <summary>Sweep capsule radius. From <c>movement.json</c>.</summary>
-    public static double SweepRadiusMeters => ReadNumber("movement", "sweep_radius_meters");
+    /// <summary>Sweep capsule radius. From movement table.</summary>
+    public static double SweepRadiusMeters => MovementRow().SweepRadiusMeters;
 
-    /// <summary>Stamina spent per mine hit. From <c>mining.json</c>.</summary>
-    public static long StaminaCost => ReadInt64("mining", "stamina_cost");
+    /// <summary>Stamina spent per mine hit. From mining table.</summary>
+    public static long StaminaCost => MiningRow().StaminaCost;
 
-    /// <summary>Hits that exhaust a vein. From <c>mining.json</c>.</summary>
-    public static int VeinHitsToBreak => ReadInt32("mining", "vein_hits_to_break");
+    /// <summary>Hits that exhaust a vein. From mining table.</summary>
+    public static int VeinHitsToBreak => MiningRow().VeinHitsToBreak;
 
-    /// <summary>Ore dropped when a vein is exhausted. From <c>mining.json</c>.</summary>
-    public static int OrePerVein => ReadInt32("mining", "ore_per_vein");
+    /// <summary>Ore dropped when a vein is exhausted. From mining table.</summary>
+    public static int OrePerVein => MiningRow().OrePerVein;
 
-    /// <summary>Starting stamina. From <c>attributes.json</c>.</summary>
-    public static long StaminaInitial => ReadInt64("attributes", "stamina_initial");
+    /// <summary>Starting stamina. From attributes table.</summary>
+    public static long StaminaInitial => AttributeRow("Stamina").Initial;
 
-    /// <summary>Starting ore. From <c>attributes.json</c>.</summary>
-    public static long OreInitial => ReadInt64("attributes", "ore_initial");
+    /// <summary>Starting ore. From attributes table.</summary>
+    public static long OreInitial => AttributeRow("Ore").Initial;
 
     /// <summary>Attribute ledger name for stamina.</summary>
-    public static string StaminaAttributeName => ReadString("attributes", "stamina_name");
+    public static string StaminaAttributeName => AttributeRow("Stamina").Name;
 
     /// <summary>Attribute ledger name for ore.</summary>
-    public static string OreAttributeName => ReadString("attributes", "ore_name");
+    public static string OreAttributeName => AttributeRow("Ore").Name;
 
-    /// <summary>Drops the cached tables so a test can point at another directory.</summary>
+    /// <summary>Drops the cached tables so a test can point at another directory or inject rows.</summary>
     public static void ResetCache()
     {
         lock (Gate)
         {
-            LoadedDirectory = null;
             Tables = null;
         }
     }
 
-    /// <summary>Resolves the config directory from an override, the env var, or a walk from the assembly.</summary>
+    /// <summary>Test hook: install already-constructed Readers. Does not read disk.</summary>
+    public static void Use(MiningTable mining, MovementTable movement, AttributesTable attributes)
+    {
+        lock (Gate)
+        {
+            Tables = new SampleTypedTables(mining, movement, attributes);
+        }
+    }
+
+    /// <summary>Test hook: keep loaded movement/attributes, replace mining numbers.</summary>
+    public static void OverrideMining(long staminaCost, int hits)
+    {
+        SampleTypedTables loaded = Load();
+        MiningRow row = MiningRow();
+        Use(
+            new MiningTable(new[] { new MiningRow(row.Id, row.Name, staminaCost, hits, row.OrePerVein) }),
+            loaded.Movement,
+            loaded.Attributes);
+    }
+
+    /// <summary>Test hook: keep loaded movement/attributes, replace vein hits.</summary>
+    public static void OverrideMiningHits(int hits)
+    {
+        MiningRow row = MiningRow();
+        OverrideMining(row.StaminaCost, hits);
+    }
+
+    /// <summary>
+    /// Resolves a LumioConfig export directory. Override and <see cref="ConfigDirVariable"/> win.
+    /// The assembly output <c>config/manifest.json</c> is the only fallback — parent directories are not scanned.
+    /// </summary>
     public static string ResolveDirectory(string? overrideDirectory = null, IReadOnlyDictionary<string, string?>? environment = null)
     {
         if (!string.IsNullOrWhiteSpace(overrideDirectory))
@@ -66,28 +95,12 @@ public static class SampleTables
         if (!string.IsNullOrWhiteSpace(fromEnv))
             return Path.GetFullPath(fromEnv);
 
-        foreach (string start in new[] { AppContext.BaseDirectory, AppDomain.CurrentDomain.BaseDirectory })
-        {
-            string? found = WalkForConfig(start);
-            if (found is not null) return found;
-        }
+        string nextToAssembly = Path.Combine(AppContext.BaseDirectory, "config");
+        if (File.Exists(Path.Combine(nextToAssembly, "manifest.json")))
+            return Path.GetFullPath(nextToAssembly);
 
         throw new InvalidOperationException(
-            "Sample config directory was not found. Set " + ConfigDirVariable + " or keep config/movement.json next to the assembly.");
-    }
-
-    private static string? WalkForConfig(string start)
-    {
-        DirectoryInfo? current = new(start);
-        while (current is not null)
-        {
-            string candidate = Path.Combine(current.FullName, "config");
-            if (File.Exists(Path.Combine(candidate, "movement.json")))
-                return Path.GetFullPath(candidate);
-            current = current.Parent;
-        }
-
-        return null;
+            "Sample config export was not found. Set " + ConfigDirVariable + " to a LumioConfig export root that contains manifest.json.");
     }
 
     private static string? ReadEnv(IReadOnlyDictionary<string, string?>? environment, string name)
@@ -97,65 +110,54 @@ public static class SampleTables
         return Environment.GetEnvironmentVariable(name);
     }
 
-    private static JsonElement Table(string fileStem)
-    {
-        Dictionary<string, JsonElement> tables = Load();
-        if (!tables.TryGetValue(fileStem, out JsonElement table))
-            throw new InvalidOperationException("Missing config table '" + fileStem + "'.");
-        return table;
-    }
-
-    private static Dictionary<string, JsonElement> Load()
+    private static SampleTypedTables Load()
     {
         lock (Gate)
         {
-            string directory = ResolveDirectory();
-            if (Tables is not null && string.Equals(LoadedDirectory, directory, StringComparison.Ordinal))
+            if (Tables is not null)
                 return Tables;
 
-            var loaded = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-            foreach (string path in Directory.GetFiles(directory, "*.json"))
+            string directory = ResolveDirectory();
+            LumioConfigLoadResult result = LumioConfigLoader.Load(
+                directory,
+                ConfigTarget.Server,
+                requiredTables: RequiredTables,
+                typedTableFactory: SampleTypedTables.Create);
+            if (!result.IsSuccess || result.TypedTables is not SampleTypedTables typed)
             {
-                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
-                loaded[Path.GetFileNameWithoutExtension(path)] = document.RootElement.Clone();
+                throw new InvalidOperationException(
+                    "LumioConfig M9 load failed: " + (result.ErrorCode ?? "unknown") + " " + (result.ErrorMessage ?? directory));
             }
 
-            LoadedDirectory = directory;
-            Tables = loaded;
-            return loaded;
+            Tables = typed;
+            return typed;
         }
     }
 
-    private static string ReadString(string fileStem, string key)
+    private static MiningRow MiningRow()
     {
-        if (!Table(fileStem).TryGetProperty(key, out JsonElement value) || value.ValueKind != JsonValueKind.String)
-            throw new InvalidOperationException("Config " + fileStem + "." + key + " must be a string.");
-        string text = value.GetString() ?? string.Empty;
-        if (text.Length == 0)
-            throw new InvalidOperationException("Config " + fileStem + "." + key + " must not be empty.");
-        return text;
+        IReadOnlyList<MiningRow> rows = Load().Mining.Rows;
+        if (rows.Count == 0)
+            throw new InvalidOperationException("mining table has no rows.");
+        return rows[0];
     }
 
-    private static double ReadNumber(string fileStem, string key)
+    private static MovementRow MovementRow()
     {
-        if (!Table(fileStem).TryGetProperty(key, out JsonElement value) || value.ValueKind != JsonValueKind.Number)
-            throw new InvalidOperationException("Config " + fileStem + "." + key + " must be a number.");
-        return value.GetDouble();
+        IReadOnlyList<MovementRow> rows = Load().Movement.Rows;
+        if (rows.Count == 0)
+            throw new InvalidOperationException("movement table has no rows.");
+        return rows[0];
     }
 
-    private static int ReadInt32(string fileStem, string key)
+    private static AttributesRow AttributeRow(string name)
     {
-        double number = ReadNumber(fileStem, key);
-        if (Math.Abs(number - Math.Round(number)) > double.Epsilon)
-            throw new InvalidOperationException("Config " + fileStem + "." + key + " must be an integer.");
-        return Convert.ToInt32(number, CultureInfo.InvariantCulture);
-    }
+        foreach (AttributesRow row in Load().Attributes.Rows)
+        {
+            if (string.Equals(row.Name, name, StringComparison.Ordinal))
+                return row;
+        }
 
-    private static long ReadInt64(string fileStem, string key)
-    {
-        double number = ReadNumber(fileStem, key);
-        if (Math.Abs(number - Math.Round(number)) > double.Epsilon)
-            throw new InvalidOperationException("Config " + fileStem + "." + key + " must be an integer.");
-        return Convert.ToInt64(number, CultureInfo.InvariantCulture);
+        throw new InvalidOperationException("attributes table has no row named '" + name + "'.");
     }
 }

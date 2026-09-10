@@ -1,0 +1,89 @@
+{
+  "tables": [
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "648012ebf16fd40ca731d87306e6e3c44ae3f66739564e1489778fe296b0ca1c",
+          "path": "voxel/attributes.json"
+        }
+      ],
+      "contentFingerprint": "6de68b10cbd42fc0729507bc184f9eaba2244d4605330963c9ad7edddd9d0ab7",
+      "packageFingerprint": "648012ebf16fd40ca731d87306e6e3c44ae3f66739564e1489778fe296b0ca1c",
+      "path": "voxel/attributes.json",
+      "sourceFingerprint": "53fb0524baadd15b28181ffe06cf86c2422ecdaaa638742b67c943c1d1af9796",
+      "table": "attributes"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "3b3c6655b3cd2f0b687d19ec0b09e3226c5f68bcbb28f2cd51643cdc5209220e",
+          "path": "voxel/drops.json"
+        }
+      ],
+      "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+      "packageFingerprint": "3b3c6655b3cd2f0b687d19ec0b09e3226c5f68bcbb28f2cd51643cdc5209220e",
+      "path": "voxel/drops.json",
+      "sourceFingerprint": "3ea963e5ded01171a0ed4a0b70f2154688648f3d14055ef56d478b8ba1bd0357",
+      "table": "drops"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "ff7b75051010cda16ff599f7ff495bf86ac32d6736444b8a34005daa4b1c49d2",
+          "path": "voxel/effects.json"
+        }
+      ],
+      "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
+      "packageFingerprint": "ff7b75051010cda16ff599f7ff495bf86ac32d6736444b8a34005daa4b1c49d2",
+      "path": "voxel/effects.json",
+      "sourceFingerprint": "c800925661133fd9cb1b6591eeb3038de7253f813c6b03bbb2c9f05f622d2bf7",
+      "table": "effects"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "aceb623e639d7ef8239162f130670b47e1f0e8dbb617b2eff1cc9cebda252a12",
+          "path": "voxel/mining.json"
+        }
+      ],
+      "contentFingerprint": "070b3ab710eef26b19953b028900e85e427e7e7af8ccfe4adb5366b419c988d1",
+      "packageFingerprint": "aceb623e639d7ef8239162f130670b47e1f0e8dbb617b2eff1cc9cebda252a12",
+      "path": "voxel/mining.json",
+      "sourceFingerprint": "f7134809c07ddea9a956f877d000b330ee3c90dfe0152d9db286b630384bae56",
+      "table": "mining"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "3455e71ed4fe0057786b9086b2efc46bc566975b4b1c5e5d64728d08166ec3c0",
+          "path": "voxel/movement.json"
+        }
+      ],
+      "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
+      "packageFingerprint": "3455e71ed4fe0057786b9086b2efc46bc566975b4b1c5e5d64728d08166ec3c0",
+      "path": "voxel/movement.json",
+      "sourceFingerprint": "923ea0373d6071141748b66727a693d0e83e95e45738a266e7798350f1af32bd",
+      "table": "movement"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "eb702be1a22b52621714f4774fdfc00af1c99576f82241af472670f4f480f62d",
+          "path": "voxel/skills.json"
+        }
+      ],
+      "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+      "packageFingerprint": "eb702be1a22b52621714f4774fdfc00af1c99576f82241af472670f4f480f62d",
+      "path": "voxel/skills.json",
+      "sourceFingerprint": "a10eb3b674957381a510f243e95c4a55bd6b6a22af78405329af4184acfc3325",
+      "table": "skills"
+    }
+  ],
+  "target": "V"
+}

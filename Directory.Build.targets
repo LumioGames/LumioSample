@@ -9,8 +9,9 @@
     <_LumioRuntimeEcsProject>$(_LumioRuntimeRoot)/modules/ecs/src/Lumio.GameRuntime.Ecs/Lumio.GameRuntime.Ecs.csproj</_LumioRuntimeEcsProject>
     <_LumioRuntimeReplicationProject>$(_LumioRuntimeRoot)/modules/replication/src/Lumio.GameRuntime.Replication/Lumio.GameRuntime.Replication.csproj</_LumioRuntimeReplicationProject>
     <_LumioRuntimeGasProject>$(_LumioRuntimeRoot)/modules/gas/src/Lumio.GameRuntime.Gas/Lumio.GameRuntime.Gas.csproj</_LumioRuntimeGasProject>
+    <_LumioRuntimeConfigProject>$(_LumioRuntimeRoot)/modules/config/src/Lumio.GameRuntime.Config/Lumio.GameRuntime.Config.csproj</_LumioRuntimeConfigProject>
     <_LumioRuntimeGenProps>$(_LumioRuntimeRoot)/tools/gen-declarations/build/Lumio.Tools.GenDeclarations.props</_LumioRuntimeGenProps>
-    <_LumioRuntimeExists Condition="'$(_LumioRuntimeRoot)' != '' and Exists('$(_LumioRuntimeRoot)') and Exists('$(_LumioRuntimeEcsProject)') and Exists('$(_LumioRuntimeReplicationProject)') and Exists('$(_LumioRuntimeGasProject)')">true</_LumioRuntimeExists>
+    <_LumioRuntimeExists Condition="'$(_LumioRuntimeRoot)' != '' and Exists('$(_LumioRuntimeRoot)') and Exists('$(_LumioRuntimeEcsProject)') and Exists('$(_LumioRuntimeReplicationProject)') and Exists('$(_LumioRuntimeGasProject)') and Exists('$(_LumioRuntimeConfigProject)')">true</_LumioRuntimeExists>
     <_LumioRuntimeInvalid Condition="'$(_LumioRuntimeRoot)' != '' and '$(_LumioRuntimeExists)' != 'true'">true</_LumioRuntimeInvalid>
     <_LumioNugetPackages Condition="'$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_LumioNugetPackages>
     <_LumioNugetPackages Condition="'$(_LumioNugetPackages)' == '' and '$(NUGET_PACKAGES)' != ''">$(NUGET_PACKAGES)</_LumioNugetPackages>
@@ -27,6 +28,7 @@
     <ProjectReference Include="$(_LumioRuntimeEcsProject)" />
     <ProjectReference Include="$(_LumioRuntimeReplicationProject)" />
     <ProjectReference Include="$(_LumioRuntimeGasProject)" />
+    <ProjectReference Include="$(_LumioRuntimeConfigProject)" />
   </ItemGroup>
 
   <!-- Sibling never imports the SDK nupkg props. Those defaults (generate on, exclude generated/**)
@@ -42,6 +44,9 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <WarningsNotAsErrors>$(WarningsNotAsErrors);CS1591</WarningsNotAsErrors>
   </PropertyGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
+    <Compile Include="generated/config/server/*.cs" />
+  </ItemGroup>
 
   <!-- Same analyzer exemptions the SDK pack props apply when the generator is on.
        They live here only because sibling cannot see the nupkg. Do not copy them into the gameplay csproj. -->
