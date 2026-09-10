@@ -23,10 +23,20 @@ jobs:
           path: .runtime-source
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
+      # Runtime net10.0 Ecs/Simulation bind NativeLoader (QueryAabb / clock_now).
+      # They probe ../LumioGameEngine from the Runtime root — that is this
+      # workspace's LumioGameEngine, not a Sample ProjectReference.
+      - name: Checkout LumioGameEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameEngine
+          path: LumioGameEngine
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - run: dotnet build LumioSample.slnx
+      - run: dotnet build LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine
 
   test:
     runs-on: ubuntu-latest
@@ -42,10 +52,17 @@ jobs:
           path: .runtime-source
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
+      - name: Checkout LumioGameEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameEngine
+          path: LumioGameEngine
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - run: dotnet test LumioSample.slnx -- --minimum-expected-tests 1
+      - run: dotnet test LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine -- --minimum-expected-tests 1
       - run: node --test integration/verify-evidence.mjs
       - run: node --test integration/account-client.test.mjs
       - run: node --test integration/ds-ready.test.mjs

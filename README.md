@@ -38,7 +38,7 @@
 
 **今天能做的**：
 
-- 同级开发：设置 `LumioRuntimeRoot` 后 `dotnet build` / `dotnet test`（CI 的 `build` / `test` 作业这样验）。
+- 同级开发：设置 `LumioRuntimeRoot`，并且 Runtime 旁边要有 `LumioGameEngine`（Ecs `QueryAabb` / Simulation `clock_now` 绑 NativeLoader，没有 C# 替身）。CI 的 `build` / `test` 作业这样验。
 - 包消费：CI `external-clone` 每次用架构仓现打的 `Lumio.Engine.SDK` nupkg 编过。Owner 还没把这个包发到 nuget.org，所以干净机器上裸 `git clone && dotnet build` 会得到 `LUMIO_SDK_UNRESOLVED`——这是闸门，不是静默降级，也不是「外部 clone 已经能编」。
 - 用它当模板建新仓。
 - 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。
