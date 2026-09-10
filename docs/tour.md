@@ -12,7 +12,7 @@
 | 4 | 进房间 | [`collectLaunchTickets`](../integration/launcher.mjs#L93) |
 | 5 | 加载底图 | [`maps/sample.voxel`](../maps/sample.voxel) · [`capture-basemap.mjs`](../integration/capture-basemap.mjs) |
 | 6 | 玩家入场 | [`PlayerEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/PlayerEntity.cs#L8) |
-| 7 | 跑动 | [`MoveAbility.SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L87) |
+| 7 | 跑动 | [`MoveAbility.SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L136) |
 | 8 | 聊天 | [`ChatComponent.SendMessage`](../src/Lumio.Sample.Gameplay/Components/Chat/ChatComponent.cs#L10) |
 | 9–14 | 挖掘到存档 | 占位，见文末；等对应引擎卡 |
 
@@ -113,7 +113,7 @@ node --test integration/capture-basemap.test.mjs
 
 ## 第 7 步：跑动
 
-[`MoveAbility`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L15) 是唯一调用 [`SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L87) 的手写文件。步长与扫掠半径来自 [`config/movement.json`](../config/movement.json)。硬墙依赖 `IAbilityPhysicsPort`；端口缺失按空空间处理。直播 `Activate` 等 Client R-00534 AC10。
+[`MoveAbility`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L17) 是唯一调用 [`SetLocalPosition`](../src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs#L136) 的手写文件。步长与扫掠半径来自 [`config/movement.json`](../config/movement.json)。硬墙依赖 `IAbilityPhysicsPort`；端口缺失时拒绝本次位移、不写坐标。直播 `Activate` 等 Client R-00534 AC10。
 
 **今天能跑**
 
