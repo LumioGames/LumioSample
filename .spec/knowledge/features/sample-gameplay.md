@@ -33,7 +33,7 @@ metadata:
 
 `integration/launcher.mjs` 是判据 2 的内部启动器：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。进程管理只 import 架构仓 `eng/process-tools.mjs`（`LUMIO_ENGINE_ROOT` 或同级 `LumioGameEngine`）。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`docs/tour.md`](../../../docs/tour.md)。
 
-缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。`forceCleanup` 不是通过证据。`maps/sample.voxel` 仍是占位，不可 restore。
+缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`maps/sample.voxel` 仍是占位，不可 restore。
 
 ## 压测门
 
