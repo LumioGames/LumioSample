@@ -1,11 +1,7 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Globalization;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
-using Lumio.Sample.Gameplay.Components.Ore;
-using Lumio.Sample.Gameplay.Components.Vein;
-using Lumio.Sample.Gameplay.Config;
-using Lumio.Sample.Gameplay.EntityTypes;
 
 namespace Lumio.Sample.Gameplay;
 
@@ -14,7 +10,7 @@ namespace Lumio.Sample.Gameplay;
 /// engine slots that are not public yet (R-00469); this ability does not invent them.
 /// </summary>
 [AbilityType(2u, Prediction = PredictionKind.AuthorityOnly)]
-public sealed class MineAbility : AbilityType<MineAbility.Input>
+public sealed partial class MineAbility : AbilityType<MineAbility.Input>
 {
     /// <summary>Stable ability type id. Must stay <c>2</c>.</summary>
     public const uint TypeId = 2u;
@@ -46,30 +42,9 @@ public sealed class MineAbility : AbilityType<MineAbility.Input>
     public override bool CanActivate(in Input input) => NetEntityId.TryParse(input.TargetHex, out _);
 
     /// <inheritdoc />
-    public override void Execute(in Input input, AbilityComponent owner)
-    {
-        if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId)) return;
+    public override void Execute(in Input input, AbilityComponent owner) => ExecuteCore(in input, owner);
 
-        AttributeComponent attributes = owner.Get<AttributeComponent>();
-        long stamina = attributes.GetCurrentValue(SampleTables.StaminaAttributeName);
-        if (stamina < SampleTables.StaminaCost) return;
-
-        World world = owner.World;
-        if (!world.IsLive(veinId)) return;
-
-        VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
-        if (reserve.Remaining.Value <= 0) return;
-
-        attributes.SetCurrentValue(SampleTables.StaminaAttributeName, stamina - SampleTables.StaminaCost);
-        reserve.Remaining.Value -= 1;
-
-        if (reserve.Remaining.Value > 0) return;
-
-        // R-00469: no public voxel batch-write ABI. Do not pretend the cell became air.
-        _ = TryRequestAirWrite(veinId);
-        EntityOrder drop = world.Commands.Create<OreDropEntity>();
-        drop.Get<OrePileComponent>().Amount.Value = SampleTables.OrePerVein;
-    }
+    static partial void ExecuteCore(in Input input, AbilityComponent owner);
 
     /// <summary>Always false until the engine exposes capture/write-cell. Callers must not treat this as a miss.</summary>
     public static bool TryRequestAirWrite(NetEntityId veinId)

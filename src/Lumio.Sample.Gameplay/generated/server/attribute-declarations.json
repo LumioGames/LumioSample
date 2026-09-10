@@ -14,6 +14,20 @@
     "visibility": "server-only"
   },
   {
+    "attributeId": "IdentityComponent.accountId",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "utf8-string",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "IdentityComponent.name",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "utf8-string",
+    "visibility": "room-public"
+  },
+  {
     "attributeId": "OrePileComponent.amount",
     "persistence": "persistent",
     "replication": "replicated",
