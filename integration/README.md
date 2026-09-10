@@ -56,7 +56,9 @@ world or a “same hash, wrong blocks” snapshot fails.
 ## Base map capture (R-00522)
 
 `capture-basemap.mjs` refuses `maps/sample.voxel`. That file is a
-placeholder. Capture/restore ABI slots are not public.
+placeholder. Engine ABI has capture/restore slots, but this repo does
+not yet wire a public write-cell + capture path, so the placeholder
+must not be treated as a restorable base map.
 
 ---
 

@@ -12,40 +12,70 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: sample-source
     env:
-      LumioRuntimeRoot: ${{ github.workspace }}/.runtime-source
+      LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
     steps:
+      # Sibling layout (same as external-clone): Sample's Directory.Packages.props
+      # must not sit above Engine. Checking Engine out under the Sample tree
+      # makes CPM apply to NativeLoader and fails NU1008.
       - uses: actions/checkout@v7
+        with:
+          path: sample-source
       - name: Checkout LumioGameRuntime
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioGameRuntime
-          path: .runtime-source
+          path: LumioGameRuntime
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      # Runtime net10.0 Ecs/Simulation bind NativeLoader (QueryAabb / clock_now).
+      # They probe ../LumioGameEngine from the Runtime root. That is a CI
+      # sibling checkout, not a Sample ProjectReference.
+      - name: Checkout LumioGameEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameEngine
+          path: LumioGameEngine
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
-          global-json-file: global.json
-      - run: dotnet build LumioSample.slnx
+          global-json-file: sample-source/global.json
+      - run: dotnet build LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine
 
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: sample-source
     env:
-      LumioRuntimeRoot: ${{ github.workspace }}/.runtime-source
+      LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: sample-source
       - name: Checkout LumioGameRuntime
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioGameRuntime
-          path: .runtime-source
+          path: LumioGameRuntime
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioGameEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameEngine
+          path: LumioGameEngine
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
-          global-json-file: global.json
-      - run: dotnet test LumioSample.slnx -- --minimum-expected-tests 1
+          global-json-file: sample-source/global.json
+      - run: dotnet test LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine -- --minimum-expected-tests 1
       - run: node --test integration/verify-evidence.mjs
       - run: node --test integration/account-client.test.mjs
       - run: node --test integration/ds-ready.test.mjs

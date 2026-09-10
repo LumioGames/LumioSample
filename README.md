@@ -38,7 +38,8 @@
 
 **今天能做的**：
 
-- `git clone` 后在没有任何同级 Lumio 仓的机器上 `dotnet build` / `dotnet test` 直接绿（CI 三作业 build / test / external-clone 每次都验）。
+- 同级开发：设置 `LumioRuntimeRoot`，并且 Runtime 旁边要有 `LumioGameEngine`（Ecs `QueryAabb` / Simulation `clock_now` 绑 NativeLoader，没有 C# 替身）。CI 的 `build` / `test` 作业这样验。
+- 包消费：CI `external-clone` 每次用架构仓现打的 `Lumio.Engine.SDK` nupkg 编过。Owner 还没把这个包发到 nuget.org，所以干净机器上裸 `git clone && dotnet build` 会得到 `LUMIO_SDK_UNRESOLVED`——这是闸门，不是静默降级，也不是「外部 clone 已经能编」。
 - 用它当模板建新仓。
 - 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。
 - 玩法声明已在 `src/Lumio.Sample.Gameplay/`：世界 / 玩家 / 聊天 / 跑动技能 / 矿脉储量 / 掉落 / 拾取 Effect。数值在 `config/*.json`。
@@ -52,7 +53,7 @@
 - 一条命令的真拓扑：平台（账号 + 进房票，PostgreSQL 走 docker compose）→ `lumio-ds` → N 个 Bot → 浏览器旁观。
 - 地图是**数据**：底图是一份体素快照文件（一次性脚本经引擎写格再导出，产物不手改），服务器开机加载；不做程序化生成。
 - 配表是**文件**：编译出 JSON，引擎生成只含类型的 C# 读表代码，开机装载一次、帧内不可变。
-- 外部性边界：`dotnet build` / `dotnet test` 是真的外部验收（干净机器、无同级仓）；**一条命令跑完全程第一阶段是内部验收**（平台镜像未公开）。查契约走 SDK 包带的公开使用面，不是回私有仓读。
+- 外部性边界：干净机器、无同级仓时，今天的外部验收是 `LUMIO_SDK_UNRESOLVED`（包未发布）和 CI `external-clone`（现打 nupkg 再编）。裸 `git clone && dotnet build` 在 nuget.org 有包之前不会绿。**一条命令跑完全程第一阶段是内部验收**（平台镜像未公开）。查契约走 SDK 包带的公开使用面，不是回私有仓读。
 - 前置的引擎卡横跨六个仓，按 wave 0–3 排；本仓的实现卡随各 wave 落地。第一阶段的示例是残的（挖不动石头），不当教学材料对外发。
 
 ## SDK 解析（S-2）
@@ -73,15 +74,18 @@
 
 ```bash
 git clone https://github.com/LumioGames/LumioSample && cd LumioSample
+# sibling Runtime，或把现打的 nupkg 指给 LumioLocalFeed：
 dotnet build LumioSample.slnx
 dotnet test  LumioSample.slnx
+
+# 内部一条命令。缺 Platform / lumio-ds / Bot.Host 时 exit 2，BLOCKED_ENV。
+node integration/launcher.mjs --bots 2 --stagger-ms 250
 ```
 
-[`integration/`](integration/) 现在只有验证脚本与证据对账（`verify-evidence.mjs`、`formal-ds-smoke.mjs`）。
-**端到端启动器还没有**（排在 R-00520），所以上面两行之外还跑不了一条命令的全程——与本文开头「还没有的」那一条一致。
+[`integration/`](integration/) 里是启动器、账号客户端、证据对账和世界断言，见 [`integration/README.md`](integration/README.md)。已退役的正式 DS smoke 不要再当启动器。
 
-> **它第一阶段只在引擎组的内部机器上跑得起来**：这条链要起账号平台，而平台镜像现在是从私有仓源码构建的（`docker-compose.yml` 用 `build: .`），外部机器拿不到。让外部也能一条命令跑通，排在对外发布前做。
-> 上面那两行 `dotnet build` / `dotnet test` 不受影响——**在没有任何同级 Lumio 仓的干净机器上必须绿**，CI 的 external-clone 作业每次都验。
+> **一条命令跑完全程第一阶段只在引擎组的内部机器上跑得起来**：这条链要起账号平台，而平台镜像现在是从私有仓源码构建的，外部机器拿不到 compose 文件（见 [`integration/compose/README.md`](integration/compose/README.md)）。让外部也能一条命令跑通，排在对外发布前做。
+> 上面的 `dotnet build` / `dotnet test` 在 sibling 或本地/CI 现打的 SDK feed 下绿。干净机器且 nuget.org 还没有包时，应看到 `LUMIO_SDK_UNRESOLVED`。CI 的 `external-clone` 每次现打再编，证明消费链通，不是证明裸 clone 就能编。
 
 ## 仓库结构
 
