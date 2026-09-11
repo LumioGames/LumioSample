@@ -30,6 +30,7 @@ public sealed class SourceHygieneTests
     [Fact]
     public void MineAbilityDoesNotClaimAVoxelWrite()
     {
+        Lumio.Sample.Gameplay.MineAbility.Writer = null;
         Assert.False(Lumio.Sample.Gameplay.MineAbility.TryRequestAirWrite(default));
     }
 
@@ -42,5 +43,22 @@ public sealed class SourceHygieneTests
         Assert.DoesNotContain("LumioGameEngine/", text);
         Assert.Contains("\"world_profile\": \"runtime-only\"", text);
         Assert.Contains("\"config_dir\": \"config\"", text);
+        Assert.Contains("Lumio.Server.EntityChat.HostEntry.HostEntry, Lumio.Server.EntityChat.HostEntry", text);
+        Assert.Contains("LumioEntityChatEntry", text);
+        Assert.DoesNotContain("replace-host-entry", text);
+    }
+
+    [Fact]
+    public void CiTestJobProvisionsNativeForGasActivate()
+    {
+        string yml = File.ReadAllText(Path.Combine(GameplayRoot, "..", "..", ".github", "workflows", "ci.yml"));
+        Assert.Contains("provision-engine-native.sh", yml);
+        Assert.Contains("repository: LumioGames/LumioNativeCore", yml);
+        Assert.Contains("repository: LumioGames/LumioVoxelEngine", yml);
+        Assert.Contains("path: native-core-src", yml);
+        Assert.Contains("path: voxel-engine-src", yml);
+        Assert.Contains("LUMIO_ENGINE_ROOT", yml);
+        Assert.Contains("LUMIO_NATIVE_CORE_ROOT", yml);
+        Assert.Contains("LUMIO_VOXEL_ROOT", yml);
     }
 }

@@ -1,13 +1,15 @@
 using System.Collections.Generic;
+using System.Numerics;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
 using Lumio.Sample.Gameplay.Components.Vein;
+using Lumio.Sample.Gameplay.Config;
 
 namespace Lumio.Sample.Gameplay;
 
 /// <summary>
-/// Decrements vein reserve on the bound entity. Voxel cell writes and M6a bind are
-/// engine slots that are not public yet (R-00469); this ability does not invent them.
+/// Decrements vein reserve on the bound entity. Voxel air-write is host-injected;
+/// a missing writer is Sample consume not wired, not a missing ABI.
 /// Cost names the stamina Base ledger for admit step 3 (R-00468 G2).
 /// </summary>
 [AbilityType(2u, Prediction = PredictionKind.AuthorityOnly, Cost = "Stamina")]
@@ -36,8 +38,11 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
         }
     }
 
-    /// <summary>Registers this type on the GAS catalog.</summary>
-    public static void Register() => AbilityTypeCatalog.Register<MineAbility, Input>(TypeId);
+    /// <summary>Registers this type on the GAS catalog. Cost name matches the generated registry.</summary>
+    public static void Register() => AbilityTypeCatalog.Register<MineAbility, Input>(TypeId, SampleTables.StaminaAttributeName);
+
+    /// <summary>Host voxel air-write. Null means Sample consume is not wired; do not treat that as a miss that still drops ore.</summary>
+    public static ISampleVoxelWriter? Writer { get; set; }
 
     /// <inheritdoc />
     public override bool CanActivate(in Input input)
@@ -45,7 +50,7 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
         if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId)) return false;
         AbilityComponent? owner = SampleAbilityAdmission.CurrentOwner;
         if (owner is null) return false;
-        return AdmitTarget(owner, veinId);
+        return AdmitTarget(owner, veinId) && WithinReach(owner, veinId);
     }
 
     /// <summary>Live vein with remaining hits. Stamina belongs to admit step 3, not this method.</summary>
@@ -58,15 +63,37 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
         return reserve.Remaining.Value > 0;
     }
 
+    /// <summary>
+    /// Melee reach is the movement step from config. Veins without LogicTransform sit at the bound cell origin.
+    /// </summary>
+    public static bool WithinReach(AbilityComponent owner, NetEntityId veinId)
+    {
+        if (owner is null) return false;
+        Vector3 player = owner.Get<LogicTransform>().LocalPosition;
+        Vector3 vein = Vector3.Zero;
+        try
+        {
+            vein = owner.Get<LogicTransform>(veinId).LocalPosition;
+        }
+        catch (System.InvalidOperationException)
+        {
+        }
+
+        float reach = (float)SampleTables.StepMeters;
+        Vector3 delta = player - vein;
+        return delta.LengthSquared() <= reach * reach;
+    }
+
     /// <inheritdoc />
     public override void Execute(in Input input, AbilityComponent owner) => ExecuteCore(in input, owner);
 
     static partial void ExecuteCore(in Input input, AbilityComponent owner);
 
-    /// <summary>Always false until the engine exposes capture/write-cell. Callers must not treat this as a miss.</summary>
+    /// <summary>False when the host has not wired a writer. Callers must not deduct or drop on false.</summary>
     public static bool TryRequestAirWrite(NetEntityId veinId)
     {
-        _ = veinId;
-        return false;
+        ISampleVoxelWriter? writer = Writer;
+        if (writer is null) return false;
+        return writer.TryWriteAir(veinId);
     }
 }

@@ -1,0 +1,83 @@
+{
+  "attributes": {
+    "Ore": {
+      "id": "engine",
+      "initial": "engine",
+      "name": "engine"
+    },
+    "Stamina": {
+      "id": "engine",
+      "initial": "engine",
+      "name": "engine"
+    }
+  },
+  "drops": {
+    "ember_cache": {
+      "chance_permille": "engine",
+      "display_name": "engine",
+      "id": "engine",
+      "name": "engine",
+      "skill_id": "engine"
+    },
+    "winter_cache": {
+      "chance_permille": "engine",
+      "display_name": "engine",
+      "id": "engine",
+      "name": "engine",
+      "skill_id": "engine"
+    }
+  },
+  "effects": {
+    "burn": {
+      "duration_frames": "engine",
+      "formula_key": "engine",
+      "fx_key": "engine",
+      "id": "engine",
+      "name": "engine"
+    },
+    "chill": {
+      "duration_frames": "engine",
+      "formula_key": "engine",
+      "fx_key": "engine",
+      "id": "engine",
+      "name": "engine"
+    }
+  },
+  "mining": {
+    "default": {
+      "id": "engine",
+      "name": "engine",
+      "ore_per_vein": "engine",
+      "stamina_cost": "engine",
+      "vein_hits_to_break": "engine"
+    }
+  },
+  "movement": {
+    "default": {
+      "id": "engine",
+      "name": "engine",
+      "step_meters": "engine",
+      "sweep_radius_meters": "engine"
+    }
+  },
+  "skills": {
+    "fireball": {
+      "cooldown_frames": "engine",
+      "damage": "engine",
+      "display_name": "engine",
+      "effect_id": "engine",
+      "icon": "engine",
+      "id": "engine",
+      "name": "engine"
+    },
+    "frostbolt": {
+      "cooldown_frames": "engine",
+      "damage": "engine",
+      "display_name": "engine",
+      "effect_id": "engine",
+      "icon": "engine",
+      "id": "engine",
+      "name": "engine"
+    }
+  }
+}

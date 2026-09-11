@@ -1,0 +1,19 @@
+{
+  "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+  "rows": [
+    {
+      "display_name": "Fireball",
+      "icon": "fx_fireball",
+      "id": 40001,
+      "name": "fireball"
+    },
+    {
+      "display_name": "Frostbolt",
+      "icon": "fx_frostbolt",
+      "id": 40002,
+      "name": "frostbolt"
+    }
+  ],
+  "table": "skills",
+  "target": "C"
+}

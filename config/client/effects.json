@@ -1,0 +1,17 @@
+{
+  "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
+  "rows": [
+    {
+      "fx_key": "fx_burn",
+      "id": 50001,
+      "name": "burn"
+    },
+    {
+      "fx_key": "fx_chill",
+      "id": 50002,
+      "name": "chill"
+    }
+  ],
+  "table": "effects",
+  "target": "C"
+}

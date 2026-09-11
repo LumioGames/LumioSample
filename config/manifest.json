@@ -1,0 +1,60 @@
+{
+  "baselineId": "LGE-V1.4-2026-08-27",
+  "compilerHash": "1b0bef43ad68423287cedb26ef3ebf59011c4bbbf81c44af85557a87690fcdbe",
+  "contentFingerprint": "aae8a777796ae1572792e1219e23ec44e1ac44737ad2a1f697e716f97e82fea5",
+  "formatVersion": 1,
+  "inputHash": "78c98b84b9eb9cc5f2c7ed37262102cfc8aee8dc1932727a0514cafd3c06b016",
+  "origins": "origins.json",
+  "outputHash": "a30e49064ad25bac19488d67535ddfacb4a8a3a1a8c8c10c4dd3fdbf78012114",
+  "packageFingerprint": "50fb6daccd91f0d38fc25054e25655d2e0c59e8499d434687a09cca1f343bf8c",
+  "projectionRoots": {
+    "C": "client/manifest.json",
+    "S": "server/manifest.json",
+    "V": "voxel/manifest.json"
+  },
+  "publicRoot": "50fb6daccd91f0d38fc25054e25655d2e0c59e8499d434687a09cca1f343bf8c",
+  "revisionId": "aae8a777796ae1572792e1219e23ec44e1ac44737ad2a1f697e716f97e82fea5",
+  "sourceFingerprint": "7ec278f938e864cbb356c5c0d52543369f6359578c2eeb9df5e3e5fcb3f750a3",
+  "tables": [
+    {
+      "contentFingerprint": "6de68b10cbd42fc0729507bc184f9eaba2244d4605330963c9ad7edddd9d0ab7",
+      "sourceFingerprint": "53fb0524baadd15b28181ffe06cf86c2422ecdaaa638742b67c943c1d1af9796",
+      "table": "attributes"
+    },
+    {
+      "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+      "sourceFingerprint": "3ea963e5ded01171a0ed4a0b70f2154688648f3d14055ef56d478b8ba1bd0357",
+      "table": "drops"
+    },
+    {
+      "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
+      "sourceFingerprint": "c800925661133fd9cb1b6591eeb3038de7253f813c6b03bbb2c9f05f622d2bf7",
+      "table": "effects"
+    },
+    {
+      "contentFingerprint": "070b3ab710eef26b19953b028900e85e427e7e7af8ccfe4adb5366b419c988d1",
+      "sourceFingerprint": "f7134809c07ddea9a956f877d000b330ee3c90dfe0152d9db286b630384bae56",
+      "table": "mining"
+    },
+    {
+      "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
+      "sourceFingerprint": "923ea0373d6071141748b66727a693d0e83e95e45738a266e7798350f1af32bd",
+      "table": "movement"
+    },
+    {
+      "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+      "sourceFingerprint": "a10eb3b674957381a510f243e95c4a55bd6b6a22af78405329af4184acfc3325",
+      "table": "skills"
+    }
+  ],
+  "targetManifests": {
+    "C": "client/manifest.json",
+    "S": "server/manifest.json",
+    "V": "voxel/manifest.json"
+  },
+  "targets": [
+    "S",
+    "C",
+    "V"
+  ]
+}

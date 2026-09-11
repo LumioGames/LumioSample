@@ -6,6 +6,8 @@
     <OutputType>Exe</OutputType>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <!-- Packed SDK enables generate by default; this assembly is not gameplay. -->
+    <LumioEcsGenerate>false</LumioEcsGenerate>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Lumio.Sample.Gameplay/Lumio.Sample.Gameplay.csproj" />

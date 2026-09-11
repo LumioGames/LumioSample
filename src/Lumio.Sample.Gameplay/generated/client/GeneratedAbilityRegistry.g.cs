@@ -23,7 +23,7 @@ public static class GeneratedAbilityRegistry
     /// </summary>
     public static void RegisterAll()
     {
-        global::Lumio.GameRuntime.Ecs.AbilityTypeCatalog.Register<global::Lumio.Sample.Gameplay.MineAbility, global::Lumio.Sample.Gameplay.MineAbility.Input>(2u);
+        global::Lumio.GameRuntime.Ecs.AbilityTypeCatalog.Register<global::Lumio.Sample.Gameplay.MineAbility, global::Lumio.Sample.Gameplay.MineAbility.Input>(2u, "Stamina");
         global::Lumio.GameRuntime.Ecs.AbilityTypeCatalog.Register<global::Lumio.Sample.Gameplay.MoveAbility, global::Lumio.Sample.Gameplay.MoveAbility.Input>(1u);
     }
 }

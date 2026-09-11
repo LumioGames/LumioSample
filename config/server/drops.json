@@ -1,0 +1,19 @@
+{
+  "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+  "rows": [
+    {
+      "chance_permille": 250,
+      "id": 60001,
+      "name": "ember_cache",
+      "skill_id": "40001"
+    },
+    {
+      "chance_permille": 125,
+      "id": 60002,
+      "name": "winter_cache",
+      "skill_id": "40002"
+    }
+  ],
+  "table": "drops",
+  "target": "S"
+}

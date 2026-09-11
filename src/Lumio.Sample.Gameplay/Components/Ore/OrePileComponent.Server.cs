@@ -1,10 +1,6 @@
-using Lumio.GameRuntime.Ecs;
-
 namespace Lumio.Sample.Gameplay.Components.Ore;
 
+/// <summary>Server-side ore pile body. Amount lives on the shared declaration.</summary>
 public sealed partial class OrePileComponent
 {
-    /// <summary>Units of ore in this pile.</summary>
-    [Persist]
-    public Sync<int> Amount = new(Scope.Room);
 }

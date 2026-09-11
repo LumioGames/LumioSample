@@ -7,11 +7,14 @@ namespace Lumio.Sample.Gameplay.Components.Vein;
 
 public sealed partial class VeinReserveComponent : IGeneratedComponent, IGeneratedSyncMetadata
 {
+    partial void OnRemainingChanging(int old, int @new, ChangeReason reason);
+    partial void OnRemainingChanged(int old, int @new, ChangeReason reason);
     partial void OnClientWrite(in SyncWrite w, ref bool accept);
 
 
     void IGeneratedComponent.BindFields(ISyncHost host)
     {
+        Remaining = Remaining.Bound(host, this, 0, "VeinReserveComponent.remaining");
     }
 
     void IGeneratedComponent.InvokePostAttribute() => PostAttribute();
@@ -19,10 +22,12 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
 
     void IGeneratedComponent.InvokeFieldChanging(int ordinal, object? oldValue, object? newValue, ChangeReason reason)
     {
+        if (ordinal == 0) OnRemainingChanging((int)oldValue!, (int)newValue!, reason);
     }
 
     void IGeneratedComponent.InvokeFieldChanged(int ordinal, object? oldValue, object? newValue, ChangeReason reason)
     {
+        if (ordinal == 0) OnRemainingChanged((int)oldValue!, (int)newValue!, reason);
     }
 
     bool IGeneratedComponent.DispatchClientWrite(in SyncWrite write)
@@ -54,20 +59,29 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
 
     object? IGeneratedComponent.ReadField(string fieldId)
     {
+        if (string.Equals(fieldId, "remaining", StringComparison.Ordinal)) return Remaining.Value;
         return null;
     }
 
     void IGeneratedComponent.WriteField(string fieldId, object? value, bool silent)
     {
+        if (string.Equals(fieldId, "remaining", StringComparison.Ordinal))
+        {
+            if (silent) Remaining.SetSilent((int)value!);
+            else Remaining.Value = (int)value!;
+            return;
+        }
     }
 
     bool IGeneratedSyncMetadata.TryGetSyncField(string fieldId, out ISyncField field)
     {
+        if (string.Equals(fieldId, "remaining", StringComparison.Ordinal)) { field = Remaining; return true; }
         field = null!;
         return false;
     }
 
     void IGeneratedComponent.ResetToDefault()
     {
+        Remaining.SetSilent(0);
     }
 }

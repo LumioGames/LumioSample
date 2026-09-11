@@ -8,10 +8,12 @@ test('committed sample.voxel is a placeholder and is not restorable', () => {
   assert.equal(map.restorable, false);
 });
 
-test('capture API is not public so the script stays BLOCKED_ENV', () => {
+test('capture API exists but Sample consume is not wired so the script stays BLOCKED_ENV', () => {
   const api = detectVoxelCaptureApi();
   assert.equal(api.writeCell, false);
-  assert.equal(api.capture, false);
-  assert.equal(api.restore, false);
+  assert.equal(api.capture, true);
+  assert.equal(api.restore, true);
+  assert.match(api.reason, /consume/);
+  assert.doesNotMatch(api.reason, /does not exist|not public/);
   assert.throws(() => runCapture(), (error) => error.code === 'BLOCKED_ENV');
 });

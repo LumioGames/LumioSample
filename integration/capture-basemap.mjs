@@ -26,9 +26,9 @@ export function inspectPlaceholderMap(repoRoot = ROOT) {
 export function detectVoxelCaptureApi() {
   return {
     writeCell: false,
-    capture: false,
-    restore: false,
-    reason: 'ABI capture/restore slots are not public (R-00469 / R-00522).',
+    capture: true,
+    restore: true,
+    reason: 'VoxelFacade.Capture/Restore exist; Sample has not wired write-cell consume (R-00522).',
   };
 }
 

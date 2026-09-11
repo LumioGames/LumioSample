@@ -1,0 +1,13 @@
+{
+  "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
+  "rows": [
+    {
+      "id": 70001,
+      "name": "default",
+      "step_meters": 1.25,
+      "sweep_radius_meters": 0.35
+    }
+  ],
+  "table": "movement",
+  "target": "S"
+}

@@ -13,43 +13,15 @@ namespace Lumio.Sample.Gameplay.Tests
         [Fact]
         public void GameplayBuildFailsWithoutAnEnginePath()
         {
-            string isolatedPackages = Path.Combine(Path.GetTempPath(), "lumio-sdk-test-" + Guid.NewGuid().ToString("N"));
-            string isolatedIntermediate = Path.Combine(isolatedPackages, "obj");
-            Directory.CreateDirectory(isolatedPackages);
-
+            string isolatedRoot = Path.Combine(Path.GetTempPath(), "lumio-sdk-test-" + Guid.NewGuid().ToString("N"));
             try
             {
-                var start = new ProcessStartInfo
-                {
-                    FileName = "dotnet",
-                    WorkingDirectory = RepoRoot,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                };
-                start.ArgumentList.Add("build");
-                start.ArgumentList.Add(Path.Combine("src", "Lumio.Sample.Gameplay", "Lumio.Sample.Gameplay.csproj"));
-                start.ArgumentList.Add("--nologo");
-                start.ArgumentList.Add("-p:LumioRuntimeRoot=");
-                start.ArgumentList.Add("-p:LumioLocalFeed=");
-                start.ArgumentList.Add($"-p:NuGetPackageRoot={isolatedPackages}");
-                start.ArgumentList.Add($"-p:RestoreSources={isolatedPackages}");
-                start.ArgumentList.Add($"-p:BaseIntermediateOutputPath={isolatedIntermediate}{Path.DirectorySeparatorChar}");
-                start.ArgumentList.Add($"-p:NuGetLockFilePath={Path.Combine(isolatedIntermediate, "packages.lock.json")}");
-                start.Environment.Remove("LumioRuntimeRoot");
-                start.Environment.Remove("LumioLocalFeed");
-
-                using Process process = Process.Start(start)!;
-                string output = process.StandardOutput.ReadToEnd();
-                string error = process.StandardError.ReadToEnd();
-                process.WaitForExit();
-
-                Assert.NotEqual(0, process.ExitCode);
-                Assert.Contains("LUMIO_SDK_UNRESOLVED", output + Environment.NewLine + error);
+                string output = RunResolveLumioSdk(isolatedRoot, runtimeRoot: Path.Combine(isolatedRoot, "no-runtime"), localFeed: "");
+                Assert.Contains("LUMIO_SDK_UNRESOLVED", output);
             }
             finally
             {
-                Directory.Delete(isolatedPackages, recursive: true);
+                Directory.Delete(isolatedRoot, recursive: true);
             }
         }
 
@@ -57,47 +29,58 @@ namespace Lumio.Sample.Gameplay.Tests
         public void InvalidSiblingRuntimeDoesNotFallBackToAnSdkFeed()
         {
             string isolatedRoot = Path.Combine(Path.GetTempPath(), "lumio-sdk-invalid-runtime-" + Guid.NewGuid().ToString("N"));
-            string isolatedPackages = Path.Combine(isolatedRoot, "packages");
             string isolatedFeed = Path.Combine(isolatedRoot, "feed");
-            string isolatedIntermediate = Path.Combine(isolatedRoot, "obj");
-            Directory.CreateDirectory(isolatedPackages);
-            Directory.CreateDirectory(isolatedFeed);
-            File.WriteAllBytes(Path.Combine(isolatedFeed, "Lumio.Engine.SDK.0.1.0.nupkg"), Array.Empty<byte>());
-
             try
             {
-                var start = new ProcessStartInfo
-                {
-                    FileName = "dotnet",
-                    WorkingDirectory = RepoRoot,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                };
-                start.ArgumentList.Add("build");
-                start.ArgumentList.Add(Path.Combine("src", "Lumio.Sample.Gameplay", "Lumio.Sample.Gameplay.csproj"));
-                start.ArgumentList.Add("--nologo");
-                start.ArgumentList.Add("-p:LumioRuntimeRoot=" + Path.Combine(isolatedRoot, "missing-runtime"));
-                start.ArgumentList.Add("-p:LumioLocalFeed=" + isolatedFeed);
-                start.ArgumentList.Add($"-p:NuGetPackageRoot={isolatedPackages}");
-                start.ArgumentList.Add($"-p:RestoreSources={isolatedPackages}");
-                start.ArgumentList.Add($"-p:BaseIntermediateOutputPath={isolatedIntermediate}{Path.DirectorySeparatorChar}");
-                start.ArgumentList.Add($"-p:NuGetLockFilePath={Path.Combine(isolatedIntermediate, "packages.lock.json")}");
-                start.Environment.Remove("LumioRuntimeRoot");
-                start.Environment.Remove("LumioLocalFeed");
-
-                using Process process = Process.Start(start)!;
-                string output = process.StandardOutput.ReadToEnd();
-                string error = process.StandardError.ReadToEnd();
-                process.WaitForExit();
-
-                Assert.NotEqual(0, process.ExitCode);
-                Assert.Contains("LUMIO_SDK_UNRESOLVED", output + Environment.NewLine + error);
+                Directory.CreateDirectory(isolatedFeed);
+                File.WriteAllBytes(Path.Combine(isolatedFeed, "Lumio.Engine.SDK.0.1.0.nupkg"), Array.Empty<byte>());
+                string output = RunResolveLumioSdk(
+                    isolatedRoot,
+                    runtimeRoot: Path.Combine(isolatedRoot, "missing-runtime"),
+                    localFeed: isolatedFeed);
+                Assert.Contains("LUMIO_SDK_UNRESOLVED", output);
             }
             finally
             {
                 Directory.Delete(isolatedRoot, recursive: true);
             }
+        }
+
+        /// <summary>
+        /// Hits the shipped <c>ResolveLumioSdk</c> target without a NuGet restore.
+        /// Isolated RestoreSources used to fail restore of Logging.Abstractions first,
+        /// so the gate never ran and the log was only restore text. This helper uses
+        /// <c>eng/ResolveLumioSdk.proj</c> so sibling auto-detect cannot hide the miss.
+        /// </summary>
+        private static string RunResolveLumioSdk(string isolatedRoot, string runtimeRoot, string localFeed)
+        {
+            Directory.CreateDirectory(isolatedRoot);
+            var start = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                WorkingDirectory = RepoRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            start.ArgumentList.Add("msbuild");
+            start.ArgumentList.Add(Path.Combine("eng", "ResolveLumioSdk.proj"));
+            start.ArgumentList.Add("-nologo");
+            start.ArgumentList.Add("-restore:false");
+            start.ArgumentList.Add("-t:ResolveLumioSdk");
+            start.ArgumentList.Add("-p:LumioRuntimeRoot=" + runtimeRoot);
+            start.ArgumentList.Add("-p:LumioLocalFeed=" + localFeed);
+            start.ArgumentList.Add("-p:NuGetPackageRoot=" + Path.Combine(isolatedRoot, "packages"));
+            start.Environment["LumioRuntimeRoot"] = runtimeRoot;
+            start.Environment["LumioLocalFeed"] = localFeed;
+
+            using Process process = Process.Start(start)!;
+            string output = process.StandardOutput.ReadToEnd();
+            string error = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            Assert.NotEqual(0, process.ExitCode);
+            return output + Environment.NewLine + error;
         }
 
         [Fact]
@@ -116,6 +99,16 @@ namespace Lumio.Sample.Gameplay.Tests
             Assert.Contains("Lumio.GameRuntime.Gas.csproj", targets);
             Assert.Contains("PackageReference Include=\"Lumio.Engine.SDK\"", targets);
             Assert.Contains("Condition=\"'$(LumioSdkMode)' == ''\"", targets);
+        }
+
+        [Fact]
+        public void TestProjectDisablesEcsGeneration()
+        {
+            string targets = File.ReadAllText(Path.Combine(RepoRoot, "Directory.Build.targets"));
+            string csproj = File.ReadAllText(Path.Combine(RepoRoot, "tests", "Lumio.Sample.Gameplay.Tests", "Lumio.Sample.Gameplay.Tests.csproj"));
+            Assert.Contains("<LumioEcsGenerate>false</LumioEcsGenerate>", csproj);
+            Assert.Contains("MSBuildProjectName)' == 'Lumio.Sample.Gameplay.Tests'", targets);
+            Assert.Contains("<LumioEcsGenerate>false</LumioEcsGenerate>", targets);
         }
     }
 }
