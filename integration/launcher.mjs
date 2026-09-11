@@ -200,7 +200,9 @@ async function waitBotsAdmitted({
     latest = countAdmittedBots(bots, { evidenceDir, children: botChildren });
     if (latest.details.some((item) => item.rejected || item.faulted)) return latest;
     if (latest.admitted === bots) return latest;
-    await sleepFn(25);
+    // keepAlive: node --test on Linux drops unref'd timers and reports
+    // "Promise resolution is still pending but the event loop has already resolved".
+    await sleepFn(25, { keepAlive: true });
   }
   return latest;
 }
@@ -211,7 +213,7 @@ function reportStatusFromSteps(steps) {
   return 'PASS';
 }
 
-async function sleep(ms, { keepAlive = false } = {}) {
+async function sleep(ms, { keepAlive = true } = {}) {
   if (ms <= 0) return;
   await new Promise((resolvePromise) => {
     const timer = setTimeout(resolvePromise, ms);
@@ -341,7 +343,7 @@ export async function runLauncher(options = {}) {
     let ready = findDsReady(ds.stdout);
     while (!ready && Date.now() - started < (options.timeoutMs ?? DEFAULT_TIMEOUT_MS)) {
       tools.assertAlive(ds);
-      await sleep(25);
+      await sleep(25, { keepAlive: true });
       ready = findDsReady(ds.stdout);
     }
     if (!ready) throw new Error('Timed out waiting for lumio-ds DS_READY. See integration/logs.');

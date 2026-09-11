@@ -229,6 +229,12 @@ test('started bots stay up for --duration-ms before forceCleanup', async () => {
   }
 });
 
+test('admit wait keeps timers alive so Linux node --test cannot drop the timeout', () => {
+  const text = readFileSync(new URL('launcher.mjs', import.meta.url), 'utf8');
+  assert.match(text, /await sleepFn\(25, \{ keepAlive: true \}\)/);
+  assert.match(text, /await sleep\(25, \{ keepAlive: true \}\)/);
+});
+
 test('parseBotAdmit requires Active+established and rejects ticket/fault', () => {
   assert.equal(parseBotAdmit(admitLine('Bot1')).admitted, true);
   assert.equal(parseBotAdmit('session login requested Bot1 ws://x True').admitted, false);
@@ -262,7 +268,7 @@ test('rejected ticket does not mark step 04 PASS', async () => {
   assert.equal(report.steps.find((step) => step.id === '14').status, 'BLOCKED_ENV');
 });
 
-test('no welcome does not mark step 04 PASS', async () => {
+test('no welcome does not mark step 04 PASS', { timeout: 15_000 }, async () => {
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-nowelcome-'));
   const evidenceDir = join(isolated, 'evidence');
   const connecting = 'session state changed Bot1 Connecting None transport_connect 1 0 False False False';
@@ -284,7 +290,7 @@ test('no welcome does not mark step 04 PASS', async () => {
   assert.equal(report.steps.find((step) => step.id === '05').status, 'BLOCKED_ENV');
 });
 
-test('partial admit timeout does not mark step 04 PASS', async () => {
+test('partial admit timeout does not mark step 04 PASS', { timeout: 15_000 }, async () => {
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-partial-'));
   const evidenceDir = join(isolated, 'evidence');
   const report = await runLauncher({

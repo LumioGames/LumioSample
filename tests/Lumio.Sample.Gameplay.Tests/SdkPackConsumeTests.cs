@@ -100,5 +100,15 @@ namespace Lumio.Sample.Gameplay.Tests
             Assert.Contains("PackageReference Include=\"Lumio.Engine.SDK\"", targets);
             Assert.Contains("Condition=\"'$(LumioSdkMode)' == ''\"", targets);
         }
+
+        [Fact]
+        public void TestProjectDisablesEcsGeneration()
+        {
+            string targets = File.ReadAllText(Path.Combine(RepoRoot, "Directory.Build.targets"));
+            string csproj = File.ReadAllText(Path.Combine(RepoRoot, "tests", "Lumio.Sample.Gameplay.Tests", "Lumio.Sample.Gameplay.Tests.csproj"));
+            Assert.Contains("<LumioEcsGenerate>false</LumioEcsGenerate>", csproj);
+            Assert.Contains("MSBuildProjectName)' == 'Lumio.Sample.Gameplay.Tests'", targets);
+            Assert.Contains("<LumioEcsGenerate>false</LumioEcsGenerate>", targets);
+        }
     }
 }
