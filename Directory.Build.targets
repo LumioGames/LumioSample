@@ -10,8 +10,9 @@
     <_LumioRuntimeReplicationProject>$(_LumioRuntimeRoot)/modules/replication/src/Lumio.GameRuntime.Replication/Lumio.GameRuntime.Replication.csproj</_LumioRuntimeReplicationProject>
     <_LumioRuntimeGasProject>$(_LumioRuntimeRoot)/modules/gas/src/Lumio.GameRuntime.Gas/Lumio.GameRuntime.Gas.csproj</_LumioRuntimeGasProject>
     <_LumioRuntimeConfigProject>$(_LumioRuntimeRoot)/modules/config/src/Lumio.GameRuntime.Config/Lumio.GameRuntime.Config.csproj</_LumioRuntimeConfigProject>
+    <_LumioRuntimeSimulationProject>$(_LumioRuntimeRoot)/modules/simulation/src/Lumio.GameRuntime.Simulation/Lumio.GameRuntime.Simulation.csproj</_LumioRuntimeSimulationProject>
     <_LumioRuntimeGenProps>$(_LumioRuntimeRoot)/tools/gen-declarations/build/Lumio.Tools.GenDeclarations.props</_LumioRuntimeGenProps>
-    <_LumioRuntimeExists Condition="'$(_LumioRuntimeRoot)' != '' and Exists('$(_LumioRuntimeRoot)') and Exists('$(_LumioRuntimeEcsProject)') and Exists('$(_LumioRuntimeReplicationProject)') and Exists('$(_LumioRuntimeGasProject)') and Exists('$(_LumioRuntimeConfigProject)')">true</_LumioRuntimeExists>
+    <_LumioRuntimeExists Condition="'$(_LumioRuntimeRoot)' != '' and Exists('$(_LumioRuntimeRoot)') and Exists('$(_LumioRuntimeEcsProject)') and Exists('$(_LumioRuntimeReplicationProject)') and Exists('$(_LumioRuntimeGasProject)') and Exists('$(_LumioRuntimeConfigProject)') and Exists('$(_LumioRuntimeSimulationProject)')">true</_LumioRuntimeExists>
     <_LumioRuntimeInvalid Condition="'$(_LumioRuntimeRoot)' != '' and '$(_LumioRuntimeExists)' != 'true'">true</_LumioRuntimeInvalid>
     <_LumioNugetPackages Condition="'$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_LumioNugetPackages>
     <_LumioNugetPackages Condition="'$(_LumioNugetPackages)' == '' and '$(NUGET_PACKAGES)' != ''">$(NUGET_PACKAGES)</_LumioNugetPackages>
@@ -24,11 +25,17 @@
     <LumioSdkMode Condition="'$(LumioSdkMode)' == '' and '$(_LumioRuntimeInvalid)' != 'true' and ('$(_LumioNupkg)' == 'true' or '$(_LumioGlobalPackage)' == 'true')">nuget</LumioSdkMode>
   </PropertyGroup>
 
+  <!-- HostEntry loads Lumio.GameRuntime.Simulation.dll beside the assemblies
+       server.json names and reflects DedicatedServerHostBinding.TryAttach.
+       The consumer is net10.0; Simulation's ns2.1 TFM Compile-Removes that type. -->
   <ItemGroup Condition="'$(LumioSdkMode)' == 'sibling' and ('$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' or '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay.Tests')">
     <ProjectReference Include="$(_LumioRuntimeEcsProject)" />
     <ProjectReference Include="$(_LumioRuntimeReplicationProject)" />
     <ProjectReference Include="$(_LumioRuntimeGasProject)" />
     <ProjectReference Include="$(_LumioRuntimeConfigProject)" />
+    <ProjectReference Include="$(_LumioRuntimeSimulationProject)">
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+    </ProjectReference>
   </ItemGroup>
 
   <!-- Sibling never imports the SDK nupkg props. Those defaults (generate on, exclude generated/**)

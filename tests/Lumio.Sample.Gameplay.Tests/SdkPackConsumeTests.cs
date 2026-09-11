@@ -97,6 +97,7 @@ namespace Lumio.Sample.Gameplay.Tests
             Assert.Contains("Lumio.GameRuntime.Ecs.csproj", targets);
             Assert.Contains("Lumio.GameRuntime.Replication.csproj", targets);
             Assert.Contains("Lumio.GameRuntime.Gas.csproj", targets);
+            Assert.Contains("Lumio.GameRuntime.Simulation.csproj", targets);
             Assert.Contains("PackageReference Include=\"Lumio.Engine.SDK\"", targets);
             Assert.Contains("Condition=\"'$(LumioSdkMode)' == ''\"", targets);
         }

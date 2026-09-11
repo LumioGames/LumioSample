@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -76,6 +77,24 @@ public sealed class SourceHygieneTests
         Assert.Matches("^[0-9a-f]{64}$", declared);
         // Identity is frozen so operators can name the file; the bytes are still a placeholder.
         Assert.False(mapText.Contains("canonical object", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void GameplayOutputShipsNet10SimulationWithDedicatedServerHostBinding()
+    {
+        string configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
+        string path = Path.Combine(GameplayRoot, "bin", configuration, "net10.0", "Lumio.GameRuntime.Simulation.dll");
+        Assert.True(
+            File.Exists(path),
+            "Lumio.GameRuntime.Simulation.dll is missing from Sample gameplay output; HostEntry reflects DedicatedServerHostBinding beside the assemblies server.json names. Probed: " + path);
+
+        Assembly assembly = Assembly.LoadFrom(path);
+        Assert.True(
+            assembly.GetType("Lumio.GameRuntime.Simulation.DedicatedServerHostBinding") is not null,
+            "Lumio.GameRuntime.Simulation.DedicatedServerHostBinding is missing from " + path + ". A netstandard2.1 Simulation.dll Compile-Removes that type; sibling must resolve the net10.0 TFM.");
+        Assert.True(
+            assembly.GetType("Lumio.GameRuntime.Simulation.WorldTickBinding") is not null,
+            "Lumio.GameRuntime.Simulation.WorldTickBinding is missing from " + path + ".");
     }
 
     [Fact]
