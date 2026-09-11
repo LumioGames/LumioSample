@@ -17,14 +17,14 @@ metadata:
 |------|--------|
 | [`standards/workflow.md`](standards/workflow.md) | 开发工作流:分支/提交/合并·PR 与知识同步义务——动手改代码、开 PR 前查 |
 | [`standards/code-style.md`](standards/code-style.md) | 代码与文档风格:语言约定、命名、注释原则、生成物纪律——写代码/建文档时查 |
-| [`standards/testing.md`](standards/testing.md) | 测试与验收:测试分层政策、TDD 时机、验收 DoD 与验证证据——实现功能/修 bug 时查 |
+| [`standards/testing.md`](standards/testing.md) | 测试与验收:测试分层政策、TDD 时机、验收 DoD 与验证证据;sibling 玩法 bin 须 LoadFrom 出 DedicatedServerHostBinding——实现功能/修 bug 时查 |
 
 ## features/(功能设计与记录 · 供了解)
 
 | 文档 | 一句话 |
 |------|--------|
 | [`features/_TEMPLATE.md`](features/_TEMPLATE.md) | 新功能文档模板——新增功能记录时照此建,放对 领域 / 模块 |
-| [`features/sample-gameplay.md`](features/sample-gameplay.md) | 示例玩法声明与启动器落点——实体/技能/配表/十四步脚本怎么接引擎;改玩法或启动器时查 |
+| [`features/sample-gameplay.md`](features/sample-gameplay.md) | 示例玩法声明与启动器落点——实体/技能/配表/十四步脚本怎么接引擎;sibling 玩法输出带 net10 Simulation 供 HostEntry 反射 DedicatedServerHostBinding;改玩法或启动器时查 |
 
 ## lessons(经验教训 · 复发问题暂存区)
 
