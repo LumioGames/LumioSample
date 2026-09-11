@@ -48,12 +48,16 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: sample-source
     env:
       LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
+      LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
+      # Distinct names so provision-engine-native.sh can ln -sfn them next to Engine.
+      LUMIO_NATIVE_CORE_ROOT: ${{ github.workspace }}/native-core-src
+      LUMIO_VOXEL_ROOT: ${{ github.workspace }}/voxel-engine-src
     steps:
       - uses: actions/checkout@v7
         with:
@@ -72,9 +76,34 @@ jobs:
           path: LumioGameEngine
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
+      # GAS Activate has no C# AbilityStateTable fallback. Mine/move wiring
+      # tests load lumio-hfsm from liblumio_engine_native; missing native is
+      # LUMIO_ENGINE_NATIVE_MISSING (non-zero), not a skip.
+      - name: Checkout LumioNativeCore
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioNativeCore
+          path: native-core-src
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioVoxelEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioVoxelEngine
+          path: voxel-engine-src
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: LumioGameEngine/engine/native -> LumioGameEngine/.build/native-target
+          shared-key: lumio-engine-native
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: sample-source/global.json
+      - name: Provision liblumio_engine_native
+        working-directory: ${{ github.workspace }}/LumioGameRuntime
+        run: bash eng/provision-engine-native.sh
       - run: dotnet test LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine -- --minimum-expected-tests 1
       - run: node --test integration/verify-evidence.mjs
       - run: node --test integration/account-client.test.mjs

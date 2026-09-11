@@ -47,4 +47,18 @@ public sealed class SourceHygieneTests
         Assert.Contains("LumioEntityChatEntry", text);
         Assert.DoesNotContain("replace-host-entry", text);
     }
+
+    [Fact]
+    public void CiTestJobProvisionsNativeForGasActivate()
+    {
+        string yml = File.ReadAllText(Path.Combine(GameplayRoot, "..", "..", ".github", "workflows", "ci.yml"));
+        Assert.Contains("provision-engine-native.sh", yml);
+        Assert.Contains("repository: LumioGames/LumioNativeCore", yml);
+        Assert.Contains("repository: LumioGames/LumioVoxelEngine", yml);
+        Assert.Contains("path: native-core-src", yml);
+        Assert.Contains("path: voxel-engine-src", yml);
+        Assert.Contains("LUMIO_ENGINE_ROOT", yml);
+        Assert.Contains("LUMIO_NATIVE_CORE_ROOT", yml);
+        Assert.Contains("LUMIO_VOXEL_ROOT", yml);
+    }
 }
