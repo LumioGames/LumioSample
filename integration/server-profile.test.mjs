@@ -30,19 +30,15 @@ test('committed server.json is runtime+voxel snapshot_only with required base_ma
   assert.equal(config.base_map_content_sha256, map.sha256);
 });
 
-test('placeholder maps/sample.voxel is refused as a base map', () => {
+test('committed maps/sample.voxel is a restoreable VoxelEngine capture', () => {
   const map = inspectBaseMap();
-  assert.equal(map.placeholder, true);
-  assert.equal(map.restorable, false);
-  assert.equal(map.blocked, true);
-  assert.match(map.missingCommand, /no committed capture CLI/);
-  assert.throws(() => refusePlaceholderAsBaseMap(), (error) => {
-    assert.equal(error.code, 'BLOCKED_ENV');
-    assert.match(error.message, /placeholder/);
-    assert.match(error.message, /must not be treated as a base map|refuse it as a base map/);
-    assert.doesNotMatch(error.message, /does not exist|not public/);
-    return true;
-  });
+  assert.equal(map.placeholder, false);
+  assert.equal(map.restorable, true);
+  assert.equal(map.blocked, false);
+  assert.equal(map.missingCommand, null);
+  const accepted = refusePlaceholderAsBaseMap();
+  assert.equal(accepted.map.restorable, true);
+  assert.equal(accepted.config.base_map_content_sha256, map.sha256);
 });
 
 test('sha mismatch and retired durability are refused before treating bytes as a map', () => {
@@ -54,7 +50,7 @@ test('sha mismatch and retired durability are refused before treating bytes as a
     world_profile: 'runtime+voxel',
     durability: 'snapshot_only',
     base_map_id: 'sample',
-    base_map_version: '0.1.0-placeholder',
+    base_map_version: '0.1.0',
     base_map_content_sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     clr: {
       entry_type: FROZEN_ENTRY_TYPE,
@@ -72,7 +68,7 @@ test('sha mismatch and retired durability are refused before treating bytes as a
     /snapshot_only/,
   );
   config.durability = 'snapshot_only';
-  config.base_map_version = '0.1.0-placeholder';
+  config.base_map_version = '0.1.0';
   assert.throws(
     () => assertFrozenServerProfile(config, isolated),
     (error) => error.code === 'BLOCKED_ENV',
@@ -85,4 +81,6 @@ test('local overlay documentation names the gitignored .run file', () => {
   assert.equal(overlay.overlay, '.run/server.local.json');
   assert.match(overlay.note, /gitignored/);
   assert.match(overlay.note, /runtime-only/);
+  assert.match(overlay.note, /server\.sample\.json/);
+  assert.match(overlay.note, /missing required values/);
 });

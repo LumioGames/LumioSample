@@ -1,14 +1,14 @@
 {
   "allocation": {
-    "serverAudience": "sample-local",
-    "gameId": "sample",
-    "gameReleaseId": "sample-local",
-    "contractId": "sample-local",
-    "roomId": "sample",
-    "allocationId": "sample-local"
+    "serverAudience": "replace-server-audience",
+    "gameId": "replace-game-id",
+    "gameReleaseId": "replace-release-id",
+    "contractId": "replace-contract-id",
+    "roomId": "replace-room-id",
+    "allocationId": "replace-allocation-id"
   },
   "admission_key_id": 1,
-  "admission_public_key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "admission_public_key_hex": "REPLACE_WITH_PLATFORM_32_BYTE_PUBLIC_KEY_HEX",
   "clr": {
     "engine_native": "sdk/liblumio_engine.so",
     "hostfxr": "dotnet/libhostfxr.so",

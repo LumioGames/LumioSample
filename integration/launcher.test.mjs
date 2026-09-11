@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { candidateEngineRoots, resolveProcessToolsPath } from './engine-tools.mjs';
@@ -87,10 +87,26 @@ function processTools({ evidenceDir, botLogs = [] } = {}) {
   };
 }
 
+function runnableDsConfig() {
+  return {
+    allocation: {
+      serverAudience: 'sample-local',
+      gameId: 'sample',
+      gameReleaseId: 'sample-local',
+      contractId: 'sample-local',
+      roomId: 'sample',
+      allocationId: 'sample-local',
+    },
+    admission_public_key_hex: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  };
+}
+
 function launchFiles(isolated) {
+  const dsConfig = join(isolated, 'server.json');
+  writeFileSync(dsConfig, `${JSON.stringify(runnableDsConfig())}\n`);
   return {
     dsExe: touch(isolated, 'lumio-ds'),
-    dsConfig: touch(isolated, 'server.json'),
+    dsConfig,
     botDll: touch(isolated, 'Lumio.Client.Bot.Host.dll'),
     gameplay: touch(isolated, 'Lumio.Sample.Gameplay.dll'),
     engineNative: touch(isolated, 'lumio.dll'),
@@ -232,6 +248,34 @@ test('started bots stay up for --duration-ms before forceCleanup', async () => {
   }
 });
 
+test('live bots against the committed Sample tree mark step 05 READY for a restorable capture', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-map-'));
+  const evidenceDir = join(isolated, 'evidence');
+  const sampleRoot = resolve(HERE, '..');
+  const tools = processTools({ evidenceDir, botLogs: [admitLine('Bot1')] });
+  const report = await runLauncher({
+    root: sampleRoot,
+    env: {},
+    bots: 1,
+    staggerMs: 0,
+    durationMs: 80,
+    timeoutMs: 5_000,
+    sessions: [session('Bot1', 'ticket-one')],
+    ...launchFiles(isolated),
+    processTools: tools,
+    log() {},
+    evidenceDir,
+  });
+  assert.equal(report.steps.find((step) => step.id === '05').status, 'READY');
+  assert.match(report.steps.find((step) => step.id === '05').detail, /restores only/);
+  assert.doesNotMatch(report.steps.find((step) => step.id === '05').detail, /placeholder/);
+  assert.equal(report.steps.find((step) => step.id === '14').status, 'BLOCKED_ENV');
+  assert.match(report.steps.find((step) => step.id === '14').detail, /restoreable capture/);
+  for (const id of ['07', '08', '09', '10', '11', '12', '13', '14']) {
+    assert.equal(report.steps.find((step) => step.id === id).status, 'BLOCKED_ENV');
+  }
+});
+
 test('admit wait keeps timers alive so Linux node --test cannot drop the timeout', () => {
   const text = readFileSync(new URL('launcher.mjs', import.meta.url), 'utf8');
   assert.match(text, /await sleepFn\(25, \{ keepAlive: true \}\)/);
@@ -351,8 +395,101 @@ test('committed server.json and tour no longer claim runtime-only', () => {
   assert.match(server, /"world_profile": "runtime\+voxel"/);
   assert.match(server, /"durability": "snapshot_only"/);
   assert.doesNotMatch(server, /process-crash|power-loss|"runtime-only"/);
+  assert.doesNotMatch(server, /replace-server-audience|REPLACE_WITH_PLATFORM_32_BYTE_PUBLIC_KEY_HEX/);
   assert.match(tour, /runtime\+voxel/);
   assert.doesNotMatch(tour, /仍是 `runtime-only`/);
   assert.match(readme, /runtime\+voxel/);
   assert.match(readme, /\.run\/server\.local\.json/);
+});
+
+test('without LUMIO_DS_EXE step 03 is BLOCKED_ENV for the binary, not replace-* tokens', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-nodye-'));
+  const evidenceDir = join(isolated, 'evidence');
+  const report = await runLauncher({
+    root: isolated,
+    env: {},
+    bots: 1,
+    staggerMs: 0,
+    sessions: [session('Bot1', 'ticket-nodye')],
+    processTools: {
+      command() { throw new Error('must not run lumio-ds'); },
+      startLogged() { throw new Error('must not start lumio-ds'); },
+      assertAlive() {},
+      waitExit() { return Promise.resolve(); },
+      forceCleanup() { return Promise.resolve(); },
+    },
+    log() {},
+    evidenceDir,
+  });
+  assert.equal(report.steps.find((step) => step.id === '03').status, 'BLOCKED_ENV');
+  assert.match(report.steps.find((step) => step.id === '03').detail, /LUMIO_DS_EXE/);
+  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /replace-/);
+  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /REPLACE_WITH_PLATFORM/);
+  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /missing required value/);
+});
+
+test('step 03 with a live DS exe does not fail on replace-* tokens', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-dsconfig-'));
+  const evidenceDir = join(isolated, 'evidence');
+  const committed = JSON.parse(readFileSync(new URL('../server.json', import.meta.url), 'utf8'));
+  writeFileSync(join(isolated, 'server.json'), `${JSON.stringify(committed)}\n`);
+  const report = await runLauncher({
+    root: isolated,
+    env: {},
+    bots: 1,
+    staggerMs: 0,
+    durationMs: 0,
+    timeoutMs: 1_000,
+    sessions: [session('Bot1', 'ticket-ds')],
+    dsExe: touch(isolated, 'lumio-ds'),
+    dsConfig: join(isolated, 'server.json'),
+    processTools: {
+      command() { return 'configuration_valid'; },
+      startLogged() {
+        return {
+          stdout: 'DS_READY {"pid":1,"endpoint":"ws://127.0.0.1:9110"}\n',
+          child: { pid: 1, kill() {} },
+          closed: false,
+        };
+      },
+      assertAlive() {},
+      waitExit() { return Promise.resolve(); },
+      forceCleanup() { return Promise.resolve(); },
+    },
+    log() {},
+    evidenceDir,
+  });
+  assert.equal(report.steps.find((step) => step.id === '03').status, 'PASS');
+  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /replace-/);
+  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /REPLACE_WITH_PLATFORM/);
+});
+
+test('unfilled sample tokens on the DS config are a loud missing-value FAIL, not BLOCKED_ENV', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-unfilled-'));
+  const evidenceDir = join(isolated, 'evidence');
+  const sample = JSON.parse(readFileSync(new URL('../server.sample.json', import.meta.url), 'utf8'));
+  writeFileSync(join(isolated, 'server.json'), `${JSON.stringify(sample)}\n`);
+  const report = await runLauncher({
+    root: isolated,
+    env: {},
+    bots: 1,
+    staggerMs: 0,
+    durationMs: 0,
+    timeoutMs: 1_000,
+    sessions: [session('Bot1', 'ticket-unfilled')],
+    dsExe: touch(isolated, 'lumio-ds'),
+    dsConfig: join(isolated, 'server.json'),
+    processTools: {
+      command() { return ''; },
+      startLogged() { throw new Error('must not start DS on unfilled tokens'); },
+      assertAlive() {},
+      waitExit() { return Promise.resolve(); },
+      forceCleanup() { return Promise.resolve(); },
+    },
+    log() {},
+    evidenceDir,
+  });
+  assert.equal(report.steps.find((step) => step.id === '03').status, 'FAIL');
+  assert.match(report.steps.find((step) => step.id === '03').detail, /missing required value/);
+  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /BLOCKED_ENV/);
 });

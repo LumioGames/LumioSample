@@ -15,13 +15,14 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const HEX64 = /^[0-9a-f]{64}$/;
 const PLACEHOLDER_HEADER = 'LUMIO-VOXEL-SNAPSHOT-V1';
 const PLACEHOLDER_BLOCKED = 'BLOCKED: this is not a restoreable VoxelEngine capture';
+const SNAPSHOT_MAGIC = 'LUMIOSNP1';
 const MISSING_CAPTURE_COMMAND =
-  'sibling LumioGameEngine has no committed capture CLI (VoxelFacade.PrepareWrite/Capture exist; Sample write-cell consume is not wired)';
+  'sibling LumioGameEngine/eng/capture-voxel.mjs (author-time; Engine PR #182). Sample does not invent a capture implementation.';
 
 export const FROZEN_WORLD_PROFILE = 'runtime+voxel';
 export const FROZEN_DURABILITY = 'snapshot_only';
 export const FROZEN_BASE_MAP_ID = 'sample';
-export const FROZEN_BASE_MAP_VERSION = '0.1.0-placeholder';
+export const FROZEN_BASE_MAP_VERSION = '0.1.0';
 export const FROZEN_ENTRY_TYPE = 'Lumio.Server.EntityChat.HostEntry.HostEntry, Lumio.Server.EntityChat.HostEntry';
 export const FROZEN_ENTRY_METHOD = 'LumioEntityChatEntry';
 
@@ -47,13 +48,14 @@ export function inspectBaseMap(repoRoot = ROOT) {
   const placeholder = text.includes(PLACEHOLDER_HEADER)
     || text.includes(PLACEHOLDER_BLOCKED)
     || text.includes('do-not-restore: true');
+  const restorable = !placeholder && text.includes(SNAPSHOT_MAGIC);
   return {
     path: relative,
     placeholder,
-    restorable: false,
-    blocked: text.includes(PLACEHOLDER_BLOCKED),
+    restorable,
+    blocked: placeholder,
     sha256: createHash('sha256').update(bytes).digest('hex'),
-    missingCommand: MISSING_CAPTURE_COMMAND,
+    missingCommand: restorable ? null : MISSING_CAPTURE_COMMAND,
   };
 }
 
@@ -92,7 +94,7 @@ export function assertFrozenServerProfile(config, repoRoot = ROOT) {
     throw new Error(`server.json base_map_id must name ${FROZEN_BASE_MAP_ID}`);
   }
   if (config.base_map_version !== FROZEN_BASE_MAP_VERSION) {
-    throw new Error(`server.json base_map_version must be ${FROZEN_BASE_MAP_VERSION} until a real capture exists`);
+    throw new Error(`server.json base_map_version must be ${FROZEN_BASE_MAP_VERSION}`);
   }
   if (!map.sha256 || config.base_map_content_sha256 !== map.sha256) {
     throw new Error('server.json base_map_content_sha256 must match maps/sample.voxel bytes');
@@ -121,6 +123,6 @@ export function describeLocalOverlay(repoRoot = ROOT) {
     committed: 'server.json',
     overlay: '.run/server.local.json',
     overlayExists: existsSync(localPath),
-    note: 'Local overlay is gitignored. Copy world_profile/durability/base_map_* from committed server.json; do not keep runtime-only or process-crash.',
+    note: 'Local overlay is gitignored. Copy world_profile/durability/base_map_* from committed server.json; do not keep runtime-only or process-crash. Fill-me tokens live in server.sample.json and fail as missing required values, not BLOCKED_ENV.',
   };
 }

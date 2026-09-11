@@ -55,6 +55,7 @@ jobs:
     env:
       LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
       LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
+      LUMIO_CONFIG_ROOT: ${{ github.workspace }}/LumioConfig
       # Distinct names so provision-engine-native.sh can ln -sfn them next to Engine.
       LUMIO_NATIVE_CORE_ROOT: ${{ github.workspace }}/native-core-src
       LUMIO_VOXEL_ROOT: ${{ github.workspace }}/voxel-engine-src
@@ -93,6 +94,15 @@ jobs:
           path: voxel-engine-src
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
+      # S2 zero-diff: integration/sync-config-readers.test.mjs re-runs
+      # LumioConfig `export --csharp-out` against the six committed Readers.
+      - name: Checkout LumioConfig
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioConfig
+          path: LumioConfig
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@1.98.0
       - uses: Swatinem/rust-cache@v2
         with:
@@ -113,6 +123,8 @@ jobs:
       - run: node --test integration/world-assert.test.mjs
       - run: node --test integration/capture-basemap.test.mjs
       - run: node --test integration/server-profile.test.mjs
+      - run: node --test integration/ds-config.test.mjs
+      - run: node --test integration/sync-config-readers.test.mjs
 
   external-clone:
     runs-on: ubuntu-latest

@@ -1,0 +1,13 @@
+{
+  "width": 32,
+  "depth": 32,
+  "floorType": 256,
+  "wallType": 258,
+  "oreType": 1000,
+  "vein": {
+    "x": 1,
+    "z": 1,
+    "width": 2,
+    "depth": 2
+  }
+}

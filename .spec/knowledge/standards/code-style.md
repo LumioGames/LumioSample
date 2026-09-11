@@ -23,7 +23,7 @@ metadata:
 
 ## 生成物纪律（通用）
 
-- 生成物不得手改，只能经生成源与生成命令更新，并与生成源一起提交（红线由 LumioAgentSpec 插件每次会话注入）。
+- 生成物不得手改，只能经生成源与生成命令更新，并与生成源一起提交（红线由 LumioAgentSpec 插件每次会话注入）。本仓六份 typed Reader 的生成命令是 `node integration/sync-config-readers.mjs`（上游 LumioConfig `export --csharp-out`）。
 
 ## 语言 / 框架特定风格（**落地必填**）
 
