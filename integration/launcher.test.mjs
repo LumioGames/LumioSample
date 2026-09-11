@@ -221,9 +221,12 @@ test('started bots stay up for --duration-ms before forceCleanup', async () => {
   assert.equal(report.admittedBots, 1);
   assert.equal(report.steps.find((step) => step.id === '05').status, 'BLOCKED_ENV');
   assert.equal(report.steps.find((step) => step.id === '07').detail, 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
-  assert.match(report.steps.find((step) => step.id === '05').detail, /consume is not wired/);
+  assert.match(report.steps.find((step) => step.id === '05').detail, /placeholder and must not be treated as a base map/);
+  assert.match(report.steps.find((step) => step.id === '05').detail, /Missing command/);
   assert.doesNotMatch(report.steps.find((step) => step.id === '05').detail, /does not exist|not public/);
   assert.equal(report.steps.find((step) => step.id === '14').status, 'BLOCKED_ENV');
+  assert.match(report.steps.find((step) => step.id === '14').detail, /runtime\+voxel/);
+  assert.doesNotMatch(report.steps.find((step) => step.id === '14').detail, /runtime-only/);
   for (const id of ['05', '07', '08', '09', '10', '11', '12', '13', '14']) {
     assert.equal(report.steps.find((step) => step.id === id).status, 'BLOCKED_ENV');
   }
@@ -339,4 +342,17 @@ test('root README names the launcher and does not keep formal-ds-smoke', () => {
   assert.match(readme, /integration\/launcher\.mjs/);
   assert.doesNotMatch(readme, /formal-ds-smoke\.mjs/);
   assert.doesNotMatch(readme, /端到端启动器还没有/);
+});
+
+test('committed server.json and tour no longer claim runtime-only', () => {
+  const server = readFileSync(new URL('../server.json', import.meta.url), 'utf8');
+  const tour = readFileSync(new URL('../docs/tour.md', import.meta.url), 'utf8');
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(server, /"world_profile": "runtime\+voxel"/);
+  assert.match(server, /"durability": "snapshot_only"/);
+  assert.doesNotMatch(server, /process-crash|power-loss|"runtime-only"/);
+  assert.match(tour, /runtime\+voxel/);
+  assert.doesNotMatch(tour, /仍是 `runtime-only`/);
+  assert.match(readme, /runtime\+voxel/);
+  assert.match(readme, /\.run\/server\.local\.json/);
 });

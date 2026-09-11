@@ -54,7 +54,7 @@ node --test integration/account-client.test.mjs
 
 ## 第 3 步：起 DS
 
-[`server.json`](../server.json) 的 [`config_dir`](../server.json#L24) 指向本仓 `config/`，三条程序集路径指向本仓 `bin/`，[`world_profile`](../server.json#L25) 仍是 `runtime-only`。启动器经架构仓 `eng/process-tools.mjs` 拉起 `LUMIO_DS_EXE`，并从 stdout 解析 [`DS_READY `](../integration/ds-ready.mjs#L1)。
+[`server.json`](../server.json) 的 [`config_dir`](../server.json#L24) 指向本仓 `config/`，三条程序集路径指向本仓 `bin/`，[`world_profile`](../server.json#L25) 已冻成 `runtime+voxel`，[`durability`](../server.json#L26) 是 persistence-container-v1 的 `snapshot_only`（不是 `process-crash` / `power-loss`），并要求 `base_map_*`。本机覆盖是 gitignored 的 `.run/server.local.json`（`LUMIO_DS_CONFIG`），须抄这份公共词表。启动器经架构仓 `eng/process-tools.mjs` 拉起 `LUMIO_DS_EXE`，并从 stdout 解析 [`DS_READY `](../integration/ds-ready.mjs#L1)。
 
 **今天能跑**
 
@@ -87,7 +87,7 @@ node --test integration/launcher.test.mjs
 
 ## 第 5 步：加载底图
 
-底图是规范快照文件，不由玩法程序集程序化生成。[`maps/sample.voxel`](../maps/sample.voxel) 为占位，**不可 restore**。[`capture-basemap.mjs`](../integration/capture-basemap.mjs) 承认 VoxelFacade 已有 Capture/Restore；Sample 还没接 write-cell 消费，所以保持 `BLOCKED_ENV`（R-00522）。不得把「本仓未接线」写成「上游 ABI 不存在」。
+底图是规范快照文件，不由玩法程序集程序化生成。[`maps/sample.voxel`](../maps/sample.voxel) 仍是占位（文件内有响亮的 `BLOCKED`），**不可 restore**。[`capture-basemap.mjs`](../integration/capture-basemap.mjs) 承认 VoxelFacade 已有 PrepareWrite / Capture / Restore；Sample 还没接 write-cell 消费，同级 Engine 也没有已入库的 capture CLI，所以保持 `BLOCKED_ENV`（R-00522）。缺的命令是「经 VoxelFacade 写格再 Capture 写出规范快照」——不得把占位文件当底图，也不得把「本仓未接线」写成「上游 ABI 不存在」。
 
 [`verify-evidence.mjs`](../integration/verify-evidence.mjs) 读取两轮独立目录的日志，逐位核对 `eventOrder` 与 `appliedTicks`，并经 [`world-assert.mjs`](../integration/world-assert.mjs) 核对格子与矿石数。空日志或「哈希一致但世界错」都失败。
 
@@ -100,7 +100,7 @@ node --test integration/capture-basemap.test.mjs
 
 **应该看到的日志**
 
-- 启动器：`step=05 status=BLOCKED_ENV maps/sample.voxel is a placeholder`
+- 启动器：`step=05 status=BLOCKED_ENV maps/sample.voxel is a placeholder and must not be treated as a base map`
 - fixture `integration/fixtures/oracle-min` 两轮比对退出码 0；空目录 FAIL
 
 ## 第 6 步：玩家入场
@@ -155,7 +155,7 @@ node integration/launcher.mjs --bots 2 --stagger-ms 250
 | 11 | 储量归零，方块变空气 | **R-00469**；S-12 | `MineAbility.TryRequestAirWrite` 恒为 false |
 | 12 | 掉出矿石 | **R-00462**；S-13 | [`OreDropEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/OreDropEntity.cs) |
 | 13 | 拾取（Effect 改两本账） | **R-00480** / **R-00541**；S-14 | [`PickupOreEffect`](../src/Lumio.Sample.Gameplay/Effects/PickupOreEffect.cs) |
-| 14 | 存档并重启恢复 | **R-00498** / **R-00507**；S-15 | `world_profile` 仍是 `runtime-only`。后段正文归 S-16 |
+| 14 | 存档并重启恢复 | **R-00498** / **R-00507**；S-15 | `world_profile` 已是 `runtime+voxel` + `snapshot_only`；底图仍是占位，冷恢复等真实 capture。后段正文归 S-16 |
 
 启动器这六步的 `BLOCKED_ENV` 文案在 [`launcher.mjs`](../integration/launcher.mjs) 的第 9–14 步记录处。
 

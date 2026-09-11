@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -41,11 +43,39 @@ public sealed class SourceHygieneTests
         Assert.Contains("src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll", text);
         Assert.DoesNotContain("/Users/", text);
         Assert.DoesNotContain("LumioGameEngine/", text);
-        Assert.Contains("\"world_profile\": \"runtime-only\"", text);
+        Assert.Contains("\"world_profile\": \"runtime+voxel\"", text);
+        Assert.Contains("\"durability\": \"snapshot_only\"", text);
+        Assert.DoesNotContain("process-crash", text);
+        Assert.DoesNotContain("power-loss", text);
+        Assert.Contains("\"base_map_id\": \"sample\"", text);
+        Assert.Contains("\"base_map_version\": \"0.1.0-placeholder\"", text);
+        Assert.Matches(new Regex("\"base_map_content_sha256\": \"[0-9a-f]{64}\""), text);
         Assert.Contains("\"config_dir\": \"config\"", text);
+        Assert.Contains("\"voxel_quota_bytes\": 65536", text);
         Assert.Contains("Lumio.Server.EntityChat.HostEntry.HostEntry, Lumio.Server.EntityChat.HostEntry", text);
         Assert.Contains("LumioEntityChatEntry", text);
         Assert.DoesNotContain("replace-host-entry", text);
+    }
+
+    [Fact]
+    public void PlaceholderVoxelIsRefusedAsABaseMap()
+    {
+        string repoRoot = Path.GetFullPath(Path.Combine(GameplayRoot, "..", ".."));
+        string mapPath = Path.Combine(repoRoot, "maps", "sample.voxel");
+        string mapText = File.ReadAllText(mapPath);
+        Assert.Contains("LUMIO-VOXEL-SNAPSHOT-V1", mapText);
+        Assert.Contains("BLOCKED: this is not a restoreable VoxelEngine capture", mapText);
+        Assert.Contains("do-not-restore: true", mapText);
+        Assert.DoesNotContain("does not exist", mapText, StringComparison.OrdinalIgnoreCase);
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(repoRoot, "server.json")));
+        string declared = document.RootElement.GetProperty("base_map_content_sha256").GetString()!;
+        byte[] bytes = File.ReadAllBytes(mapPath);
+        string actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        Assert.Equal(actual, declared);
+        Assert.Matches("^[0-9a-f]{64}$", declared);
+        // Identity is frozen so operators can name the file; the bytes are still a placeholder.
+        Assert.False(mapText.Contains("canonical object", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -60,5 +90,6 @@ public sealed class SourceHygieneTests
         Assert.Contains("LUMIO_ENGINE_ROOT", yml);
         Assert.Contains("LUMIO_NATIVE_CORE_ROOT", yml);
         Assert.Contains("LUMIO_VOXEL_ROOT", yml);
+        Assert.Contains("node --test integration/server-profile.test.mjs", yml);
     }
 }

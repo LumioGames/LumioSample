@@ -112,6 +112,7 @@ jobs:
       - run: node --test integration/stress-move.test.mjs
       - run: node --test integration/world-assert.test.mjs
       - run: node --test integration/capture-basemap.test.mjs
+      - run: node --test integration/server-profile.test.mjs
 
   external-clone:
     runs-on: ubuntu-latest

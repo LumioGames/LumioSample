@@ -22,8 +22,11 @@
   },
   "store_path": "state/room",
   "config_dir": "config",
-  "world_profile": "runtime-only",
-  "durability": "process-crash",
+  "world_profile": "runtime+voxel",
+  "durability": "snapshot_only",
+  "base_map_id": "sample",
+  "base_map_version": "0.1.0-placeholder",
+  "base_map_content_sha256": "a421b41233c0671d4c38305b0d2a1e73e61f3737ebbf85775998b58f65a93356",
   "checkpoint_seconds": 30,
   "checkpoint_max_bytes": 67108864,
   "watchdog_timeout_ms": 2000,
@@ -44,7 +47,8 @@
     "max_wire_text_bytes": 65536,
     "egress_slots": 16,
     "unauthenticated_quota_bytes": 1024,
-    "idle_timeout_ms": 30000
+    "idle_timeout_ms": 30000,
+    "voxel_quota_bytes": 65536
   },
   "host": {
     "max_pending_admissions": 1024,

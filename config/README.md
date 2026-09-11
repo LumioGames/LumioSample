@@ -11,4 +11,4 @@
 | `server/mining.json` | 一镐体力、挖穿次数、掉落数量 |
 | `server/attributes.json` | 体力 / 矿石两本账的名字与初值 |
 
-`server.json` 的 `config_dir` 指向该 export 根。覆盖路径用环境变量 `LUMIO_CONFIG_DIR`。
+`server.json` 的 `config_dir` 指向该 export 根。覆盖路径用环境变量 `LUMIO_CONFIG_DIR`。DS 可运行模板本身是仓根 `server.json`（`runtime+voxel` / `snapshot_only` / `base_map_*`）；本机机器路径写 gitignored `.run/server.local.json`，不要改公共词表。

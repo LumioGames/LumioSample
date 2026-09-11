@@ -1,25 +1,28 @@
 #!/usr/bin/env node
 
 /**
- * R-00522 one-shot base-map capture. The public SDK does not yet expose write-cell
- * + capture / restore, so this script refuses to treat maps/sample.voxel as usable.
+ * R-00522 one-shot base-map capture. VoxelFacade already has PrepareWrite /
+ * Capture / Restore. Sample has not wired write-cell consume, and Engine has
+ * no committed capture CLI, so this script refuses maps/sample.voxel as a
+ * restorable base map instead of inventing mining rules or a fake snapshot.
  */
 
-import { readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { blocked } from './engine-tools.mjs';
+import { inspectBaseMap } from './server-profile.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PLACEHOLDER_HEADER = 'LUMIO-VOXEL-SNAPSHOT-V1';
 
 export function inspectPlaceholderMap(repoRoot = ROOT) {
-  const path = join(repoRoot, 'maps', 'sample.voxel');
-  const text = readFileSync(path, 'utf8');
+  const map = inspectBaseMap(repoRoot);
   return {
-    path: 'maps/sample.voxel',
-    placeholder: text.includes(PLACEHOLDER_HEADER),
+    path: map.path,
+    placeholder: map.placeholder,
     restorable: false,
+    blocked: map.blocked,
+    sha256: map.sha256,
+    missingCommand: map.missingCommand,
   };
 }
 
@@ -29,6 +32,8 @@ export function detectVoxelCaptureApi() {
     capture: true,
     restore: true,
     reason: 'VoxelFacade.Capture/Restore exist; Sample has not wired write-cell consume (R-00522).',
+    missingCommand:
+      'sibling LumioGameEngine has no committed capture CLI (VoxelFacade.PrepareWrite/Capture exist; Sample write-cell consume is not wired)',
   };
 }
 
@@ -36,7 +41,9 @@ export function runCapture() {
   const map = inspectPlaceholderMap();
   const api = detectVoxelCaptureApi();
   if (map.placeholder || !api.writeCell || !api.capture) {
-    throw blocked(`${map.path} is a placeholder and ${api.reason}`);
+    throw blocked(
+      `${map.path} is a placeholder and must not be treated as a base map. ${api.reason} Missing command: ${api.missingCommand}.`,
+    );
   }
   return { status: 'PASS', map, api };
 }

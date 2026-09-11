@@ -35,7 +35,7 @@ metadata:
 
 `integration/launcher.mjs` 是判据 2 的内部启动器：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。进程管理只 import 架构仓 `eng/process-tools.mjs`（`LUMIO_ENGINE_ROOT` 或同级 `LumioGameEngine`）。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`docs/tour.md`](../../../docs/tour.md)。
 
-缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`maps/sample.voxel` 仍是占位，不可 restore。
+缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`maps/sample.voxel` 仍是占位（响亮 `BLOCKED`），不可 restore；capture 脚本与启动器第 5 / 14 步 fail-closed。
 
 ## 压测门
 
@@ -44,7 +44,7 @@ metadata:
 ## 待解决
 
 - 直播准入、聊天、Activate 上行等 Client R-00534 / Platform。
-- 体素 bind / capture / restore / 变空气（R-00469、R-00522）。引擎 `IAttributeSeed` 合入后用它替换 `SampleGameplay.BindPlayer` 播种。
+- 体素 bind / capture / restore / 变空气（R-00469、R-00522）。真实底图缺 Engine 入库的 capture CLI（VoxelFacade 写格 + Capture）；在那之前不得把占位文件当底图。引擎 `IAttributeSeed` 合入后用它替换 `SampleGameplay.BindPlayer` 播种。
 - 结构单掉落与 Effect 结算在 DS 上的闭环（R-00462、R-00480）。`GeneratedEffectRegistry.RegisterAll` 仍待生成器。
 - 存档冷恢复（R-00498 / R-00507）。
 - M8 / M9 换成 typed Reader 后删掉 `SampleTables` 的 JSON 解析。
