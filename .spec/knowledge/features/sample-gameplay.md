@@ -1,6 +1,6 @@
 ---
 name: sample-gameplay
-description: 示例玩法声明与启动器落点——实体/技能/配表/十四步脚本怎么接引擎;sibling 玩法输出带 net10 Simulation 供 HostEntry 反射 DedicatedServerHostBinding;改玩法或启动器时查
+description: 示例玩法声明与启动器落点——实体/技能/M9 typed Reader/十四步脚本;底图是作者时 Capture、DS 只 restore;改玩法或启动器时查
 metadata:
   type: doc
   status: 实施中
@@ -29,13 +29,13 @@ metadata:
 
 ## 配表
 
-数值在 `config/*.json`，由 `SampleTables` 读文件。这不是第二套引擎 schema；M8 typed Reader / M9 装载器还没接到本仓。源码里不得出现这些数字的字面量。
+数值在 `config/*.json`。`SampleTables` 经 Runtime M9 `LumioConfigLoader` 装载 typed Reader，不另写 JSON 解析。六份 Reader（`AttributesTable` / `MiningTable` / `MovementTable` × server+client）来自上游 LumioConfig `export --csharp-out`，本仓用 `node integration/sync-config-readers.mjs` 同步，`--check` 要求这六份与导出逐字节一致。生成物不得手改。源码里不得出现这些数字的字面量。
 
 ## 启动器
 
 `integration/launcher.mjs` 是判据 2 的内部启动器：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。进程管理只 import 架构仓 `eng/process-tools.mjs`（`LUMIO_ENGINE_ROOT` 或同级 `LumioGameEngine`）。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`docs/tour.md`](../../../docs/tour.md)。
 
-缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`maps/sample.voxel` 仍是占位（响亮 `BLOCKED`），不可 restore；capture 脚本与启动器第 5 / 14 步 fail-closed。Sibling 玩法输出会带上 net10 Simulation，HostEntry 才能反射 `DedicatedServerHostBinding`；nuget 路径不造 Simulation 替身，缺类型由玩法 bin 探测测试失败。
+缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。未填的 `replace-*` / `REPLACE_WITH_…` 是 `MISSING_VALUE`（第 03 步 FAIL），不是占位 `BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`maps/sample.voxel` 是作者时 Engine capture CLI 写入的可 restore 快照（Cube 平面；尺寸与矿脉在 `maps/sample.layout.json`）；DS 开机只 restore。`capture-basemap.mjs` 只给作者时用，玩法程序集不得引用。启动器第 05 步对可 restore 底图标 READY，第 07–14 步仍诚实 `BLOCKED_ENV`（直播 Activate / 挖掘 / 冷恢复未过）。Sibling 玩法输出会带上 net10 Simulation，HostEntry 才能反射 `DedicatedServerHostBinding`；nuget 路径不造 Simulation 替身，缺类型由玩法 bin 探测测试失败。
 
 ## 压测门
 
@@ -44,10 +44,9 @@ metadata:
 ## 待解决
 
 - 直播准入、聊天、Activate 上行等 Client R-00534 / Platform。
-- 体素 bind / capture / restore / 变空气（R-00469、R-00522）。真实底图缺 Engine 入库的 capture CLI（VoxelFacade 写格 + Capture）；在那之前不得把占位文件当底图。引擎 `IAttributeSeed` 合入后用它替换 `SampleGameplay.BindPlayer` 播种。
+- 体素 bind / 变空气（R-00469）。底图读与首包见 R-00522；不得在本仓做体素写。引擎 `IAttributeSeed` 合入后用它替换 `SampleGameplay.BindPlayer` 播种。
 - 结构单掉落与 Effect 结算在 DS 上的闭环（R-00462、R-00480）。`GeneratedEffectRegistry.RegisterAll` 仍待生成器。
-- 存档冷恢复（R-00498 / R-00507）。
-- M8 / M9 换成 typed Reader 后删掉 `SampleTables` 的 JSON 解析。
+- 存档冷恢复（R-00498 / R-00507）。启动器第 14 步不得因底图可 restore 就标 PASS。
 
 ## 相关
 

@@ -18,6 +18,7 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loginAndLaunch } from './account-client.mjs';
 import { buildBotArgs, buildServerArgs, findDsReady, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
+import { assertRunnableDsConfig } from './ds-config.mjs';
 import { blocked, loadProcessTools } from './engine-tools.mjs';
 import { inspectBaseMap } from './server-profile.mjs';
 import { formatStep, planBotLogins, TOUR_STEPS } from './tour-steps.mjs';
@@ -499,6 +500,17 @@ export async function runLauncher(options = {}) {
 
     const dsExe = requiredFile(options.dsExe, 'LUMIO_DS_EXE');
     const dsConfig = requiredFile(options.dsConfig ?? join(root, 'server.json'), 'LUMIO_DS_CONFIG');
+    try {
+      assertRunnableDsConfig(JSON.parse(readFileSync(dsConfig, 'utf8')));
+    } catch (error) {
+      if (error?.code === 'MISSING_VALUE') {
+        record('03', 'FAIL', error.message);
+        for (const step of TOUR_STEPS.slice(3)) record(step.id, 'BLOCKED_ENV', 'waiting for a filled DS config');
+        report.status = reportStatusFromSteps(report.steps);
+        return report;
+      }
+      throw error;
+    }
     const dsArgs = buildServerArgs(dsConfig);
     const check = tools.command(dsExe, [...dsArgs, '--check-config'], { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.check-config.log') });
     log(`lumio-ds --check-config\n${check ?? ''}`);
@@ -585,13 +597,15 @@ export async function runLauncher(options = {}) {
         : `${admit.admitted} bots admitted with unique tickets`);
     }
     const map = inspectBaseMap(root);
-    record(
-      '05',
-      'BLOCKED_ENV',
-      map.placeholder
-        ? `${map.path} is a placeholder and must not be treated as a base map; Sample write-cell consume is not wired (R-00522). Missing command: ${map.missingCommand}.`
-        : `${map.path} loaded`,
-    );
+    if (map.placeholder || !map.restorable) {
+      record(
+        '05',
+        'BLOCKED_ENV',
+        `${map.path} is a placeholder and must not be treated as a base map; Sample write-cell consume is not wired (R-00522). Missing command: ${map.missingCommand}.`,
+      );
+    } else {
+      record('05', 'READY', `${map.path} is a VoxelEngine capture; DS boot restores only (R-00522).`);
+    }
     record('06', 'READY', 'PlayerEntity is declared; live spawn is the DS admit path.');
     record('07', 'BLOCKED_ENV', 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
     record('08', 'BLOCKED_ENV', 'ChatComponent is in-tree; live chat waits Bot.Host.');
@@ -600,7 +614,13 @@ export async function runLauncher(options = {}) {
     record('11', 'BLOCKED_ENV', 'MineAbility.TryRequestAirWrite is false until voxel batch write exists.');
     record('12', 'BLOCKED_ENV', 'OreDropEntity is declared; structure-commit R-00462 is an engine gap.');
     record('13', 'BLOCKED_ENV', 'PickupOreEffect is declared; Effect settlement on DS waits R-00480.');
-    record('14', 'BLOCKED_ENV', 'save/restore waits a restoreable VoxelEngine capture; committed server.json is runtime+voxel + snapshot_only, but maps/sample.voxel is still a placeholder.');
+    record(
+      '14',
+      'BLOCKED_ENV',
+      map.restorable
+        ? 'save/restore waits R-00498 / R-00507; committed server.json is runtime+voxel + snapshot_only and maps/sample.voxel is a restoreable capture. Live cold restore is not claimed here.'
+        : 'save/restore waits a restoreable VoxelEngine capture; committed server.json is runtime+voxel + snapshot_only, but maps/sample.voxel is still a placeholder.',
+    );
     report.status = reportStatusFromSteps(report.steps);
     // Hold until the acceptance window ends (or spectator page connects), then let finally forceCleanup.
     if (admit.admitted === botSessions.length) {

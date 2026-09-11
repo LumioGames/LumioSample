@@ -59,22 +59,39 @@ Committed [`server.json`](../server.json) is the runnable operator
 template: `world_profile=runtime+voxel`, `durability=snapshot_only`
 (persistence-container-v1; not `process-crash` / `power-loss`), and
 required `base_map_id` / `base_map_version` / `base_map_content_sha256`
-(64 lowercase hex of `maps/sample.voxel`). Host entry stays
-`Lumio.Server.EntityChat.HostEntry.HostEntry` /
+(64 lowercase hex of `maps/sample.voxel`). Allocation strings and
+`admission_public_key_hex` are local syntactic stand-ins so step 03
+is not blocked by `replace-*` tokens. Fill-me tokens live in
+[`server.sample.json`](../server.sample.json) and fail as
+`MISSING_VALUE` (`ds-config.mjs`), not placeholder `BLOCKED_ENV`.
+Host entry stays `Lumio.Server.EntityChat.HostEntry.HostEntry` /
 `LumioEntityChatEntry`. Local machine overlays live in gitignored
 `.run/server.local.json` (`LUMIO_DS_CONFIG`); copy the public vocab,
 do not keep `runtime-only`.
 
+## Typed Readers (R-00527)
+
+`sync-config-readers.mjs` copies the six Sample typed Readers
+(`AttributesTable` / `MiningTable` / `MovementTable` × server+client)
+from sibling LumioConfig `export --csharp-out`. Do not hand-edit
+`src/Lumio.Sample.Gameplay/generated/config/**`. `--check` re-exports
+and asserts those six files are byte-identical.
+
+```bash
+node integration/sync-config-readers.mjs
+node integration/sync-config-readers.mjs --check
+node --test integration/sync-config-readers.test.mjs
+```
+
 ## Base map capture (R-00522)
 
-`capture-basemap.mjs` refuses `maps/sample.voxel`. That file is a
-loud placeholder (`BLOCKED: this is not a restoreable VoxelEngine
-capture`). VoxelFacade already exposes PrepareWrite / Capture / Restore;
-this repo has not wired write-cell consume, and sibling Engine has no
-committed capture CLI, so the placeholder must not be treated as a
-restorable base map. Missing command: run VoxelFacade write-cell then
-Capture into `maps/sample.voxel`. Do not report that as "upstream ABI
-does not exist".
+`maps/sample.voxel` is an author-time Engine capture (`LUMIOSNP1`).
+DS boot restores only; it does not recompute terrain. Layout (W×D and
+the vein patch) lives in [`maps/sample.layout.json`](../maps/sample.layout.json).
+`capture-basemap.mjs` invokes sibling `LumioGameEngine/eng/capture-voxel.mjs`;
+gameplay and DS must not import that script. Voxel write (dig-to-air)
+stays R-00469. Missing Engine CLI is `BLOCKED_ENV`; Sample does not
+invent an encoder.
 
 ---
 
