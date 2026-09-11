@@ -1,3 +1,7 @@
 LUMIO-VOXEL-SNAPSHOT-V1
 base-map: sample
 authoritative: true
+BLOCKED: this is not a restoreable VoxelEngine capture
+reason: maps/sample.voxel is a placeholder; do not treat it as a base map
+missing-command: sibling LumioGameEngine has no committed capture CLI (VoxelFacade.PrepareWrite/Capture exist; Sample write-cell consume is not wired)
+do-not-restore: true

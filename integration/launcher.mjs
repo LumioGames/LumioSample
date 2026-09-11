@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { loginAndLaunch } from './account-client.mjs';
 import { buildBotArgs, buildServerArgs, findDsReady, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
 import { blocked, loadProcessTools } from './engine-tools.mjs';
+import { inspectBaseMap } from './server-profile.mjs';
 import { formatStep, planBotLogins, TOUR_STEPS } from './tour-steps.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -408,7 +409,14 @@ export async function runLauncher(options = {}) {
     } else {
       record('04', 'PASS', `${admit.admitted} bots admitted with unique tickets`);
     }
-    record('05', 'BLOCKED_ENV', 'maps/sample.voxel is a placeholder; Sample write-cell consume is not wired (R-00522).');
+    const map = inspectBaseMap(root);
+    record(
+      '05',
+      'BLOCKED_ENV',
+      map.placeholder
+        ? `${map.path} is a placeholder and must not be treated as a base map; Sample write-cell consume is not wired (R-00522). Missing command: ${map.missingCommand}.`
+        : `${map.path} loaded`,
+    );
     record('06', 'READY', 'PlayerEntity is declared; live spawn is the DS admit path.');
     record('07', 'BLOCKED_ENV', 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
     record('08', 'BLOCKED_ENV', 'ChatComponent is in-tree; live chat waits Bot.Host.');
@@ -417,7 +425,7 @@ export async function runLauncher(options = {}) {
     record('11', 'BLOCKED_ENV', 'MineAbility.TryRequestAirWrite is false until voxel batch write exists.');
     record('12', 'BLOCKED_ENV', 'OreDropEntity is declared; structure-commit R-00462 is an engine gap.');
     record('13', 'BLOCKED_ENV', 'PickupOreEffect is declared; Effect settlement on DS waits R-00480.');
-    record('14', 'BLOCKED_ENV', 'save/restore waits R-00498 / R-00507; world_profile is still runtime-only.');
+    record('14', 'BLOCKED_ENV', 'save/restore waits a restoreable VoxelEngine capture; committed server.json is runtime+voxel + snapshot_only, but maps/sample.voxel is still a placeholder.');
     report.status = reportStatusFromSteps(report.steps);
     // Hold until the acceptance window ends, then let finally forceCleanup.
     if (admit.admitted === sessions.length) {

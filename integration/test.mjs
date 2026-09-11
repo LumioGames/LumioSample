@@ -6,3 +6,4 @@ import './launcher.test.mjs';
 import './stress-move.test.mjs';
 import './world-assert.test.mjs';
 import './capture-basemap.test.mjs';
+import './server-profile.test.mjs';

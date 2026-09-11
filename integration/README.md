@@ -53,12 +53,28 @@ clock exist. Do not treat the schema file as a passed gate.
 `world-assert.mjs` compares per-cell block types and `oreCount`. An empty
 world or a “same hash, wrong blocks” snapshot fails.
 
+## Dedicated Server profile
+
+Committed [`server.json`](../server.json) is the runnable operator
+template: `world_profile=runtime+voxel`, `durability=snapshot_only`
+(persistence-container-v1; not `process-crash` / `power-loss`), and
+required `base_map_id` / `base_map_version` / `base_map_content_sha256`
+(64 lowercase hex of `maps/sample.voxel`). Host entry stays
+`Lumio.Server.EntityChat.HostEntry.HostEntry` /
+`LumioEntityChatEntry`. Local machine overlays live in gitignored
+`.run/server.local.json` (`LUMIO_DS_CONFIG`); copy the public vocab,
+do not keep `runtime-only`.
+
 ## Base map capture (R-00522)
 
 `capture-basemap.mjs` refuses `maps/sample.voxel`. That file is a
-placeholder. VoxelFacade already exposes Capture/Restore; this repo has
-not wired write-cell consume, so the placeholder must not be treated as
-a restorable base map. Do not report that as "upstream ABI does not exist".
+loud placeholder (`BLOCKED: this is not a restoreable VoxelEngine
+capture`). VoxelFacade already exposes PrepareWrite / Capture / Restore;
+this repo has not wired write-cell consume, and sibling Engine has no
+committed capture CLI, so the placeholder must not be treated as a
+restorable base map. Missing command: run VoxelFacade write-cell then
+Capture into `maps/sample.voxel`. Do not report that as "upstream ABI
+does not exist".
 
 ---
 

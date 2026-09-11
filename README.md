@@ -41,11 +41,11 @@
 - 同级开发：设置 `LumioRuntimeRoot`，并且 Runtime 旁边要有 `LumioGameEngine`（Ecs `QueryAabb` / Simulation `clock_now` 绑 NativeLoader，没有 C# 替身）。CI 的 `build` / `test` 作业这样验。
 - 包消费：CI `external-clone` 每次用架构仓现打的 `Lumio.Engine.SDK` nupkg 编过。Owner 还没把这个包发到 nuget.org，所以干净机器上裸 `git clone && dotnet build` 会得到 `LUMIO_SDK_UNRESOLVED`——这是闸门，不是静默降级，也不是「外部 clone 已经能编」。
 - 用它当模板建新仓。
-- 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。
+- 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。`server.json` 是可运行的 DS 模板（runtime+voxel）；缺真实 capture CLI 时启动器对底图 fail-closed。
 - 玩法声明已在 `src/Lumio.Sample.Gameplay/`：世界 / 玩家 / 聊天 / 跑动技能 / 矿脉储量 / 掉落 / 拾取 Effect。数值在 `config/*.json`。
 - 一条命令的启动器是 `node integration/launcher.mjs --bots N`。没有 Platform / `lumio-ds` / Bot.Host 时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，不会假绿。
 
-**还没有的**：对着真 Platform + DS + C# Bot 跑通十四步；可 restore 的底图；100 人移动压测的五条实测证据；存档冷恢复。`maps/sample.voxel` 仍是占位，不能当底图用。旧的程序化地图生成器已删除。
+**还没有的**：对着真 Platform + DS + C# Bot 跑通十四步；**可 restore 的体素底图**；100 人移动压测的五条实测证据；存档冷恢复。`maps/sample.voxel` 仍是响亮的占位（`BLOCKED`），**不能当底图 restore**。`server.json` 已冻成 `world_profile=runtime+voxel`、`durability=snapshot_only`（persistence-container-v1 词表），并要求 `base_map_id` / `base_map_version` / `base_map_content_sha256`。本机覆盖在 gitignored 的 [`.run/server.local.json`](.run/server.local.json)，须抄这份公共词表，不要再写 `runtime-only` / `process-crash`。旧的程序化地图生成器已删除。
 
 **怎么安排**：2026-09-07 架构讨论把整个里程碑逐题拍板，记录在 [`.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md`](.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md)（架构仓副本）。要点：
 
