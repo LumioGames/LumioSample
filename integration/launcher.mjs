@@ -9,6 +9,8 @@
  * Bot.Host production mode requires --gameplay (Client FoundationHostCommand).
  * Live children stay up for the acceptance window (--duration-ms, else --timeout-ms)
  * before forceCleanup. forceCleanup is never treated as proof.
+ * --spectator mints one extra loginAndLaunch ticket and prints the spectator page
+ * URL; it does not start a Bot.Host for that ticket.
  */
 
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -24,6 +26,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_STAGGER_MS = 250;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_ACCOUNT = 'Bot1';
+const DEFAULT_SPECTATOR_LOGIN = 'Spectator1';
+const DEFAULT_SPECTATOR_PATH = '/modules/web/spectator/';
+const DEFAULT_SPECTATOR_ORIGIN = 'http://127.0.0.1';
+const BOOLEAN_FLAGS = new Set(['spectator']);
 
 export class UsageError extends Error {
   constructor(message) {
@@ -44,6 +50,13 @@ function requiredFile(path, label) {
   return resolve(value);
 }
 
+function envFlag(value) {
+  if (value == null || String(value).trim() === '') return false;
+  const text = String(value).trim().toLowerCase();
+  if (text === '0' || text === 'false' || text === 'no' || text === 'off') return false;
+  return true;
+}
+
 export function parseLaunchArgs(argv = process.argv.slice(2), environment = process.env) {
   const options = {
     bots: Number(environment.LUMIO_BOTS || 2),
@@ -61,6 +74,11 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     dotnet: environment.LUMIO_DOTNET || 'dotnet',
     timeoutMs: Number(environment.LUMIO_LAUNCH_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
     evidenceDir: environment.LUMIO_LAUNCH_EVIDENCE_DIR,
+    spectator: envFlag(environment.LUMIO_SPECTATOR),
+    spectatorUrl: environment.LUMIO_SPECTATOR_URL || undefined,
+    spectatorOrigin: environment.LUMIO_SPECTATOR_ORIGIN || undefined,
+    spectatorLogin: environment.LUMIO_SPECTATOR_LOGIN || DEFAULT_SPECTATOR_LOGIN,
+    spectatorStaticPort: environment.LUMIO_SPECTATOR_STATIC_PORT || undefined,
   };
   const names = {
     bots: 'bots',
@@ -78,6 +96,11 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     dotnet: 'dotnet',
     'timeout-ms': 'timeoutMs',
     'evidence-dir': 'evidenceDir',
+    spectator: 'spectator',
+    'spectator-url': 'spectatorUrl',
+    'spectator-origin': 'spectatorOrigin',
+    'spectator-login': 'spectatorLogin',
+    'spectator-static-port': 'spectatorStaticPort',
   };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -85,6 +108,15 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     if (!flag.startsWith('--')) throw new UsageError(`unknown option: ${flag}`);
     const key = names[flag.slice(2)];
     if (!key) throw new UsageError(`unknown option: ${flag}`);
+    if (BOOLEAN_FLAGS.has(key)) {
+      const next = argv[index + 1];
+      if (next != null && !String(next).startsWith('--')) {
+        options[key] = envFlag(argv[++index]);
+      } else {
+        options[key] = true;
+      }
+      continue;
+    }
     if (index + 1 >= argv.length || argv[index + 1].startsWith('--')) throw new UsageError(`${flag} requires a value`);
     const value = argv[++index];
     options[key] = key === 'bots' || key.endsWith('Ms') ? Number(value) : value;
@@ -93,7 +125,80 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
   if (!Number.isInteger(options.staggerMs) || options.staggerMs < 0) throw new UsageError('--stagger-ms must be a non-negative integer.');
   if (!Number.isInteger(options.durationMs) || options.durationMs < 0) throw new UsageError('--duration-ms must be a non-negative integer.');
   if (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 1_000) throw new UsageError('--timeout-ms must be an integer of at least 1000.');
+  options.spectatorLogin = String(options.spectatorLogin || DEFAULT_SPECTATOR_LOGIN).trim();
+  if (!options.spectatorLogin) throw new UsageError('--spectator-login must be a non-empty login name.');
+  if (options.spectatorUrl) options.spectator = true;
   return options;
+}
+
+export function planLaunchLogins(bots, { spectator = false, spectatorLogin = DEFAULT_SPECTATOR_LOGIN } = {}) {
+  const logins = planBotLogins(bots);
+  if (!spectator) return logins;
+  const name = String(spectatorLogin || DEFAULT_SPECTATOR_LOGIN).trim() || DEFAULT_SPECTATOR_LOGIN;
+  if (logins.includes(name)) {
+    throw new UsageError(`spectator login ${name} collides with planBotLogins(${bots}).`);
+  }
+  return [...logins, name];
+}
+
+export function resolveSpectatorPageUrl({
+  spectatorUrl,
+  spectatorOrigin,
+  spectatorStaticPort,
+  env = {},
+} = {}) {
+  if (spectatorUrl != null && String(spectatorUrl).trim() !== '') {
+    return normalizeSpectatorPageUrl(String(spectatorUrl).trim());
+  }
+  const originRaw = spectatorOrigin
+    || env.LUMIO_SPECTATOR_ORIGIN
+    || DEFAULT_SPECTATOR_ORIGIN;
+  const origin = new URL(String(originRaw).includes('://') ? originRaw : `http://${originRaw}`);
+  const port = spectatorStaticPort || env.LUMIO_SPECTATOR_STATIC_PORT;
+  if (port != null && String(port).trim() !== '') {
+    origin.port = String(port).trim();
+  }
+  origin.pathname = DEFAULT_SPECTATOR_PATH;
+  origin.search = '';
+  origin.hash = '';
+  origin.username = '';
+  origin.password = '';
+  return origin.href;
+}
+
+function normalizeSpectatorPageUrl(value) {
+  const url = new URL(value);
+  url.search = '';
+  url.hash = '';
+  url.username = '';
+  url.password = '';
+  if (!url.pathname.endsWith('/')) url.pathname = `${url.pathname}/`;
+  if (url.pathname === '/') url.pathname = DEFAULT_SPECTATOR_PATH;
+  return url.href;
+}
+
+function assertSpectatorUrlHasNoSecret(url, sessions = []) {
+  const text = String(url ?? '');
+  if (/[?&#].*(ticket|credential|admission)/i.test(text)) {
+    throw new Error('spectator URL must not include an admission credential.');
+  }
+  for (const session of sessions) {
+    const secret = session?.launch?.admissionCredential;
+    if (secret && text.includes(secret)) {
+      throw new Error('spectator URL must not include an admission credential.');
+    }
+  }
+  return text;
+}
+
+export function readSpectatorConnectedFlag(path) {
+  if (!path || !existsSync(path)) return false;
+  try {
+    const text = readFileSync(path, 'utf8').trim().toLowerCase();
+    return text === '1' || text === 'true' || text === 'connected' || text === 'yes';
+  } catch {
+    return false;
+  }
 }
 
 export function collectLaunchTickets(sessions) {
@@ -226,16 +331,41 @@ function defaultGameplayPath(root) {
   return join(root, 'src', 'Lumio.Sample.Gameplay', 'bin', 'Debug', 'net10.0', 'Lumio.Sample.Gameplay.dll');
 }
 
+function holdWindowMs(options) {
+  if (Number.isInteger(options.durationMs) && options.durationMs > 0) return options.durationMs;
+  return options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+}
+
+function isThenable(value) {
+  return value != null && typeof value.then === 'function';
+}
+
+function spectatorConnected(options, connectedFlag) {
+  if (connectedFlag === true) return true;
+  if (typeof options.spectatorConnected === 'function') return options.spectatorConnected() === true;
+  if (options.spectatorConnected === true) return true;
+  if (options.spectatorConnectedFlagPath) return readSpectatorConnectedFlag(options.spectatorConnectedFlagPath);
+  return false;
+}
+
 async function waitForAcceptance(options, tools, children) {
-  if (!children.length) return;
+  if (!children.length && !options.spectator) return;
   // Resident Bot.Host does not exit. Hold the configured window so
   // record('04','PASS') is not immediately followed by SIGKILL.
-  const holdMs = (Number.isInteger(options.durationMs) && options.durationMs > 0)
-    ? options.durationMs
-    : (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  // Spectator mode also stops early when the page reports connected
+  // (injected promise/flag in tests — no browser).
+  const holdMs = holdWindowMs(options);
   const started = Date.now();
+  let connectedFlag = false;
+  const connectedPromise = isThenable(options.spectatorConnected)
+    ? options.spectatorConnected
+    : (isThenable(options.spectatorConnectedPromise) ? options.spectatorConnectedPromise : null);
+  if (connectedPromise) {
+    connectedPromise.then(() => { connectedFlag = true; }, () => {});
+  }
   while (Date.now() - started < holdMs) {
     for (const child of children) tools.assertAlive(child);
+    if (options.spectator && spectatorConnected(options, connectedFlag)) return;
     await sleep(25, { keepAlive: true });
   }
 }
@@ -249,9 +379,11 @@ function printStep(log, id, status, detail) {
 function usage() {
   return [
     'Usage: node integration/launcher.mjs --bots N [--stagger-ms 250] [--origin url]',
+    '  [--spectator] [--spectator-url url] [--duration-ms ms]',
     'Internal-only first stage: Platform image is built from a private compose file.',
     'Required for a live run: LUMIO_PLATFORM_ORIGIN, LUMIO_DS_EXE, LUMIO_BOT_DLL,',
     '  LUMIO_GAMEPLAY, LUMIO_ENGINE_NATIVE, LUMIO_BOT_TOOL_CREDENTIAL, sibling process-tools.mjs.',
+    'Spectator page origin defaults to LUMIO_SPECTATOR_ORIGIN or http://127.0.0.1/modules/web/spectator/.',
     'Missing prerequisites exit 2 with VERIFICATION_STATUS=BLOCKED_ENV.',
   ].join('\n');
 }
@@ -284,12 +416,32 @@ export async function runLauncher(options = {}) {
   let tools;
   const children = [];
   try {
-    const logins = planBotLogins(options.bots ?? 2);
+    const botCount = options.bots ?? 2;
+    const spectatorMode = options.spectator === true;
+    const logins = planLaunchLogins(botCount, {
+      spectator: spectatorMode,
+      spectatorLogin: options.spectatorLogin,
+    });
     record(
       '01',
       existsSync(join(root, 'config', 'manifest.json')) ? 'READY' : 'BLOCKED_ENV',
       'LumioConfig export + typed Reader via M9 loader',
     );
+    report.plannedLogins = logins;
+
+    if (spectatorMode) {
+      const spectatorUrl = assertSpectatorUrlHasNoSecret(
+        resolveSpectatorPageUrl({
+          spectatorUrl: options.spectatorUrl,
+          spectatorOrigin: options.spectatorOrigin,
+          spectatorStaticPort: options.spectatorStaticPort,
+          env,
+        }),
+      );
+      report.spectatorUrl = spectatorUrl;
+      report.spectatorLogin = options.spectatorLogin || DEFAULT_SPECTATOR_LOGIN;
+      log(`spectator-url=${spectatorUrl}`);
+    }
 
     try {
       tools = options.processTools ?? await loadProcessTools({ env, repoRoot: root });
@@ -319,11 +471,23 @@ export async function runLauncher(options = {}) {
           sessions.push(session);
         }
         collectLaunchTickets(sessions);
-        record('02', 'PASS', `${sessions.length} unique launch tickets`);
+        record('02', 'PASS', spectatorMode
+          ? `${botCount} bot tickets + 1 spectator ticket`
+          : `${sessions.length} unique launch tickets`);
       }
     } else {
       collectLaunchTickets(sessions);
-      record('02', 'PASS', `${sessions.length} unique launch tickets`);
+      record('02', 'PASS', spectatorMode
+        ? `${botCount} bot tickets + 1 spectator ticket`
+        : `${sessions.length} unique launch tickets`);
+    }
+
+    if (sessions) {
+      report.loginAndLaunchCount = sessions.length;
+      report.plannedLogins = sessions.map((session) => session.login.loginName);
+      if (spectatorMode && report.spectatorUrl) {
+        assertSpectatorUrlHasNoSecret(report.spectatorUrl, sessions);
+      }
     }
 
     if (!options.dsExe || !existsSync(options.dsExe)) {
@@ -367,11 +531,15 @@ export async function runLauncher(options = {}) {
     }
 
     if (!sessions) throw blocked('no launch tickets; cannot admit bots.');
+    if (spectatorMode && sessions.length !== botCount + 1) {
+      throw new Error(`spectator mode requires ${botCount} bot tickets + 1 spectator ticket.`);
+    }
     const engineNative = requiredFile(options.engineNative, 'LUMIO_ENGINE_NATIVE');
     const gameplay = requiredFile(gameplayCandidate, 'LUMIO_GAMEPLAY');
     const dotnet = requiredValue(options.dotnet || 'dotnet', 'LUMIO_DOTNET');
+    const botSessions = spectatorMode ? sessions.slice(0, botCount) : sessions;
     const botChildren = [];
-    for (const [index, session] of sessions.entries()) {
+    for (const [index, session] of botSessions.entries()) {
       if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
       const botLogDir = join(evidence, `bot-${index + 1}`);
       mkdirSync(botLogDir, { recursive: true });
@@ -394,7 +562,7 @@ export async function runLauncher(options = {}) {
       children.push(bot);
     }
     const admit = await waitBotsAdmitted({
-      bots: sessions.length,
+      bots: botSessions.length,
       evidenceDir: evidence,
       botChildren,
       liveChildren: children,
@@ -402,12 +570,19 @@ export async function runLauncher(options = {}) {
       tools,
       sleepFn: sleep,
     });
-    report.requiredBots = sessions.length;
+    report.requiredBots = botSessions.length;
     report.admittedBots = admit.admitted;
-    if (admit.admitted !== sessions.length) {
-      record('04', 'FAIL', `${admit.admitted} of ${sessions.length} bots admitted (reject/no welcome/timeout)`);
+    report.botHostsStarted = botChildren.length;
+    if (spectatorMode) {
+      report.spectatorLogin = sessions[botCount]?.login?.loginName;
+      report.loginAndLaunchCount = sessions.length;
+    }
+    if (admit.admitted !== botSessions.length) {
+      record('04', 'FAIL', `${admit.admitted} of ${botSessions.length} bots admitted (reject/no welcome/timeout)`);
     } else {
-      record('04', 'PASS', `${admit.admitted} bots admitted with unique tickets`);
+      record('04', 'PASS', spectatorMode
+        ? `${admit.admitted} bots admitted; spectator ticket held without Bot.Host`
+        : `${admit.admitted} bots admitted with unique tickets`);
     }
     const map = inspectBaseMap(root);
     record(
@@ -427,8 +602,8 @@ export async function runLauncher(options = {}) {
     record('13', 'BLOCKED_ENV', 'PickupOreEffect is declared; Effect settlement on DS waits R-00480.');
     record('14', 'BLOCKED_ENV', 'save/restore waits a restoreable VoxelEngine capture; committed server.json is runtime+voxel + snapshot_only, but maps/sample.voxel is still a placeholder.');
     report.status = reportStatusFromSteps(report.steps);
-    // Hold until the acceptance window ends, then let finally forceCleanup.
-    if (admit.admitted === sessions.length) {
+    // Hold until the acceptance window ends (or spectator page connects), then let finally forceCleanup.
+    if (admit.admitted === botSessions.length) {
       await waitForAcceptance(options, tools, children);
     }
     return report;
@@ -472,4 +647,12 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   }
 }
 
-export { DEFAULT_ACCOUNT, TOUR_STEPS, formatStep, planBotLogins, usage };
+export {
+  DEFAULT_ACCOUNT,
+  DEFAULT_SPECTATOR_LOGIN,
+  DEFAULT_SPECTATOR_PATH,
+  TOUR_STEPS,
+  formatStep,
+  planBotLogins,
+  usage,
+};
