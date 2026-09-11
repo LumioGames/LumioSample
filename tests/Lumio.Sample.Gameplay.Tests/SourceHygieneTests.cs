@@ -90,5 +90,6 @@ public sealed class SourceHygieneTests
         Assert.Contains("LUMIO_ENGINE_ROOT", yml);
         Assert.Contains("LUMIO_NATIVE_CORE_ROOT", yml);
         Assert.Contains("LUMIO_VOXEL_ROOT", yml);
+        Assert.Contains("node --test integration/server-profile.test.mjs", yml);
     }
 }
