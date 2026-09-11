@@ -327,6 +327,19 @@ internal sealed class SampleWorldHarness : IDisposable
 
     public static SampleWorldHarness Boot()
     {
+        WorldManager manager = StartManager();
+        EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
+        EntityOrder vein = SampleVein.Queue(manager.World);
+        manager.Tick();
+        SampleGameplay.BindPlayer(manager.World, player.AssignedId);
+        return new SampleWorldHarness(manager, player.AssignedId, vein.AssignedId);
+    }
+
+    /// <summary>Started world with no player. Tests that call <see cref="SampleGameplay.AdmitPlayer"/> use this.</summary>
+    public static SampleWorldHarness BootEmpty() => new(StartManager(), default, default);
+
+    private static WorldManager StartManager()
+    {
         MineAbility.Writer ??= new SucceedingVoxelWriter();
         WorldManager manager = SampleGameplay.CreateWorld(11UL);
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
@@ -337,12 +350,7 @@ internal sealed class SampleWorldHarness : IDisposable
         MethodInfo publish = typeof(WorldManager).GetMethod("PublishEgress", BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("WorldManager.PublishEgress is missing; GAS one-tick cooldown cannot expire.");
         manager.BindTickLoop(new CommitTickLoop(manager, commit, publish));
-
-        EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
-        EntityOrder vein = SampleVein.Queue(manager.World);
-        manager.Tick();
-        SampleGameplay.BindPlayer(manager.World, player.AssignedId);
-        return new SampleWorldHarness(manager, player.AssignedId, vein.AssignedId);
+        return manager;
     }
 
     public AbilityActivateResult Mine()
