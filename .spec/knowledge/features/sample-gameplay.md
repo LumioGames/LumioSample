@@ -1,6 +1,6 @@
 ---
 name: sample-gameplay
-description: 示例玩法声明与启动器落点——实体/技能/配表/十四步脚本怎么接引擎;改玩法或启动器时查
+description: 示例玩法声明与启动器落点——实体/技能/配表/十四步脚本怎么接引擎;sibling 玩法输出带 net10 Simulation 供 HostEntry 反射 DedicatedServerHostBinding;改玩法或启动器时查
 metadata:
   type: doc
   status: 实施中
@@ -35,7 +35,7 @@ metadata:
 
 `integration/launcher.mjs` 是判据 2 的内部启动器：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。进程管理只 import 架构仓 `eng/process-tools.mjs`（`LUMIO_ENGINE_ROOT` 或同级 `LumioGameEngine`）。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`docs/tour.md`](../../../docs/tour.md)。
 
-缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`maps/sample.voxel` 仍是占位（响亮 `BLOCKED`），不可 restore；capture 脚本与启动器第 5 / 14 步 fail-closed。
+缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`maps/sample.voxel` 仍是占位（响亮 `BLOCKED`），不可 restore；capture 脚本与启动器第 5 / 14 步 fail-closed。Sibling 玩法输出会带上 net10 Simulation，HostEntry 才能反射 `DedicatedServerHostBinding`；nuget 路径不造 Simulation 替身，缺类型由玩法 bin 探测测试失败。
 
 ## 压测门
 

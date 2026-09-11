@@ -62,8 +62,8 @@
 
 双路径（`Directory.Build.targets`）：
 
-1. 内部开发：设置 `LumioRuntimeRoot` 指向同级仓。目录存在时注入 Runtime `ProjectReference`（Ecs / Replication / Gas）并跑 `gen-declarations`。空值不是静默降级。
-2. 外部：从 nuget.org restore `Lumio.Engine.SDK`（Owner 未发布前不可用）。已 restore 的 global-packages 或 `LumioLocalFeed` nupkg 视为 NuGet 路径。
+1. 内部开发：设置 `LumioRuntimeRoot` 指向同级仓。目录存在时注入 Runtime `ProjectReference`（Ecs / Replication / Gas / Config / Simulation）并跑 `gen-declarations`。空值不是静默降级。Simulation 必须解析 **net10.0**（`DedicatedServerHostBinding` 只在该 TFM；ns2.1 会 `Compile Remove`）。net10 Simulation 绑 NativeLoader：Runtime 旁边要有 `LumioGameEngine`，或传 `-p:LumioArchRoot=<LumioGameEngine>`（探测的是 Runtime 的 `../LumioGameEngine`，不是本仓源码引用）。
+2. 外部：从 nuget.org restore `Lumio.Engine.SDK`（Owner 未发布前不可用）。已 restore 的 global-packages 或 `LumioLocalFeed` nupkg 视为 NuGet 路径。本仓不另造 Simulation 包或替身；HostEntry 要的是玩法 `bin/<config>/net10.0/Lumio.GameRuntime.Simulation.dll` 里的 `DedicatedServerHostBinding`。包里没有该程序集/类型时，输出探测测试失败，而不是静默降级。
 3. 本地证明：Architecture `node eng/pack-sdk.mjs` 产出 nupkg 后，用 `LumioLocalFeed` 或 NuGet.config folder source。
 
 若两条路径均未命中，构建将失败并输出 `LUMIO_SDK_UNRESOLVED` 检查清单，强制必须选择内部同级仓路径或外部 SDK 包路径之一。

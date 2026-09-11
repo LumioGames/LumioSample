@@ -1,6 +1,6 @@
 ---
 name: testing
-description: 测试与验收——测试分层政策、TDD 时机、验收 DoD 与验证证据;实现功能/修 bug 时查
+description: 测试与验收——测试分层政策、TDD 时机、验收 DoD 与验证证据;sibling 玩法 bin 须 LoadFrom 出 DedicatedServerHostBinding;实现功能/修 bug 时查
 metadata:
   type: doc
   status: 已交付
@@ -36,6 +36,6 @@ metadata:
 
 ## 项目测试栈与命令（**落地必填**）
 
-- **单元**：`dotnet test LumioSample.slnx -- --minimum-expected-tests 1`（xunit.v3 + Microsoft.Testing.Platform）。本机 Homebrew `osx-x64` SDK 在 arm64 上可能报 Zero tests；同一 DLL 用 `dotnet exec` 仍可跑。
+- **单元**：`dotnet test LumioSample.slnx -- --minimum-expected-tests 1`（xunit.v3 + Microsoft.Testing.Platform）。本机 Homebrew `osx-x64` SDK 在 arm64 上可能报 Zero tests；同一 DLL 用 `dotnet exec` 仍可跑。Sibling 玩法输出 `src/Lumio.Sample.Gameplay/bin/<config>/net10.0/Lumio.GameRuntime.Simulation.dll` 必须能 `Assembly.LoadFrom` 出 `DedicatedServerHostBinding`（ns2.1 副本会把该类型编掉）。
 - **集成（hermetic）**：`node --test integration/`。不启 Platform / DS。覆盖账号客户端、启动器 CLI、压测证据 schema、世界断言、底图 capture 拒绝、`server.json` runtime+voxel 词表。
 - **端到端**：`node integration/launcher.mjs --bots N`。缺 Platform / `lumio-ds` / Bot.Host / Engine `process-tools.mjs` 时 exit 2，`VERIFICATION_STATUS=BLOCKED_ENV`。100 人压测是 `node integration/stress-move.mjs`，五条 ADR-084 判据未实测前不得标 PASS。
