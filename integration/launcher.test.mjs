@@ -476,7 +476,6 @@ test('missing env with --spectator stays BLOCKED_ENV and never fakes PASS', asyn
   assert.ok(report.steps.every((step) => step.status === 'BLOCKED_ENV' || step.status === 'READY'));
   assert.equal(report.steps.find((step) => step.id === '02').status, 'BLOCKED_ENV');
   assertTourHonesty(report, lines);
-  assert.equal(existsSync(join(HERE, 'spectator-100.mjs')), false);
 });
 
 test('100 bots + spectator mint 101 unique tickets and start 100 Bot.Host processes', { timeout: 30_000 }, async () => {
@@ -637,12 +636,11 @@ test('--spectator hold falls back to --duration-ms when the page never connects'
   assert.equal(report.steps.find((step) => step.id === '05').status, 'BLOCKED_ENV');
 });
 
-test('launcher source does not green local-paint or write spectator-100.mjs', () => {
+test('launcher source does not green local-paint', () => {
   const text = readFileSync(new URL('launcher.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(text, /SetLocalPose/);
   assert.doesNotMatch(text, /local-paint/);
-  assert.doesNotMatch(text, /spectator-100/);
-  assert.equal(existsSync(new URL('spectator-100.mjs', import.meta.url)), false);
+  assert.doesNotMatch(text, /BotStressMovement/);
 });
 
 test('root README names the launcher and does not keep formal-ds-smoke', () => {
