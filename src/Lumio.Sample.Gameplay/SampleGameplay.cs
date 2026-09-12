@@ -80,6 +80,7 @@ public static class SampleGameplay
         EntityOrder order = world.Commands.Create<PlayerEntity>();
         // IndexAccount runs at Attach; stamp the order before Tick so TryGetAccount works after appear.
         WriteAccountId(order.Get<IdentityComponent>(), accountId);
+        WriteColorHue(order.Get<IdentityComponent>(), accountId, silent: true);
         world.Manager.Tick();
 
         NetEntityId player = order.AssignedId;
@@ -88,6 +89,10 @@ public static class SampleGameplay
 
         BindPlayer(world, player);
         WriteAccountId(world.Get<IdentityComponent>(player), accountId);
+        // Non-silent on the live entity: the hue must dirty-track so it rides
+        // the replication wire (create record / FieldChange) to every client.
+        // A silent write here would leave every client painting the default.
+        WriteColorHue(world.Get<IdentityComponent>(player), accountId, silent: false);
         return player;
     }
 
@@ -103,5 +108,29 @@ public static class SampleGameplay
         if (EcsRegistry.Generated(identity) is not IGeneratedComponent generated)
             return;
         generated.WriteField("accountId", accountId, silent: true);
+    }
+
+    private static void WriteColorHue(IdentityComponent identity, string accountId, bool silent)
+    {
+        if (EcsRegistry.Generated(identity) is not IGeneratedComponent generated)
+            return;
+        generated.WriteField("colorHue", StableAccountHue(accountId), silent);
+    }
+
+    /// <summary>
+    /// Deterministic per-person hue (FNV-1a over the account id, no RNG). The
+    /// server stamps it once at admission and the replicated field carries it
+    /// to every client; clients never re-derive the color.
+    /// </summary>
+    internal static int StableAccountHue(string accountId)
+    {
+        uint hash = 2166136266u;
+        foreach (char letter in accountId)
+        {
+            hash ^= letter;
+            hash *= 16777619u;
+        }
+
+        return (int)(hash % 360u);
     }
 }

@@ -16,6 +16,7 @@ metadata:
 |---|---|
 | 世界单例 | `WorldEntity`（恰好一个 `World = true`，`TickRateHz = 20`） |
 | 玩家 | `PlayerEntity`：Observer + Identity + LogicTransform + Chat + Ability + Attribute + Effect。Identity 承接平台 accountId；聊天说话人仍是 `NetEntityId` hex |
+| 玩家固定颜色 | `IdentityComponent.ColorHue`（int，0-359，Room/Server 权威同步）：`AdmitPlayer` 按账号 FNV 定值并**非 silent** 写入（silent 不标脏不上 wire）；所有端从复制快照读到同一颜色，端上不推导。旁观页以 `hsla(hue,85%,55%,0.75)` 绘制，self 1.5× 半径。int 同步字段进 create 记录依赖 Runtime 生成器的 CaptureSync int 支持 |
 | 矿脉储量 | `VeinEntity` + `VeinReserveComponent`。不挂 LogicTransform |
 | 掉落矿石 | `OreDropEntity` + `OrePileComponent` + LogicTransform |
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |

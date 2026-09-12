@@ -1,5 +1,12 @@
 [
   {
+    "attributeId": "IdentityComponent.colorHue",
+    "persistence": "ephemeral",
+    "replication": "replicated",
+    "valueType": "i32",
+    "visibility": "room-public"
+  },
+  {
     "attributeId": "IdentityComponent.name",
     "persistence": "persistent",
     "replication": "replicated",

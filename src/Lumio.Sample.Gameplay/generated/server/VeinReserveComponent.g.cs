@@ -51,6 +51,7 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
     {
+        writer.WriteInt32("VeinReserveComponent.remaining", Remaining.Value);
     }
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)
