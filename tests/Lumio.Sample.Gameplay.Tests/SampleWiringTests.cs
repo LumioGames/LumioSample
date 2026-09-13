@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Linq;
 using System.Threading;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
@@ -182,14 +183,14 @@ public sealed class SampleWiringTests : IDisposable
         world.FlushCreates();
         long stamina = world.StaminaBase;
         int remaining = world.Remaining;
-        OnFxLog.Items.Clear();
+        int fxBefore = OnFxLog.ForWorld(world.World).Count;
 
         AbilityActivateResult result = world.Mine();
         Assert.False(result.Succeeded);
         Assert.Equal(3, result.RejectedStep);
         Assert.Equal(stamina, world.StaminaBase);
         Assert.Equal(remaining, world.Remaining);
-        Assert.Empty(OnFxLog.Items);
+        Assert.Equal(fxBefore, OnFxLog.ForWorld(world.World).Count);
     }
 
     [Fact]
@@ -227,10 +228,10 @@ public sealed class SampleWiringTests : IDisposable
             drop = pile.Entity;
         Assert.True(world.World.IsLive(drop));
 
-        OnFxLog.Items.Clear();
+        int fxBefore = OnFxLog.ForWorld(world.World).Count;
         Assert.True(SampleOrePickup.TryPickup(world.World, world.Player, drop));
         Assert.Equal(oreBefore + SampleTables.OrePerVein, world.OreBase);
-        Assert.Contains(OnFxLog.Items, row => row.FxKey == PickupOreEffect.FxKeyName);
+        Assert.Contains(OnFxLog.ForWorld(world.World).Skip(fxBefore), row => row.FxKey == PickupOreEffect.FxKeyName);
     }
 
     [Fact]
