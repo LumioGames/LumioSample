@@ -9,12 +9,15 @@ public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedS
 {
     partial void OnNameChanging(string old, string @new, ChangeReason reason);
     partial void OnNameChanged(string old, string @new, ChangeReason reason);
+    partial void OnColorHueChanging(int old, int @new, ChangeReason reason);
+    partial void OnColorHueChanged(int old, int @new, ChangeReason reason);
     partial void OnClientWrite(in SyncWrite w, ref bool accept);
 
 
     void IGeneratedComponent.BindFields(ISyncHost host)
     {
         Name = Name.Bound(host, this, 0, "IdentityComponent.name");
+        ColorHue = ColorHue.Bound(host, this, 1, "IdentityComponent.colorHue");
     }
 
     void IGeneratedComponent.InvokePostAttribute() => PostAttribute();
@@ -23,11 +26,13 @@ public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedS
     void IGeneratedComponent.InvokeFieldChanging(int ordinal, object? oldValue, object? newValue, ChangeReason reason)
     {
         if (ordinal == 0) OnNameChanging((string)oldValue!, (string)newValue!, reason);
+        if (ordinal == 1) OnColorHueChanging((int)oldValue!, (int)newValue!, reason);
     }
 
     void IGeneratedComponent.InvokeFieldChanged(int ordinal, object? oldValue, object? newValue, ChangeReason reason)
     {
         if (ordinal == 0) OnNameChanged((string)oldValue!, (string)newValue!, reason);
+        if (ordinal == 1) OnColorHueChanged((int)oldValue!, (int)newValue!, reason);
     }
 
     bool IGeneratedComponent.DispatchClientWrite(in SyncWrite write)
@@ -53,6 +58,7 @@ public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedS
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
     {
         writer.WriteString("IdentityComponent.name", Name.Value);
+        writer.WriteInt32("IdentityComponent.colorHue", ColorHue.Value);
     }
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)
@@ -64,6 +70,7 @@ public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedS
     object? IGeneratedComponent.ReadField(string fieldId)
     {
         if (string.Equals(fieldId, "name", StringComparison.Ordinal)) return Name.Value;
+        if (string.Equals(fieldId, "colorHue", StringComparison.Ordinal)) return ColorHue.Value;
         return null;
     }
 
@@ -75,11 +82,18 @@ public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedS
             else Name.Value = (string)value!;
             return;
         }
+        if (string.Equals(fieldId, "colorHue", StringComparison.Ordinal))
+        {
+            if (silent) ColorHue.SetSilent((int)value!);
+            else ColorHue.Value = (int)value!;
+            return;
+        }
     }
 
     bool IGeneratedSyncMetadata.TryGetSyncField(string fieldId, out ISyncField field)
     {
         if (string.Equals(fieldId, "name", StringComparison.Ordinal)) { field = Name; return true; }
+        if (string.Equals(fieldId, "colorHue", StringComparison.Ordinal)) { field = ColorHue; return true; }
         field = null!;
         return false;
     }
@@ -87,5 +101,6 @@ public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedS
     void IGeneratedComponent.ResetToDefault()
     {
         Name.SetSilent(string.Empty);
+        ColorHue.SetSilent(0);
     }
 }

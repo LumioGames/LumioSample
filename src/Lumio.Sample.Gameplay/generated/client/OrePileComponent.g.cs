@@ -51,6 +51,7 @@ public sealed partial class OrePileComponent : IGeneratedComponent, IGeneratedSy
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
     {
+        writer.WriteInt32("OrePileComponent.amount", Amount.Value);
     }
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)
