@@ -6,10 +6,20 @@ namespace Lumio.Sample.Gameplay.Config;
 
 /// <summary>
 /// ADR-090 seed: gameplay supplies initials from <c>config/attributes.json</c>.
-/// Engine <c>IAttributeSeed</c> / PostAttribute ask (R-00468 G1) is not in the public package yet.
+/// Runtime asks the provider during the normal PostAttribute lifecycle.
 /// </summary>
 public static class SampleAttributeSeed
 {
+    internal static IAttributeSeedProvider Provider { get; } = new TableProvider();
+
+    private sealed class TableProvider : IAttributeSeedProvider
+    {
+        public bool TryGetSeedValue(Type entityType, string attributeName, out long seedValue)
+        {
+            _ = entityType;
+            return TryGetInitial(attributeName, out seedValue);
+        }
+    }
     /// <summary>The two named ledgers. Each expands to Base + Current (four books).</summary>
     public static IReadOnlyList<string> DeclaredNames => new[]
     {
@@ -36,23 +46,4 @@ public static class SampleAttributeSeed
         return false;
     }
 
-    /// <summary>Creates both named ledgers and writes Base and Current from the table.</summary>
-    public static void ApplyTo(AttributeComponent attributes)
-    {
-        ArgumentNullException.ThrowIfNull(attributes);
-        if (!TryGetInitial(SampleTables.StaminaAttributeName, out long stamina))
-            throw new InvalidOperationException("SampleAttributeSeed has no stamina initial.");
-        if (!TryGetInitial(SampleTables.OreAttributeName, out long ore))
-            throw new InvalidOperationException("SampleAttributeSeed has no ore initial.");
-
-        attributes.SetBaseValue(SampleTables.StaminaAttributeName, stamina);
-        attributes.SetCurrentValue(SampleTables.StaminaAttributeName, stamina);
-        attributes.SetBaseValue(SampleTables.OreAttributeName, ore);
-        attributes.SetCurrentValue(SampleTables.OreAttributeName, ore);
-    }
-
-    /// <summary>Reserved for R-00468 G1 <c>IAttributeSeed</c> registration. No-op until that type ships.</summary>
-    public static void Register()
-    {
-    }
 }

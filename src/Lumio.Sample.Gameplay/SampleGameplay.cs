@@ -3,9 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
-using Lumio.Sample.Gameplay.Components.Identity;
 using Lumio.Sample.Gameplay.Config;
-using Lumio.Sample.Gameplay.EntityTypes;
 
 namespace Lumio.Sample.Gameplay;
 
@@ -30,7 +28,6 @@ public static class SampleGameplay
     [ModuleInitializer]
     internal static void RegisterCatalog()
     {
-        SampleAttributeSeed.Register();
         PickupOreEffect.Register();
     }
 
@@ -38,7 +35,7 @@ public static class SampleGameplay
     public static WorldManager CreateWorld(ulong instanceId) =>
         WorldManager.Create(GeneratedRegistry.Instance, instanceId);
 
-    /// <summary>Seeds the four ledgers and wires cost admit to the stamina Base book.</summary>
+    /// <summary>Binds transient ability ports to the player's existing ledgers.</summary>
     public static void BindPlayer(World world, NetEntityId player)
     {
         ArgumentNullException.ThrowIfNull(world);
@@ -46,7 +43,6 @@ public static class SampleGameplay
             throw new InvalidOperationException("BindPlayer requires a live player.");
 
         AttributeComponent attributes = world.Get<AttributeComponent>(player);
-        SampleAttributeSeed.ApplyTo(attributes);
 
         AbilityComponent abilities = world.Get<AbilityComponent>(player);
         string stamina = SampleTables.StaminaAttributeName;
@@ -67,54 +63,11 @@ public static class SampleGameplay
         abilities.Physics = new RecordingAbilityPhysicsPort();
     }
 
-    /// <summary>
-    /// Appears a <see cref="PlayerEntity"/>, binds GAS (including the open-space physics port),
-    /// and stamps Identity.accountId so <see cref="World.TryGetAccount"/> can find it.
-    /// Spectator connections use this same type; there is no spectator entity.
-    /// </summary>
-    public static NetEntityId AdmitPlayer(World world, string accountId)
-    {
-        ArgumentNullException.ThrowIfNull(world);
-        ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
-
-        EntityOrder order = world.Commands.Create<PlayerEntity>();
-        // IndexAccount runs at Attach; stamp the order before Tick so TryGetAccount works after appear.
-        WriteAccountId(order.Get<IdentityComponent>(), accountId);
-        WriteColorHue(order.Get<IdentityComponent>(), accountId, silent: true);
-        world.Manager.Tick();
-
-        NetEntityId player = order.AssignedId;
-        if (player.Counter == 0 || !world.IsLive(player))
-            throw new InvalidOperationException("AdmitPlayer requires the create to appear on Tick.");
-
-        BindPlayer(world, player);
-        WriteAccountId(world.Get<IdentityComponent>(player), accountId);
-        // Non-silent on the live entity: the hue must dirty-track so it rides
-        // the replication wire (create record / FieldChange) to every client.
-        // A silent write here would leave every client painting the default.
-        WriteColorHue(world.Get<IdentityComponent>(player), accountId, silent: false);
-        return player;
-    }
-
     /// <summary>Generic Activate. Owner for CanActivate comes from <see cref="BindPlayer"/>'s context, not this wrapper.</summary>
     public static AbilityActivateResult ActivateMine(AbilityComponent owner, in MineAbility.Input input, ulong sequence = 0)
     {
         ArgumentNullException.ThrowIfNull(owner);
         return owner.Activate<MineAbility, MineAbility.Input>(in input, sequence);
-    }
-
-    private static void WriteAccountId(IdentityComponent identity, string accountId)
-    {
-        if (EcsRegistry.Generated(identity) is not IGeneratedComponent generated)
-            return;
-        generated.WriteField("accountId", accountId, silent: true);
-    }
-
-    private static void WriteColorHue(IdentityComponent identity, string accountId, bool silent)
-    {
-        if (EcsRegistry.Generated(identity) is not IGeneratedComponent generated)
-            return;
-        generated.WriteField("colorHue", StableAccountHue(accountId), silent);
     }
 
     /// <summary>
