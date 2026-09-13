@@ -1,5 +1,40 @@
 [
   {
+    "attributeId": "AttributeComponent.OreBase",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "i64",
+    "visibility": "room-public"
+  },
+  {
+    "attributeId": "AttributeComponent.OreCurrent",
+    "persistence": "ephemeral",
+    "replication": "replicated",
+    "valueType": "i64",
+    "visibility": "aoi-scoped"
+  },
+  {
+    "attributeId": "AttributeComponent.StaminaBase",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "i64",
+    "visibility": "room-public"
+  },
+  {
+    "attributeId": "AttributeComponent.StaminaCurrent",
+    "persistence": "ephemeral",
+    "replication": "replicated",
+    "valueType": "i64",
+    "visibility": "aoi-scoped"
+  },
+  {
+    "attributeId": "IdentityComponent.colorHue",
+    "persistence": "ephemeral",
+    "replication": "replicated",
+    "valueType": "i32",
+    "visibility": "room-public"
+  },
+  {
     "attributeId": "IdentityComponent.name",
     "persistence": "persistent",
     "replication": "replicated",

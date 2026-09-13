@@ -208,6 +208,10 @@ public sealed class GeneratedRegistry : EcsRegistry
     {
         return new FieldAttributeDeclaration[]
         {
+            new FieldAttributeDeclaration("AttributeComponent.OreBase", "i64", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("AttributeComponent.OreCurrent", "i64", "ephemeral", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("AttributeComponent.StaminaBase", "i64", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("AttributeComponent.StaminaCurrent", "i64", "ephemeral", "replicated", "aoi-scoped"),
             new FieldAttributeDeclaration("ChatComponent.lastMessageText", "utf8-string", "persistent", "not-replicated", "server-only"),
             new FieldAttributeDeclaration("ChatComponent.lastMessageTick", "u64", "persistent", "not-replicated", "server-only"),
             new FieldAttributeDeclaration("IdentityComponent.accountId", "utf8-string", "persistent", "not-replicated", "server-only"),

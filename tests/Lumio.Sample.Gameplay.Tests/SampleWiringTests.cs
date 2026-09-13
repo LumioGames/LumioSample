@@ -331,12 +331,18 @@ internal sealed class SampleWorldHarness : IDisposable
         EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
         EntityOrder vein = SampleVein.Queue(manager.World);
         manager.Tick();
-        SampleGameplay.BindPlayer(manager.World, player.AssignedId);
         return new SampleWorldHarness(manager, player.AssignedId, vein.AssignedId);
     }
 
-    /// <summary>Started world with no player. Tests that call <see cref="SampleGameplay.AdmitPlayer"/> use this.</summary>
+    /// <summary>Started world with no player; tests explicitly drive the Owner tick.</summary>
     public static SampleWorldHarness BootEmpty() => new(StartManager(), default, default);
+
+    public NetEntityId AdmitPlayer(string accountId)
+    {
+        EntityOrder order = PlayerLifecycleTests.QueuePlayer(World, accountId);
+        _manager.Tick();
+        return order.AssignedId;
+    }
 
     private static WorldManager StartManager()
     {

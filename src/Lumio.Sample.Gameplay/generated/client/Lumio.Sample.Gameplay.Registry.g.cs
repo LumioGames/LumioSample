@@ -226,6 +226,11 @@ public sealed class GeneratedRegistry : EcsRegistry
     {
         return new FieldAttributeDeclaration[]
         {
+            new FieldAttributeDeclaration("AttributeComponent.OreBase", "i64", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("AttributeComponent.OreCurrent", "i64", "ephemeral", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("AttributeComponent.StaminaBase", "i64", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("AttributeComponent.StaminaCurrent", "i64", "ephemeral", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("IdentityComponent.colorHue", "i32", "ephemeral", "replicated", "room-public"),
             new FieldAttributeDeclaration("IdentityComponent.name", "utf8-string", "persistent", "replicated", "room-public"),
             new FieldAttributeDeclaration("OrePileComponent.amount", "i32", "persistent", "replicated", "room-public"),
             new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "room-public")
