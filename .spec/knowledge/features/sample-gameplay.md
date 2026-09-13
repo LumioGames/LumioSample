@@ -16,17 +16,19 @@ metadata:
 |---|---|
 | 世界单例 | `WorldEntity`（恰好一个 `World = true`，`TickRateHz = 20`） |
 | 玩家 | `PlayerEntity`：Observer + Identity + LogicTransform + Chat + Ability + Attribute + Effect。Identity 承接平台 accountId；聊天说话人仍是 `NetEntityId` hex |
-| 玩家固定颜色 | `IdentityComponent.ColorHue`（int，0-359，Room/Server 权威同步）：`AdmitPlayer` 按账号 FNV 定值并**非 silent** 写入（silent 不标脏不上 wire）；所有端从复制快照读到同一颜色，端上不推导。旁观页以 `hsla(hue,85%,55%,0.75)` 绘制，self 1.5× 半径。int 同步字段进 create 记录依赖 Runtime 生成器的 CaptureSync int 支持 |
+| 玩家固定颜色 | `IdentityComponent.ColorHue`（int，0-359，Room/Server 权威同步）：Start/OnHydrate 按账号 FNV 定值并写入，所有端从复制快照读到同一颜色，端上不推导。旁观页以 `hsla(hue,85%,55%,0.75)` 绘制，self 1.5× 半径。int 同步字段进 create 记录依赖 Runtime 生成器的 CaptureSync int 支持 |
 | 矿脉储量 | `VeinEntity` + `VeinReserveComponent`。不挂 LogicTransform |
 | 掉落矿石 | `OreDropEntity` + `OrePileComponent` + LogicTransform |
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |
 | 跑动 | `MoveAbility`：唯一调用 `LogicTransform.SetLocalPosition` 的地方 |
 | 挖掘 | `MineAbility`：准入在 `CanActivate`（目标活、储量大于 0）；体力不足走引擎消耗步。`Execute` 扣体力 **基础账**。`TryRequestAirWrite` 在体素 ABI 未公开前恒为 false |
-| 四条账 | 体力 / 矿石各 Base+Current。初值经 `SampleAttributeSeed` 读 `config/attributes.json`（ADR-090）。引擎 `IAttributeSeed` / PostAttribute 问值要等 R-00468 G1 |
+| 四条账 | 体力 / 矿石各 Base+Current。PlayerEntity 用 DeclareAttribute 声明持久基础账，Identity.Awake 挂接 SampleAttributeSeed 的 IAttributeSeedProvider，由 Runtime PostAttribute 读取 config/attributes.json 初值。Start 绑定能力上下文；OnHydrate 仅重绑瞬态引用，基础账从存档恢复，Current 由现有属性计算器重建（R-00613） |
 | 矿脉出现 | `SampleVein.Queue` 下结构单；`VeinReserveComponent.PostAttribute` 把储量写成 `vein_hits_to_break`。稀疏引用走 `ISampleVoxelBinding`（宿主接 R-00469；端口空则返回 false，不假绑） |
 | 拾取 | `PickupOreEffect` 由 `SampleGameplay` 模块初始化注册；`SampleOrePickup.TryPickup` 调用 `Effects.Apply` 再 `EffectSettlement.Settle` |
 
 聊天说话人用 `NetEntityId.ToHex()`，不另造名字属性。
+
+玩家准入使用 Runtime 正式控制消息，在正常 Owner Tick 创建实体；生产玩法没有同步准入或隐式推进 Tick 的辅助入口。测试宿主自行显式驱动 Tick。属性名字是声明身份，配表中的名字必须与声明对应；历史上未包含基础账的存档无法还原当时未保存的数值。
 
 ## 配表
 
@@ -45,7 +47,7 @@ metadata:
 ## 待解决
 
 - 直播准入、聊天、Activate 上行等 Client R-00534 / Platform。
-- 体素 bind / 变空气（R-00469）。底图读与首包见 R-00522；不得在本仓做体素写。引擎 `IAttributeSeed` 合入后用它替换 `SampleGameplay.BindPlayer` 播种。
+- 体素 bind / 变空气（R-00469）。底图读与首包见 R-00522；不得在本仓做体素写。
 - 结构单掉落与 Effect 结算在 DS 上的闭环（R-00462、R-00480）。`GeneratedEffectRegistry.RegisterAll` 仍待生成器。
 - 存档冷恢复（R-00498 / R-00507）。启动器第 14 步不得因底图可 restore 就标 PASS。
 

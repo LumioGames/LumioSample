@@ -1,0 +1,78 @@
+using System;
+using System.IO;
+using Lumio.GameRuntime.Ecs;
+using Lumio.GameRuntime.Gas;
+using Lumio.Sample.Gameplay;
+using Lumio.Sample.Gameplay.Components.Identity;
+using Lumio.Sample.Gameplay.Config;
+using Lumio.Sample.Gameplay.EntityTypes;
+using Xunit;
+
+namespace Lumio.Sample.Gameplay.Tests;
+
+[Collection("SampleWorld")]
+public sealed class PlayerLifecycleTests : IDisposable
+{
+    public PlayerLifecycleTests()
+    {
+        Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable,
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "config")));
+        SampleTables.ResetCache();
+    }
+
+    [Fact]
+    public void NormalCreateInitializesPlayerOnlyOnTheOwnerTick()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
+        ulong before = world.World.Tick;
+        EntityOrder order = QueuePlayer(world.World, "lifecycle-player");
+        Assert.Equal(before, world.World.Tick);
+        Assert.Equal(0UL, order.AssignedId.Counter);
+        world.FlushCreates();
+        Assert.Equal(before + 1, world.World.Tick);
+        AttributeComponent attributes = world.World.Get<AttributeComponent>(order.AssignedId);
+        Assert.Equal(SampleTables.StaminaInitial, attributes.GetBaseValue(SampleTables.StaminaAttributeName));
+        Assert.Equal(SampleTables.OreInitial, attributes.GetBaseValue(SampleTables.OreAttributeName));
+        Assert.NotNull(world.World.Get<AbilityComponent>(order.AssignedId).ActivationContext);
+        Assert.IsType<RecordingAbilityPhysicsPort>(world.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        Assert.NotEqual(0, world.World.Get<IdentityComponent>(order.AssignedId).ColorHue.Value);
+    }
+
+    [Fact]
+    public void HydrationPreservesLedgersAndRestoresTransientAbilityBindings()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AttributeComponent attributes = world.World.Get<AttributeComponent>(world.Player);
+        long spent = SampleTables.StaminaInitial - 1;
+        long ore = SampleTables.OreInitial + 3;
+        attributes.SetBaseValue(SampleTables.StaminaAttributeName, spent);
+        attributes.SetCurrentValue(SampleTables.StaminaAttributeName, spent);
+        attributes.SetBaseValue(SampleTables.OreAttributeName, ore);
+        attributes.SetCurrentValue(SampleTables.OreAttributeName, ore);
+        byte[] snapshot = world.World.Manager.CaptureSnapshot();
+        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance);
+        AttributeComponent next = restored.World.Get<AttributeComponent>(world.Player);
+        // CURRENT is derived, never serialized; phase 9 uses this same evaluator.
+        AttributeEvaluator.Recompute(restored.World);
+        Assert.Equal(spent, next.GetBaseValue(SampleTables.StaminaAttributeName));
+        Assert.Equal(spent, next.GetCurrentValue(SampleTables.StaminaAttributeName));
+        Assert.Equal(ore, next.GetBaseValue(SampleTables.OreAttributeName));
+        Assert.Equal(ore, next.GetCurrentValue(SampleTables.OreAttributeName));
+        Assert.NotNull(restored.World.Get<AbilityComponent>(world.Player).ActivationContext);
+        Assert.IsType<RecordingAbilityPhysicsPort>(restored.World.Get<AbilityComponent>(world.Player).Physics);
+    }
+
+    internal static EntityOrder QueuePlayer(World world, string account)
+    {
+        EntityOrder order = world.Commands.Create<PlayerEntity>();
+        EcsRegistry.Generated(order.Get<IdentityComponent>())!.WriteField("accountId", account, silent: true);
+        return order;
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, null);
+        SampleTables.ResetCache();
+        MineAbility.Writer = null;
+    }
+}

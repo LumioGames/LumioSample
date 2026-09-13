@@ -148,7 +148,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
     public void AdmitPlayerActivateMoveChangesLogicTransformWhenPhysicsPortIsPresent()
     {
         using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
-        NetEntityId player = SampleGameplay.AdmitPlayer(world.World, "acct-move");
+        NetEntityId player = world.AdmitPlayer("acct-move");
 
         Assert.True(world.World.IsLive(player));
         Assert.True(GeneratedRegistry.Instance.TryResolveEntityType("PlayerEntity", out Type entityType));
@@ -178,7 +178,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
     public void ActivateMoveWithoutPhysicsPortLeavesLogicTransformUnchanged()
     {
         using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
-        NetEntityId player = SampleGameplay.AdmitPlayer(world.World, "acct-fail-closed");
+        NetEntityId player = world.AdmitPlayer("acct-fail-closed");
         AbilityComponent abilities = world.World.Get<AbilityComponent>(player);
         abilities.Physics = null;
 
