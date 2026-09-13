@@ -14,7 +14,7 @@ public static class SampleOrePickup
 
         int amount = world.Get<OrePileComponent>(drop).Amount.Value;
         var parameters = new PickupOreEffect.Parameters { Amount = amount };
-        Effects.Apply<PickupOreEffect, PickupOreEffect.Parameters>(picker, in parameters, drop);
+        Effects.Apply<PickupOreEffect, PickupOreEffect.Parameters>(world, picker, in parameters, drop);
         EffectSettlement.Settle(world);
         world.Commands.Destroy(drop);
         return true;
