@@ -22,7 +22,7 @@ public static class SampleTables
     /// <summary>Meters per move step. From movement table.</summary>
     public static double StepMeters => MovementRow().StepMeters;
 
-    /// <summary>Sweep capsule radius. From movement table.</summary>
+    /// <summary>Configured sweep_radius_meters; this slice uses it as each AABB axis half-size.</summary>
     public static double SweepRadiusMeters => MovementRow().SweepRadiusMeters;
 
     /// <summary>Stamina spent per mine hit. From mining table.</summary>
