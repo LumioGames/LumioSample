@@ -87,8 +87,12 @@ public sealed class SourceHygieneTests
     [Fact]
     public void GameplayOutputShipsNet10SimulationWithDedicatedServerHostBinding()
     {
-        string configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        string path = Path.Combine(GameplayRoot, "bin", configuration, "net10.0", "Lumio.GameRuntime.Simulation.dll");
+        DirectoryInfo output = new(AppContext.BaseDirectory);
+        // SDK artifacts output is bin/<project>/<pivot>; ordinary output is bin/<configuration>/<tfm>.
+        string gameplayOutput = output.Parent!.Name == "Lumio.Sample.Gameplay.Tests"
+            ? Path.Combine(output.Parent.Parent!.FullName, "Lumio.Sample.Gameplay", output.Name)
+            : Path.Combine(GameplayRoot, "bin", output.Parent.Name, "net10.0");
+        string path = Path.Combine(gameplayOutput, "Lumio.GameRuntime.Simulation.dll");
         Assert.True(
             File.Exists(path),
             "Lumio.GameRuntime.Simulation.dll is missing from Sample gameplay output; HostEntry reflects DedicatedServerHostBinding beside the assemblies server.json names. Probed: " + path);
