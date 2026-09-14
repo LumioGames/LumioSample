@@ -360,6 +360,10 @@ public sealed class MoveAbilityWorldTests : IDisposable
         NetEntityId player = world.AdmitPlayer("acct-fail-closed");
         AbilityComponent abilities = world.World.Get<AbilityComponent>(player);
         abilities.Physics = null;
+        Assert.Null(AbilityPhysicsBinding.Resolve(world.World.Manager));
+        long balance = 10;
+        int writes = 0;
+        abilities.ActivationContext = new AbilityActivationContext(() => balance, value => { balance = value; writes++; }, _ => { });
 
         LogicTransform logic = world.World.Get<LogicTransform>(player);
         Vector3 origin = logic.LocalPosition;
@@ -371,6 +375,8 @@ public sealed class MoveAbilityWorldTests : IDisposable
         Assert.Equal("physics_unavailable", result.FailureCode);
         Assert.Equal(0UL, abilities.GetCooldown(MoveAbility.TypeId));
         Assert.Equal(0, abilities.Count);
+        Assert.Equal(10, balance);
+        Assert.Equal(0, writes);
         Assert.Equal(origin, logic.LocalPosition);
     }
 }
