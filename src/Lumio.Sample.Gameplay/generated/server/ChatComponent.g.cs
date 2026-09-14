@@ -5,7 +5,7 @@ using Lumio.GameRuntime.Ecs;
 
 namespace Lumio.Sample.Gameplay.Components.Chat;
 
-public sealed partial class ChatComponent : IGeneratedComponent, IGeneratedSyncMetadata
+public sealed partial class ChatComponent : IGeneratedComponent, IGeneratedSyncMetadata, IGeneratedOperationComponent
 {
     partial void OnLastMessageTextChanging(string old, string @new, ChangeReason reason);
     partial void OnLastMessageTextChanged(string old, string @new, ChangeReason reason);
@@ -44,12 +44,23 @@ public sealed partial class ChatComponent : IGeneratedComponent, IGeneratedSyncM
     }
 
     void IGeneratedComponent.DispatchServerRpc(string method, object?[] args)
+        => ((IGeneratedOperationComponent)this).TryDispatchServerRpc(method, args, out _);
+
+    bool IGeneratedOperationComponent.TryDispatchServerRpc(string method, object?[] args, out OperationExecutionOutcome outcome)
     {
+        outcome = new(OperationOutcomeKind.OutcomeUnavailable, OperationCommitFact.Unknown, "operation_outcome_unavailable");
         if (method == "SendMessage")
         {
+            if (args.Length != 1 || args[0] is not string)
+            {
+                outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_invalid_payload");
+                return true;
+            }
             SendMessage((string)args[0]!);
-            return;
+            return true;
         }
+        outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_unknown_method");
+        return false;
     }
 
     void IGeneratedComponent.DispatchClientRpc(string method, object?[] args)

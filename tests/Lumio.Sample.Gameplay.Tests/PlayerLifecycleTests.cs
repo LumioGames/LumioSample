@@ -1,7 +1,17 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Numerics;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Threading;
+using System.Text.Json;
+using Lumio.Engine.NativeLoader;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
+using Lumio.GameRuntime.Persistence;
+using Lumio.GameRuntime.Simulation;
+using Microsoft.Extensions.Logging;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Identity;
 using Lumio.Sample.Gameplay.Config;
@@ -13,11 +23,145 @@ namespace Lumio.Sample.Gameplay.Tests;
 [Collection("SampleWorld")]
 public sealed class PlayerLifecycleTests : IDisposable
 {
+    [Fact]
+    public void RealHostAabbWallAndOpenMovementSurviveColdRestore()
+    {
+        string nativePath = Environment.GetEnvironmentVariable("LUMIO_ENGINE_NATIVE_PATH")
+            ?? throw new InvalidOperationException("SMP08 requires explicit LUMIO_ENGINE_NATIVE_PATH.");
+        using NativeEngineLease native = NativeEngineLoader.LoadFromBuildInfo(nativePath);
+        Assert.Equal(Environment.GetEnvironmentVariable("LUMIO_NATIVE_TEST_BUILD_ID"), native.BuildId);
+        Assert.Equal(Environment.GetEnvironmentVariable("LUMIO_NATIVE_TEST_ABI_HASH"), native.AbiHash);
+        string? evidencePath = Environment.GetEnvironmentVariable("LUMIO_SAMPLE_HOST_EVIDENCE");
+        if (evidencePath is not null)
+            File.WriteAllText(evidencePath + ".identity.json", JsonSerializer.Serialize(new
+            {
+                native.NativePath, native.BuildId, native.AbiHash, native.BinarySha256,
+                Assemblies = new[] { typeof(SampleGameplay).Assembly, typeof(DedicatedServerHostBinding).Assembly }
+                    .Select(assembly => new { assembly.FullName, assembly.Location, assembly.ManifestModule.ModuleVersionId,
+                        Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))) })
+            }));
+        string fixtures = Environment.GetEnvironmentVariable("LUMIO_RT_FIXTURES")
+            ?? throw new InvalidOperationException("SMP08 requires explicit LUMIO_RT_FIXTURES pointing to the committed voxel-native scene.");
+        byte[] catalog = File.ReadAllBytes(Path.Combine(fixtures, "catalog-world.json"));
+        byte[] wall = File.ReadAllBytes(Path.Combine(fixtures, "catalog-world.capture"));
+        Assert.Equal("4B7F9F7127ECA9E9BDAAB54D6E839EB38B45A7147C96B93EE685EA63B5650BEB", Convert.ToHexString(SHA256.HashData(catalog)));
+        Assert.Equal("2D491FB70C5F1353020A3789EE9F579D08A5C8F78D7DCA2D94817726AC12464C", Convert.ToHexString(SHA256.HashData(wall)));
+        // Resolve only the frozen public API; absence is an explicit failed test, never a fallback.
+        MethodInfo attachMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("TryAttach", new[] { typeof(WorldManager), typeof(byte[]) }), exactMatch: false);
+        MethodInfo restoreMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("RestoreNew", new[]
+        {
+            typeof(byte[]), typeof(byte[]), typeof(EcsRegistry), typeof(ILoggerFactory), typeof(WorldIngressBudget), typeof(byte[])
+        }), exactMatch: false);
+        var attach = attachMethod.CreateDelegate<Func<WorldManager, byte[], DedicatedServerHostBinding?>>();
+        var restore = restoreMethod.CreateDelegate<Func<byte[], byte[], EcsRegistry, ILoggerFactory?, WorldIngressBudget, byte[], DedicatedServerRestoreResult>>();
+        using WorldManager source = SampleGameplay.CreateWorld(91UL);
+        source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
+        using DedicatedServerHostBinding initial = Assert.IsType<DedicatedServerHostBinding>(attach(source, catalog));
+        source.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(source);
+        EntityOrder blockedOrder = QueuePlayer(source.World, "native-blocked");
+        EntityOrder openOrder = QueuePlayer(source.World, "native-open");
+        source.Tick();
+        NetEntityId blocked = blockedOrder.AssignedId;
+        NetEntityId open = openOrder.AssignedId;
+        Assert.Same(AbilityPhysicsBinding.Resolve(source), source.World.Get<AbilityComponent>(blocked).Physics);
+        Assert.IsNotType<RecordingAbilityPhysicsPort>(source.World.Get<AbilityComponent>(blocked).Physics);
+        PlaceFixturePlayer(source.World, blocked, new Vector3(3f, 4.5f, 4.5f));
+        PlaceFixturePlayer(source.World, open, new Vector3(3f, 4.5f, 6.5f));
+        AttributeComponent ledger = source.World.Get<AttributeComponent>(blocked);
+        long spent = SampleTables.StaminaInitial - 1;
+        ledger.SetBaseValue(SampleTables.StaminaAttributeName, spent);
+        byte[] runtime = source.CaptureSnapshot();
+        DedicatedServerRestoreResult loaded = restore(runtime, wall, GeneratedRegistry.Instance, null, source.IngressBudget, catalog);
+        Assert.True(loaded.Succeeded, loaded.ErrorCode);
+        using DedicatedServerHostBinding first = Assert.IsType<DedicatedServerHostBinding>(loaded.Binding);
+        using WorldManager manager = first.Manager;
+        Assert.NotEqual(initial.VoxelWorldHandle, first.VoxelWorldHandle);
+        initial.Dispose();
+        manager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(manager);
+        Assert.Same(AbilityPhysicsBinding.Resolve(manager), manager.World.Get<AbilityComponent>(blocked).Physics);
+        Assert.NotSame(AbilityPhysicsBinding.Resolve(source), manager.World.Get<AbilityComponent>(blocked).Physics);
+        Assert.Equal(spent, manager.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleTables.StaminaAttributeName));
+        var input = new MoveAbility.Input { Dx = 1 };
+        Assert.True(manager.World.Get<AbilityComponent>(blocked).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
+        float boundary = 4f - (float)SampleTables.SweepRadiusMeters;
+        Assert.InRange(manager.World.Get<LogicTransform>(blocked).LocalPosition.X, boundary - 0.00001f, boundary + 0.00001f);
+        Assert.True(manager.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
+        Assert.Equal(new Vector3(3f + (float)SampleTables.StepMeters, 4.5f, 6.5f), manager.World.Get<LogicTransform>(open).LocalPosition);
+        DualCutCaptureResult capture = first.Capture();
+        Assert.True(capture.Succeeded, capture.ErrorCode);
+        DualCutCheckpointPayload checkpoint = capture.Checkpoint!.Value;
+        Assert.True(checkpoint.SectionCount > 0);
+        DedicatedServerRestoreResult cold = restore(checkpoint.Runtime, checkpoint.Voxel, GeneratedRegistry.Instance, null, manager.IngressBudget, catalog);
+        Assert.True(cold.Succeeded, cold.ErrorCode);
+        using DedicatedServerHostBinding second = Assert.IsType<DedicatedServerHostBinding>(cold.Binding);
+        using WorldManager restored = second.Manager;
+        Assert.NotEqual(first.VoxelWorldHandle, second.VoxelWorldHandle);
+        Assert.NotSame(AbilityPhysicsBinding.Resolve(manager), AbilityPhysicsBinding.Resolve(restored));
+        first.Dispose();
+        restored.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(restored);
+        restored.Tick();
+        Vector3 stopped = restored.World.Get<LogicTransform>(blocked).LocalPosition;
+        Assert.True(restored.World.Get<AbilityComponent>(blocked).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
+        Assert.Equal(stopped, restored.World.Get<LogicTransform>(blocked).LocalPosition);
+        Vector3 openBefore = restored.World.Get<LogicTransform>(open).LocalPosition;
+        Assert.True(restored.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
+        Assert.Equal(openBefore + new Vector3((float)SampleTables.StepMeters, 0, 0), restored.World.Get<LogicTransform>(open).LocalPosition);
+        Assert.Equal(spent, restored.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleTables.StaminaAttributeName));
+        if (evidencePath is not null)
+        {
+            File.WriteAllText(evidencePath, JsonSerializer.Serialize(new
+            {
+                native.NativePath, native.BuildId, native.AbiHash, native.BinarySha256,
+                Assemblies = new[] { typeof(SampleGameplay).Assembly, typeof(DedicatedServerHostBinding).Assembly }
+                    .Select(assembly => new { assembly.FullName, assembly.Location, assembly.ManifestModule.ModuleVersionId,
+                        Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))) }),
+                InitialWorld = initial.VoxelWorldHandle, FirstWorld = first.VoxelWorldHandle, ColdWorld = second.VoxelWorldHandle,
+                WallCell = "4,4,4", BlockedStart = "3,4.5,4.5", OpenStart = "3,4.5,6.5", Input = "+X",
+                HalfExtents = SampleTables.SweepRadiusMeters, Step = SampleTables.StepMeters,
+                PartialBoundaryX = stopped.X, ColdBlockedX = restored.World.Get<LogicTransform>(blocked).LocalPosition.X,
+                ColdOpenX = restored.World.Get<LogicTransform>(open).LocalPosition.X,
+                OldBindingsDisposedBeforeNewQueries = true, CheckpointSections = checkpoint.SectionCount
+            }));
+        }
+    }
+
+    private static void PlaceFixturePlayer(World world, NetEntityId player, Vector3 position)
+    {
+        LogicTransform logic = world.Get<LogicTransform>(player);
+        TransformController controller = world.RegisterTransformController(player, nameof(MoveAbility));
+        using (logic.BeginWrite(controller)) logic.SetLocalPosition(position);
+    }
+
     public PlayerLifecycleTests()
     {
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable,
             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "config")));
         SampleTables.ResetCache();
+    }
+
+    [Fact]
+    public void StartAndHydratePreserveExplicitPhysicsBindings()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
+        var managerPort = new RecordingAbilityPhysicsPort();
+        using IDisposable binding = AbilityPhysicsBinding.Bind(world.World.Manager, managerPort);
+        EntityOrder order = QueuePlayer(world.World, "bound-player");
+        world.FlushCreates();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(order.AssignedId);
+        Assert.Same(managerPort, owner.Physics);
+        var componentPort = new RecordingAbilityPhysicsPort();
+        owner.Physics = componentPort;
+        SampleGameplay.BindPlayer(world.World, order.AssignedId);
+        Assert.Same(componentPort, owner.Physics);
+        byte[] snapshot = world.World.Manager.CaptureSnapshot();
+        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance);
+        Assert.Null(restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        using IDisposable restoredBinding = AbilityPhysicsBinding.Bind(restored, managerPort);
+        SampleGameplay.BindPlayer(restored.World, order.AssignedId);
+        Assert.Same(managerPort, restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
     }
 
     [Fact]
@@ -34,7 +178,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(SampleTables.StaminaInitial, attributes.GetBaseValue(SampleTables.StaminaAttributeName));
         Assert.Equal(SampleTables.OreInitial, attributes.GetBaseValue(SampleTables.OreAttributeName));
         Assert.NotNull(world.World.Get<AbilityComponent>(order.AssignedId).ActivationContext);
-        Assert.IsType<RecordingAbilityPhysicsPort>(world.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        Assert.Null(world.World.Get<AbilityComponent>(order.AssignedId).Physics);
         Assert.NotEqual(0, world.World.Get<IdentityComponent>(order.AssignedId).ColorHue.Value);
     }
 
@@ -59,7 +203,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(ore, next.GetBaseValue(SampleTables.OreAttributeName));
         Assert.Equal(ore, next.GetCurrentValue(SampleTables.OreAttributeName));
         Assert.NotNull(restored.World.Get<AbilityComponent>(world.Player).ActivationContext);
-        Assert.IsType<RecordingAbilityPhysicsPort>(restored.World.Get<AbilityComponent>(world.Player).Physics);
+        Assert.Null(restored.World.Get<AbilityComponent>(world.Player).Physics);
     }
 
     internal static EntityOrder QueuePlayer(World world, string account)

@@ -332,6 +332,7 @@ internal sealed class SampleWorldHarness : IDisposable
         EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
         EntityOrder vein = SampleVein.Queue(manager.World);
         manager.Tick();
+        manager.World.Get<AbilityComponent>(player.AssignedId).Physics = new RecordingAbilityPhysicsPort();
         return new SampleWorldHarness(manager, player.AssignedId, vein.AssignedId);
     }
 
@@ -342,6 +343,7 @@ internal sealed class SampleWorldHarness : IDisposable
     {
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(World, accountId);
         _manager.Tick();
+        World.Get<AbilityComponent>(order.AssignedId).Physics = new RecordingAbilityPhysicsPort();
         return order.AssignedId;
     }
 
