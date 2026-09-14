@@ -58,9 +58,6 @@ public static class SampleGameplay
             },
             _ => { },
             _ => attributes.SetCurrentValue(stamina, attributes.GetBaseValue(stamina)));
-        // Open-space sweep so in-process Activate<MoveAbility> can write LogicTransform.
-        // Execute stays fail-closed when this port is missing.
-        abilities.Physics = new RecordingAbilityPhysicsPort();
     }
 
     /// <summary>Generic Activate. Owner for CanActivate comes from <see cref="BindPlayer"/>'s context, not this wrapper.</summary>

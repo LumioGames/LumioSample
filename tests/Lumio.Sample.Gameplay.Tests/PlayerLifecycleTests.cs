@@ -21,6 +21,28 @@ public sealed class PlayerLifecycleTests : IDisposable
     }
 
     [Fact]
+    public void StartAndHydratePreserveExplicitPhysicsBindings()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
+        var managerPort = new RecordingAbilityPhysicsPort();
+        using IDisposable binding = AbilityPhysicsBinding.Bind(world.World.Manager, managerPort);
+        EntityOrder order = QueuePlayer(world.World, "bound-player");
+        world.FlushCreates();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(order.AssignedId);
+        Assert.Same(managerPort, owner.Physics);
+        var componentPort = new RecordingAbilityPhysicsPort();
+        owner.Physics = componentPort;
+        SampleGameplay.BindPlayer(world.World, order.AssignedId);
+        Assert.Same(componentPort, owner.Physics);
+        byte[] snapshot = world.World.Manager.CaptureSnapshot();
+        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance);
+        Assert.Null(restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        using IDisposable restoredBinding = AbilityPhysicsBinding.Bind(restored, managerPort);
+        SampleGameplay.BindPlayer(restored.World, order.AssignedId);
+        Assert.Same(managerPort, restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
+    }
+
+    [Fact]
     public void NormalCreateInitializesPlayerOnlyOnTheOwnerTick()
     {
         using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
@@ -34,7 +56,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(SampleTables.StaminaInitial, attributes.GetBaseValue(SampleTables.StaminaAttributeName));
         Assert.Equal(SampleTables.OreInitial, attributes.GetBaseValue(SampleTables.OreAttributeName));
         Assert.NotNull(world.World.Get<AbilityComponent>(order.AssignedId).ActivationContext);
-        Assert.IsType<RecordingAbilityPhysicsPort>(world.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        Assert.Null(world.World.Get<AbilityComponent>(order.AssignedId).Physics);
         Assert.NotEqual(0, world.World.Get<IdentityComponent>(order.AssignedId).ColorHue.Value);
     }
 
@@ -59,7 +81,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(ore, next.GetBaseValue(SampleTables.OreAttributeName));
         Assert.Equal(ore, next.GetCurrentValue(SampleTables.OreAttributeName));
         Assert.NotNull(restored.World.Get<AbilityComponent>(world.Player).ActivationContext);
-        Assert.IsType<RecordingAbilityPhysicsPort>(restored.World.Get<AbilityComponent>(world.Player).Physics);
+        Assert.Null(restored.World.Get<AbilityComponent>(world.Player).Physics);
     }
 
     internal static EntityOrder QueuePlayer(World world, string account)

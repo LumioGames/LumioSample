@@ -130,6 +130,185 @@ public sealed class MoveAbilityTests
 [Collection("SampleWorld")]
 public sealed class MoveAbilityWorldTests : IDisposable
 {
+    [Theory]
+    [InlineData(false, 1f)]
+    [InlineData(true, 0f)]
+    [InlineData(true, 0.25f)]
+    public void BoxAdmissionQueriesOnceBeforeCost(bool collided, float fraction)
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(world.Player);
+        LogicTransform logic = world.World.Get<LogicTransform>(world.Player);
+        Vector3 origin = logic.LocalPosition;
+        long balance = 10;
+        int writes = 0;
+        owner.ActivationContext = new AbilityActivationContext(() => balance, value => { balance = value; writes++; }, _ => { });
+        var port = new BoxPort((o, d, h) =>
+        {
+            Assert.Equal(10, balance);
+            Assert.Equal(0, writes);
+            Assert.Equal(0, owner.Count);
+            Assert.Equal(0UL, owner.GetCooldown(MoveAbility.TypeId));
+            Assert.Equal(origin, logic.LocalPosition);
+            Assert.Equal(new Vector3((float)SampleTables.SweepRadiusMeters), h);
+            Assert.Equal(new Vector3((float)SampleTables.StepMeters, 0, 0), d);
+            return new AbilitySweepHit(collided, fraction, o + d * fraction);
+        });
+        owner.Physics = port;
+        var input = new MoveAbility.Input { Dx = 1 };
+        Assert.True(owner.Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
+        Assert.Equal(origin + new Vector3((float)SampleTables.StepMeters * fraction, 0, 0), logic.LocalPosition);
+        Assert.Equal(1, port.Queries);
+        Assert.Equal(1, writes);
+    }
+
+    [Fact]
+    public void UnresolvedRejectsBeforeCostWhileOtherPlayerAndLaterInputSucceed()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
+        NetEntityId a = world.AdmitPlayer("reject-a");
+        NetEntityId b = world.AdmitPlayer("accept-b");
+        AbilityComponent owner = world.World.Get<AbilityComponent>(a);
+        LogicTransform logic = world.World.Get<LogicTransform>(a);
+        Vector3 origin = logic.LocalPosition;
+        long balance = 10;
+        int writes = 0;
+        owner.ActivationContext = new AbilityActivationContext(() => balance, value => { balance = value; writes++; }, _ => { });
+        owner.Physics = new BoxPort((_, _, _) => throw new AbilityPhysicsRejectedException("physics_unresolved", "section unavailable"));
+        var input = new MoveAbility.Input { Dx = 1 };
+        AbilityActivateResult result = owner.Activate<MoveAbility, MoveAbility.Input>(in input, 77);
+        Assert.False(result.Succeeded);
+        Assert.Equal(5, result.RejectedStep);
+        Assert.Equal("physics_unresolved", result.FailureCode);
+        Assert.Equal(10, balance);
+        Assert.Equal(0, writes);
+        Assert.Equal(0, owner.Count);
+        Assert.Equal(0UL, owner.GetCooldown(MoveAbility.TypeId));
+        Assert.Equal(origin, logic.LocalPosition);
+        AbilityComponent other = world.World.Get<AbilityComponent>(b);
+        other.Physics = new RecordingAbilityPhysicsPort();
+        Vector3 otherOrigin = world.World.Get<LogicTransform>(b).LocalPosition;
+        Assert.True(other.Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
+        Assert.Equal(otherOrigin + new Vector3((float)SampleTables.StepMeters, 0, 0), world.World.Get<LogicTransform>(b).LocalPosition);
+        world.FlushCreates();
+        owner.Physics = new RecordingAbilityPhysicsPort();
+        Assert.True(owner.Activate<MoveAbility, MoveAbility.Input>(in input, 77).Succeeded);
+        Assert.Equal(origin + new Vector3((float)SampleTables.StepMeters, 0, 0), logic.LocalPosition);
+        Assert.Equal(1, writes);
+    }
+
+    [Fact]
+    public void UnknownQueryFaultPreservesOriginalDiagnostic()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(world.Player);
+        var fault = new InvalidOperationException("query invariant broke");
+        owner.Physics = new BoxPort((_, _, _) => throw fault);
+        var input = new MoveAbility.Input { Dx = 1 };
+        Assert.Same(fault, Assert.Throws<InvalidOperationException>(() => owner.Activate<MoveAbility, MoveAbility.Input>(in input)));
+        Assert.Equal(0, owner.Count);
+        Assert.Equal(0UL, owner.GetCooldown(MoveAbility.TypeId));
+    }
+
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(-0.1f)]
+    [InlineData(1.1f)]
+    public void CorruptQueryFractionIsAnInternalFault(float fraction)
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(world.Player);
+        owner.Physics = new BoxPort((o, _, _) => new AbilitySweepHit(true, fraction, o));
+        var input = new MoveAbility.Input { Dx = 1 };
+        Assert.Throws<InvalidOperationException>(() => owner.Activate<MoveAbility, MoveAbility.Input>(in input));
+        Assert.Equal(0, owner.Count);
+        Assert.Equal(0UL, owner.GetCooldown(MoveAbility.TypeId));
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(2, 0)]
+    [InlineData(int.MinValue, 1)]
+    public void InvalidActivationDoesNotQuery(int dx, int dz)
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(world.Player);
+        var port = new BoxPort((_, _, _) => throw new InvalidOperationException("must not query"));
+        owner.Physics = port;
+        var input = new MoveAbility.Input { Dx = dx, Dz = dz };
+        AbilityActivateResult result = owner.Activate<MoveAbility, MoveAbility.Input>(in input);
+        Assert.False(result.Succeeded);
+        Assert.Equal(5, result.RejectedStep);
+        Assert.Equal(0, port.Queries);
+    }
+
+    [Fact]
+    public void ConsecutiveActivationsUseCurrentOriginAndDirectExecuteFails()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(world.Player);
+        var port = new BoxPort((o, d, _) => new AbilitySweepHit(false, 1, o + d));
+        owner.Physics = port;
+        var input = new MoveAbility.Input { Dx = 1 };
+        Vector3 origin = world.World.Get<LogicTransform>(world.Player).LocalPosition;
+        Assert.Throws<InvalidOperationException>(() => new MoveAbility().Execute(in input, owner));
+        Assert.True(owner.Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
+        world.FlushCreates();
+        input = new MoveAbility.Input { Dz = -1 };
+        Assert.True(owner.Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
+        Assert.Equal(origin + new Vector3((float)SampleTables.StepMeters, 0, -(float)SampleTables.StepMeters), world.World.Get<LogicTransform>(world.Player).LocalPosition);
+        Assert.Equal(2, port.Queries);
+    }
+
+    [Fact]
+    public void PreparationCannotSurviveMismatchRefusalOrConsumption()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(world.Player);
+        var port = new BoxPort((o, d, _) => new AbilitySweepHit(false, 1, o + d));
+        owner.Physics = port;
+        var ability = new MoveAbility();
+        var input = new MoveAbility.Input { Dx = 1 };
+        var mismatch = new MoveAbility.Input { Dz = 1 };
+        Assert.True(ability.CanActivate(in input, owner, out _));
+        Assert.Throws<InvalidOperationException>(() => ability.Execute(in mismatch, owner));
+        Assert.Throws<InvalidOperationException>(() => ability.Execute(in input, owner));
+        Assert.True(ability.CanActivate(in input, owner, out _));
+        var rejected = new MoveAbility.Input();
+        Assert.False(ability.CanActivate(in rejected, owner, out _));
+        Assert.Throws<InvalidOperationException>(() => ability.Execute(in input, owner));
+        Assert.Equal(2, port.Queries);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CorruptQueryPointFailsBeforeCost(bool nonfinite)
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent owner = world.World.Get<AbilityComponent>(world.Player);
+        owner.Physics = new BoxPort((o, d, _) => new AbilitySweepHit(false, 1,
+            nonfinite ? new Vector3(float.NaN) : o + d + Vector3.One));
+        var input = new MoveAbility.Input { Dx = 1 };
+        Assert.Throws<InvalidOperationException>(() => owner.Activate<MoveAbility, MoveAbility.Input>(in input));
+        Assert.Equal(0, owner.Count);
+        Assert.Equal(0UL, owner.GetCooldown(MoveAbility.TypeId));
+    }
+
+    private sealed class BoxPort(Func<Vector3, Vector3, Vector3, AbilitySweepHit> query) : IAbilityPhysicsPort
+    {
+        public int Queries { get; private set; }
+        public AbilitySweepHit SweepBox(Vector3 origin, Vector3 displacement, Vector3 halfExtents)
+        {
+            Queries++;
+            return query(origin, displacement, halfExtents);
+        }
+        public AbilitySweepHit Sweep(Vector3 origin, Vector3 displacement, float radius) => throw new InvalidOperationException("sphere is not AABB");
+        public AbilityRayHit Raycast(Vector3 origin, Vector3 direction, float maxDistance) => throw new NotSupportedException();
+        public AbilityOverlapHit Overlap(Vector3 center, Vector3 halfExtents) => throw new NotSupportedException();
+    }
+
     public MoveAbilityWorldTests()
     {
         string repoConfig = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "config"));
@@ -166,7 +345,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
         AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);
 
-        Assert.True(result.Succeeded, "MoveAbility must admit when BindPlayer mounted RecordingAbilityPhysicsPort.");
+        Assert.True(result.Succeeded, "MoveAbility must admit with the harness's explicit physics port.");
         Assert.Equal(0, result.RejectedStep);
         Vector3 next = logic.LocalPosition;
         Assert.NotEqual(origin, next);
@@ -187,7 +366,11 @@ public sealed class MoveAbilityWorldTests : IDisposable
         var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
         AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);
 
-        Assert.True(result.Succeeded, "Missing port is Execute fail-closed, not an admit reject.");
+        Assert.False(result.Succeeded);
+        Assert.Equal(5, result.RejectedStep);
+        Assert.Equal("physics_unavailable", result.FailureCode);
+        Assert.Equal(0UL, abilities.GetCooldown(MoveAbility.TypeId));
+        Assert.Equal(0, abilities.Count);
         Assert.Equal(origin, logic.LocalPosition);
     }
 }
