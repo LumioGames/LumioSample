@@ -5,7 +5,7 @@ using Lumio.GameRuntime.Ecs;
 
 namespace Lumio.Sample.Gameplay.Components.Vein;
 
-public sealed partial class VeinReserveComponent : IGeneratedComponent, IGeneratedSyncMetadata
+public sealed partial class VeinReserveComponent : IGeneratedComponent, IGeneratedSyncMetadata, IGeneratedOperationComponent
 {
     partial void OnRemainingChanging(int old, int @new, ChangeReason reason);
     partial void OnRemainingChanged(int old, int @new, ChangeReason reason);
@@ -38,7 +38,13 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
     }
 
     void IGeneratedComponent.DispatchServerRpc(string method, object?[] args)
+        => ((IGeneratedOperationComponent)this).TryDispatchServerRpc(method, args, out _);
+
+    bool IGeneratedOperationComponent.TryDispatchServerRpc(string method, object?[] args, out OperationExecutionOutcome outcome)
     {
+        outcome = new(OperationOutcomeKind.OutcomeUnavailable, OperationCommitFact.Unknown, "operation_outcome_unavailable");
+        outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_unknown_method");
+        return false;
     }
 
     void IGeneratedComponent.DispatchClientRpc(string method, object?[] args)
