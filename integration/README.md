@@ -21,7 +21,7 @@ CLI prints only a public summary so secrets never land in logs.
 
 ## One-command launcher (S-3 / R-00520)
 
-`launcher.mjs` is the internal fourteen-step command. It prints `step=NN`
+`launcher.mjs` is the internal fourteen-step command. It copies the committed `server.json.clr.kernel_config` object to each run's `kernel-config.json` and passes that path to Bot.Host; native execution has no hidden Context limits. It prints `step=NN`
 for every sample.md step, admits `--bots N` names (`Bot1`…) with a
 configurable `--stagger-ms`, and consumes unique `loginAndLaunch` tickets.
 Process management is imported from Engine `eng/process-tools.mjs`

@@ -97,6 +97,7 @@ function processTools({ evidenceDir, botLogs = [] } = {}) {
 
 function runnableDsConfig() {
   return {
+    clr: { kernel_config: { maxContexts: 64, maxHandles: 4096, maxNativeBytes: 67108864, maxJobsQueued: 256, maxJobsRunning: 4, maxCompletionItems: 1024, logMailboxCapacity: 8192 } },
     allocation: {
       serverAudience: 'sample-local',
       gameId: 'sample',

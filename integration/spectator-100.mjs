@@ -37,7 +37,7 @@ import {
   redactArgs,
   resolveDsEndpoint,
 } from './ds-ready.mjs';
-import { assertRunnableDsConfig } from './ds-config.mjs';
+import { assertRunnableDsConfig, writeKernelConfigForRun } from './ds-config.mjs';
 import { blocked, loadProcessTools } from './engine-tools.mjs';
 import {
   parseBotAdmit,
@@ -3374,6 +3374,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
       return { status: 'FAIL', error: `DS config is invalid JSON: ${error.message}` };
     }
     assertRunnableDsConfig(dsConfigValue);
+    const kernelConfigPath = writeKernelConfigForRun(effectiveDsConfig, join(evidence, 'kernel-config.json'));
 
     const pageRoot = resolve(options.clientRoot ?? resolve(root, '..', 'LumioClient'));
     // Resolve only an operator-provided URL/origin. When absent, the runner

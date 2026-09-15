@@ -18,7 +18,7 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loginAndLaunch } from './account-client.mjs';
 import { buildBotArgs, buildServerArgs, findDsReady, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
-import { assertRunnableDsConfig } from './ds-config.mjs';
+import { assertRunnableDsConfig, writeKernelConfigForRun } from './ds-config.mjs';
 import { blocked, loadProcessTools } from './engine-tools.mjs';
 import { inspectBaseMap } from './server-profile.mjs';
 import { formatStep, planBotLogins, TOUR_STEPS } from './tour-steps.mjs';
@@ -511,6 +511,7 @@ export async function runLauncher(options = {}) {
       }
       throw error;
     }
+    const kernelConfigPath = writeKernelConfigForRun(dsConfig, join(evidence, 'kernel-config.json'));
     const dsArgs = buildServerArgs(dsConfig);
     const check = tools.command(dsExe, [...dsArgs, '--check-config'], { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.check-config.log') });
     log(`lumio-ds --check-config\n${check ?? ''}`);
@@ -560,6 +561,7 @@ export async function runLauncher(options = {}) {
         endpoint,
         admissionTicket: session.launch.admissionCredential,
         engineNative,
+        kernelConfig: kernelConfigPath,
         logDir: botLogDir,
         accountFrom: session.login.loginName,
         accountTo: session.login.loginName,

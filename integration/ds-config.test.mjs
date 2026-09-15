@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { test } from 'node:test';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   ALLOCATION_KEYS,
   PLACEHOLDER_PUBLIC_KEY,
   assertRunnableDsConfig,
+  writeKernelConfigForRun,
 } from './ds-config.mjs';
 
 const committed = JSON.parse(readFileSync(new URL('../server.json', import.meta.url), 'utf8'));
@@ -65,4 +68,16 @@ test('missing required values are loud MISSING_VALUE errors, not BLOCKED_ENV', (
       return true;
     },
   );
+});
+
+
+test('missing explicit KernelConfig is rejected instead of receiving hidden limits', () => {
+  const path = new URL('../server.json', import.meta.url);
+  const copy = JSON.parse(readFileSync(path, 'utf8'));
+  delete copy.clr.kernel_config;
+  const dir = mkdtempSync(join(tmpdir(), 'sample-kernel-config-'));
+  const input = join(dir, 'server.json');
+  const output = join(dir, 'kernel-config.json');
+  writeFileSync(input, `${JSON.stringify(copy)}\n`);
+  assert.throws(() => writeKernelConfigForRun(input, output), /clr.kernel_config/);
 });
