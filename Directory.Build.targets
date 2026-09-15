@@ -27,14 +27,27 @@
 
   <!-- HostEntry loads Lumio.GameRuntime.Simulation.dll beside the assemblies
        server.json names and reflects DedicatedServerHostBinding.TryAttach.
-       The consumer is net10.0; Simulation's ns2.1 TFM Compile-Removes that type. -->
+       The consumer is net10.0; Simulation's ns2.1 TFM Compile-Removes that type.
+       Spectator wasm passes LumioBrowserReplica=true so NativeLoader stays out. -->
+  <PropertyGroup>
+    <_LumioRuntimeTfm Condition="'$(LumioBrowserReplica)' == 'true'">netstandard2.1</_LumioRuntimeTfm>
+    <_LumioRuntimeTfm Condition="'$(_LumioRuntimeTfm)' == ''">net10.0</_LumioRuntimeTfm>
+  </PropertyGroup>
   <ItemGroup Condition="'$(LumioSdkMode)' == 'sibling' and ('$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' or '$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay.Tests')">
-    <ProjectReference Include="$(_LumioRuntimeEcsProject)" />
-    <ProjectReference Include="$(_LumioRuntimeReplicationProject)" />
-    <ProjectReference Include="$(_LumioRuntimeGasProject)" />
-    <ProjectReference Include="$(_LumioRuntimeConfigProject)" />
+    <ProjectReference Include="$(_LumioRuntimeEcsProject)">
+      <SetTargetFramework Condition="'$(LumioBrowserReplica)' == 'true'">TargetFramework=netstandard2.1</SetTargetFramework>
+    </ProjectReference>
+    <ProjectReference Include="$(_LumioRuntimeReplicationProject)">
+      <SetTargetFramework Condition="'$(LumioBrowserReplica)' == 'true'">TargetFramework=netstandard2.1</SetTargetFramework>
+    </ProjectReference>
+    <ProjectReference Include="$(_LumioRuntimeGasProject)">
+      <SetTargetFramework Condition="'$(LumioBrowserReplica)' == 'true'">TargetFramework=netstandard2.1</SetTargetFramework>
+    </ProjectReference>
+    <ProjectReference Include="$(_LumioRuntimeConfigProject)">
+      <SetTargetFramework Condition="'$(LumioBrowserReplica)' == 'true'">TargetFramework=netstandard2.1</SetTargetFramework>
+    </ProjectReference>
     <ProjectReference Include="$(_LumioRuntimeSimulationProject)">
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <SetTargetFramework>TargetFramework=$(_LumioRuntimeTfm)</SetTargetFramework>
     </ProjectReference>
   </ItemGroup>
 

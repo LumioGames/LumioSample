@@ -18,6 +18,7 @@ import {
   buildCdpLaunchInjection,
   collectCdpSpectatorObservation,
   compareCdpSpectatorSnapshots,
+  normalizeSnapshot,
   compiledNativeLoaderAbi,
   createSpectatorDocument,
   countBotHostProcesses,
@@ -32,6 +33,7 @@ import {
   gameplayRegistrySideAgreement,
   baseMapCaptureAgreement,
   SPECTATOR_WASM_CONNECTION_STATE_MARKER,
+  SPECTATOR_WASM_APPLY_ERROR_MARKER,
   spectatorWasmAgreement,
   buildChildEnv,
   nativeAbiAgreement,
@@ -54,6 +56,8 @@ import {
 } from './spectator-100.mjs';
 
 const SAMPLE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const GAMEPLAY_CSPROJ = resolve(SAMPLE_ROOT, 'src', 'Lumio.Sample.Gameplay', 'Lumio.Sample.Gameplay.csproj');
+const REPLICA_CSPROJ = resolve(SAMPLE_ROOT, '..', 'LumioClient', 'modules', 'replica', 'src', 'Lumio.Client.Replica.csproj');
 
 test('hermetic spectator-100 is BLOCKED_ENV when live env is missing', async () => {
   const evidence = mkdtempSync(join(tmpdir(), 'lumio-spectator-100-'));
@@ -554,6 +558,20 @@ test('CDP snapshot comparison requires authoritative movement of the self point'
   const report = compareCdpSpectatorSnapshots(t0, moved, { requiredMoved: 1 });
   assert.equal(report.selfMoved, true);
   assert.equal(report.ok, true);
+});
+
+test('normalizeSnapshot keeps replica apply lastError for Wave B FAIL attribution', () => {
+  const snapshot = normalizeSnapshot({
+    status: 'failed',
+    botCount: 0,
+    positions: [],
+    updatedAtMs: 1,
+    lastError: 'authority_apply_failed:Rejected:FullSnapshot',
+    lastFrameType: 'WorldChange',
+  });
+  assert.equal(snapshot.status, 'failed');
+  assert.equal(snapshot.lastError, 'authority_apply_failed:Rejected:FullSnapshot');
+  assert.equal(snapshot.lastFrameType, 'WorldChange');
 });
 
 test('collectCdpSpectatorObservation injects in memory and writes secret-free snapshot plus PNG', async () => {
@@ -1155,10 +1173,11 @@ test('spectatorWasmAgreement accepts a Spectator wasm that exports ConnectionSta
     const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
     mkdirSync(framework, { recursive: true });
     writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
-    writeFileSync(join(framework, 'Lumio.Client.Spectator.test.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} suffix`);
+    writeFileSync(join(framework, 'Lumio.Client.Spectator.test.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER} suffix`);
     const agreement = spectatorWasmAgreement({ clientRoot: dir });
     assert.equal(agreement.ok, true, agreement.reason);
     assert.equal(agreement.marker, SPECTATOR_WASM_CONNECTION_STATE_MARKER);
+    assert.equal(agreement.applyErrorMarker, SPECTATOR_WASM_APPLY_ERROR_MARKER);
     assert.match(String(agreement.wasm).replaceAll('\\', '/'), /Lumio\.Client\.Spectator\.test\.wasm$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -1176,6 +1195,79 @@ test('spectatorWasmAgreement refuses a pre-replica-host Spectator wasm missing C
     assert.equal(agreement.ok, false);
     assert.match(String(agreement.reason), /ConnectionState/);
     assert.match(String(agreement.reason), /admission pose/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('spectatorWasmAgreement refuses an r18 Spectator wasm missing LastApplyError', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-wasm-no-apply-error-'));
+  try {
+    const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
+    mkdirSync(framework, { recursive: true });
+    writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
+    writeFileSync(join(framework, 'Lumio.Client.Spectator.r18.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} suffix`);
+    const agreement = spectatorWasmAgreement({ clientRoot: dir });
+    assert.equal(agreement.ok, false);
+    assert.match(String(agreement.reason), /LastApplyError/);
+    assert.match(String(agreement.reason), /unattributed/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('browser gameplay compile is netstandard2.1 so NativeLoader cannot unify into spectator wasm', () => {
+  const csproj = readFileSync(GAMEPLAY_CSPROJ, 'utf8');
+  assert.match(csproj, /LumioBrowserReplica.*true.*netstandard2\.1/s);
+  assert.match(csproj, /LumioBrowserReplica.*!=.*true.*net10\.0/s);
+});
+
+test('browser replica compile pins Runtime to netstandard2.1 so NativeLoader cannot unify into spectator wasm', () => {
+  assert.equal(existsSync(REPLICA_CSPROJ), true, REPLICA_CSPROJ);
+  const csproj = readFileSync(REPLICA_CSPROJ, 'utf8');
+  assert.match(csproj, /LumioBrowserReplica.*==.*true[\s\S]*TargetFramework=netstandard2\.1/);
+  assert.match(csproj, /Lumio\.GameRuntime\.Simulation\.csproj[\s\S]*SetTargetFramework Condition="'\$\(LumioBrowserReplica\)' == 'true'"/);
+});
+
+test('spectator wasm host references built ns2.1 Replica/Gameplay DLLs instead of a net10.0 ProjectReference graph', () => {
+  const host = resolve(SAMPLE_ROOT, '..', 'LumioClient', 'modules', 'web', 'spectator', 'tests', 'host', 'Lumio.Client.Spectator.csproj');
+  assert.equal(existsSync(host), true, host);
+  const csproj = readFileSync(host, 'utf8');
+  assert.match(csproj, /_SpectatorReplicaDll.*Lumio\.Client\.Replica\.dll/);
+  assert.match(csproj, /_SpectatorGameplayDll.*Lumio\.Sample\.Gameplay\.dll/);
+  assert.match(csproj, /RequireBrowserReplicaAssemblies/);
+  assert.match(csproj, /ForbidNativeLoaderInBrowserPublish/);
+  assert.doesNotMatch(csproj, /ProjectReference Include=.*Lumio\.GameRuntime\.Simulation/);
+});
+
+test('spectatorWasmAgreement accepts Hfsm wasm without NativeLoader', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-wasm-hfsm-ok-'));
+  try {
+    const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
+    mkdirSync(framework, { recursive: true });
+    writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
+    writeFileSync(join(framework, 'Lumio.Client.Spectator.test.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER} suffix`);
+    writeFileSync(join(framework, 'Lumio.Engine.NativeLoader.Hfsm.ok.wasm'), 'hfsm');
+    const agreement = spectatorWasmAgreement({ clientRoot: dir });
+    assert.equal(agreement.ok, true, agreement.reason);
+    assert.equal(agreement.nativeLoader, undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('spectatorWasmAgreement refuses a browser _framework that still publishes NativeLoader', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-wasm-nativeloader-'));
+  try {
+    const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
+    mkdirSync(framework, { recursive: true });
+    writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
+    writeFileSync(join(framework, 'Lumio.Client.Spectator.test.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER} suffix`);
+    writeFileSync(join(framework, 'Lumio.Engine.NativeLoader.deadbeef.wasm'), 'NativeLibrary');
+    const agreement = spectatorWasmAgreement({ clientRoot: dir });
+    assert.equal(agreement.ok, false);
+    assert.match(String(agreement.reason), /NativeLoader/);
+    assert.match(String(agreement.reason), /dump stub empty/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1240,6 +1332,73 @@ test('runLiveTopology refuses a stale spectator wasm before minting tickets', as
     });
     assert.equal(result.status, 'FAIL', result.error);
     assert.match(String(result.error), /ConnectionState/);
+    assert.equal(mintCalled, false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(evidence, { recursive: true, force: true });
+  }
+});
+
+test('runLiveTopology refuses NativeLoader in spectator _framework before minting tickets', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-nativeloader-live-'));
+  const evidence = mkdtempSync(join(tmpdir(), 'lumio-spectator-nativeloader-evidence-'));
+  try {
+    const { nativePath } = writeNativePair(dir);
+    const gameplay = join(dir, 'Lumio.Sample.Gameplay.dll');
+    writeFileSync(gameplay, Buffer.from(`prefix\0${GAMEPLAY_CLIENT_MARKER}\0suffix`, 'utf16le'));
+    writeUtf16Dll(join(dir, 'Lumio.Engine.NativeLoader.dll'), MATCHING_ABI);
+    const botDll = join(dir, 'Lumio.Client.Bot.Host.dll');
+    writeFileSync(botDll, 'bot');
+    const dsExe = join(dir, 'lumio-ds.exe');
+    writeFileSync(dsExe, `ok-consumer ${DS_TIMER_OWNER_MARKER} ${MATCHING_ABI}`);
+    const dsConfig = join(dir, 'server.json');
+    writeFileSync(dsConfig, JSON.stringify({
+      allocation: {
+        serverAudience: 'game-fleet-local',
+        gameId: 'sample',
+        gameReleaseId: 'sample-0.1.0',
+        contractId: 'lumio.gameplay-envelope.v1',
+        roomId: 'room-sample-1',
+        allocationId: 'alloc-sample-1',
+      },
+      admission_public_key_hex: '9593f57065df3c7303d67a27a458cd4ec8c55de7c5e6c6153b80c5a32ef19cd7',
+    }));
+    const clientRoot = join(dir, 'client');
+    const framework = join(clientRoot, 'modules', 'web', 'spectator', '_framework');
+    mkdirSync(framework, { recursive: true });
+    writeFileSync(join(clientRoot, 'modules', 'web', 'spectator', 'index.html'), '<html></html>');
+    writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
+    writeFileSync(join(framework, 'Lumio.Client.Spectator.ok.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER} suffix`);
+    writeFileSync(join(framework, 'Lumio.Engine.NativeLoader.deadbeef.wasm'), 'NativeLibrary');
+    let mintCalled = false;
+    const result = await runLiveTopology({
+      root: SAMPLE_ROOT,
+      evidence,
+      document: createSpectatorDocument(),
+      env: {
+        LIVE_BOTS: '0',
+        LUMIO_WAVE_B_LIVE: '1',
+        LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080',
+      },
+      options: {
+        authorizeLive: true,
+        attachLive: true,
+        origin: 'http://127.0.0.1:8080',
+        dsExe,
+        dsConfig,
+        botDll,
+        gameplay,
+        engineNative: nativePath,
+        chrome: join(dir, 'chrome.exe'),
+        clientRoot,
+        mintTickets: async () => {
+          mintCalled = true;
+          throw new Error('tickets must not be minted when NativeLoader is in spectator _framework');
+        },
+      },
+    });
+    assert.equal(result.status, 'FAIL', result.error);
+    assert.match(String(result.error), /NativeLoader/);
     assert.equal(mintCalled, false);
   } finally {
     rmSync(dir, { recursive: true, force: true });

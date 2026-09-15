@@ -10,7 +10,11 @@ public static class SampleVein
     /// <summary>Queues <see cref="VeinEntity"/> on the command buffer. Call after lifecycle, not inside it.</summary>
     public static EntityOrder Queue(World world)
     {
+#if NET5_0_OR_GREATER
         ArgumentNullException.ThrowIfNull(world);
+#else
+        if (world is null) throw new ArgumentNullException(nameof(world));
+#endif
         return world.Commands.Create<VeinEntity>();
     }
 
