@@ -64,8 +64,8 @@ required `base_map_id` / `base_map_version` / `base_map_content_sha256`
 is not blocked by `replace-*` tokens. Fill-me tokens live in
 [`server.sample.json`](../server.sample.json) and fail as
 `MISSING_VALUE` (`ds-config.mjs`), not placeholder `BLOCKED_ENV`.
-Host entry stays `Lumio.Server.EntityChat.HostEntry.HostEntry` /
-`LumioEntityChatEntry`. Local machine overlays live in gitignored
+Host entry stays `Lumio.Server.HostEntry.HostEntry` /
+`LumioHostEntry`. Local machine overlays live in gitignored
 `.run/server.local.json` (`LUMIO_DS_CONFIG`); copy the public vocab,
 do not keep `runtime-only`.
 

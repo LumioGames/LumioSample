@@ -24,8 +24,8 @@ export const FROZEN_DURABILITY = 'snapshot_only';
 export const FROZEN_VOXEL_CATALOG = 'maps/official-catalog.json';
 export const FROZEN_BASE_MAP_ID = 'sample';
 export const FROZEN_BASE_MAP_VERSION = '0.1.0';
-export const FROZEN_ENTRY_TYPE = 'Lumio.Server.EntityChat.HostEntry.HostEntry, Lumio.Server.EntityChat.HostEntry';
-export const FROZEN_ENTRY_METHOD = 'LumioEntityChatEntry';
+export const FROZEN_ENTRY_TYPE = 'Lumio.Server.HostEntry.HostEntry, Lumio.Server.HostEntry';
+export const FROZEN_ENTRY_METHOD = 'LumioHostEntry';
 
 export function sha256File(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -88,10 +88,10 @@ export function assertFrozenServerProfile(config, repoRoot = ROOT) {
     throw new Error('server.json base_map_content_sha256 must be 64 lowercase hex');
   }
   if (config.clr?.entry_type !== FROZEN_ENTRY_TYPE) {
-    throw new Error('server.json clr.entry_type must stay Lumio.Server.EntityChat.HostEntry.HostEntry');
+    throw new Error('server.json clr.entry_type must stay Lumio.Server.HostEntry.HostEntry');
   }
   if (config.clr?.entry_method !== FROZEN_ENTRY_METHOD) {
-    throw new Error('server.json clr.entry_method must stay LumioEntityChatEntry');
+    throw new Error('server.json clr.entry_method must stay LumioHostEntry');
   }
   const map = inspectBaseMap(repoRoot);
   if (config.base_map_id !== FROZEN_BASE_MAP_ID) {

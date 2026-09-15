@@ -57,8 +57,8 @@ public sealed class SourceHygieneTests
         Assert.Matches(new Regex("\"base_map_content_sha256\": \"[0-9a-f]{64}\""), text);
         Assert.Contains("\"config_dir\": \"config\"", text);
         Assert.Contains("\"voxel_quota_bytes\": 65536", text);
-        Assert.Contains("Lumio.Server.EntityChat.HostEntry.HostEntry, Lumio.Server.EntityChat.HostEntry", text);
-        Assert.Contains("LumioEntityChatEntry", text);
+        Assert.Contains("Lumio.Server.HostEntry.HostEntry, Lumio.Server.HostEntry", text);
+        Assert.Contains("LumioHostEntry", text);
         Assert.DoesNotContain("replace-host-entry", text);
         Assert.DoesNotContain("replace-server-audience", text);
         Assert.DoesNotContain("REPLACE_WITH_PLATFORM_32_BYTE_PUBLIC_KEY_HEX", text);
