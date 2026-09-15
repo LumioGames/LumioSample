@@ -11,6 +11,7 @@ import {
   loadLayout,
   runCapture,
 } from './capture-basemap.mjs';
+import { catalogCoversLayout, loadOfficialCatalog } from './official-catalog.mjs';
 import { loadCommittedServerJson } from './server-profile.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,6 +34,7 @@ test('layout config names W×D and the vein; capture args call the Engine CLI', 
   assert.equal(layout.width, 32);
   assert.equal(layout.depth, 32);
   assert.deepEqual(layout.vein, { x: 1, z: 1, width: 2, depth: 2 });
+  assert.equal(catalogCoversLayout(loadOfficialCatalog(ROOT), layout), true);
   const args = captureArgs(layout, '/tmp/out.voxel');
   assert.deepEqual(args.slice(0, 6), ['--width', '32', '--depth', '32', '--vein', '1,1,2,2']);
   assert.ok(args.includes('--verify-restore'));

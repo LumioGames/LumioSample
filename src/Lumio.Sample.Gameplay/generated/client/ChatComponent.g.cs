@@ -5,11 +5,13 @@ using Lumio.GameRuntime.Ecs;
 
 namespace Lumio.Sample.Gameplay.Components.Chat;
 
-public sealed partial class ChatComponent : IGeneratedComponent, IGeneratedSyncMetadata
+public sealed partial class ChatComponent : IGeneratedComponent, IGeneratedSyncMetadata, IGeneratedOperationComponent
 {
     partial void OnClientWrite(in SyncWrite w, ref bool accept);
 
     public partial void SendMessage(string text) => EmitServerRpc("SendMessage", text);
+    public bool SendMessage(string text, Action<ErrorCode> completion) => EmitServerRpcTracked("SendMessage", new object?[] { text }, completion);
+    public bool SendMessageTracked(string text, Action<ErrorCode, OperationReceiptMessage?> completion) => EmitServerRpcTracked("SendMessage", new object?[] { text }, completion);
 
     void IGeneratedComponent.BindFields(ISyncHost host)
     {
@@ -34,7 +36,13 @@ public sealed partial class ChatComponent : IGeneratedComponent, IGeneratedSyncM
     }
 
     void IGeneratedComponent.DispatchServerRpc(string method, object?[] args)
+        => ((IGeneratedOperationComponent)this).TryDispatchServerRpc(method, args, out _);
+
+    bool IGeneratedOperationComponent.TryDispatchServerRpc(string method, object?[] args, out OperationExecutionOutcome outcome)
     {
+        outcome = new(OperationOutcomeKind.OutcomeUnavailable, OperationCommitFact.Unknown, "operation_outcome_unavailable");
+        outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_unknown_method");
+        return false;
     }
 
     void IGeneratedComponent.DispatchClientRpc(string method, object?[] args)

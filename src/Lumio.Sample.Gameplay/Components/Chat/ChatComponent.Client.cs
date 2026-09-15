@@ -5,7 +5,7 @@ namespace Lumio.Sample.Gameplay.Components.Chat;
 
 public sealed partial class ChatComponent
 {
-    /// <summary>Client convenience wrapper around <see cref="SendMessage"/>.</summary>
+    /// <summary>Client convenience wrapper around <see cref="SendMessage(string)"/>.</summary>
     public void Say(string text)
     {
         Log.LogInformation("{Entity} says: {Text}", Entity.ToHex(), text);

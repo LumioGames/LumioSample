@@ -2,8 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
+using System.Threading;
+using Lumio.Engine.NativeLoader;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
+using Lumio.GameRuntime.Persistence;
+using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Identity;
 using Lumio.Sample.Gameplay.Config;
@@ -324,6 +328,94 @@ public sealed class MoveAbilityWorldTests : IDisposable
     }
 
     [Fact]
+    public void BindPlayerPlacesAnAdmittedPlayerAboveTheCaptureFloor()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
+        NetEntityId player = world.AdmitPlayer("acct-spawn");
+        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, world.World.Get<LogicTransform>(player).LocalPosition);
+        SampleGameplay.BindPlayer(world.World, player);
+        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, world.World.Get<LogicTransform>(player).LocalPosition);
+        Assert.Equal(4.5f, SampleGameplay.AdmittedPlayerPosition.Y);
+        Assert.Equal(16.5f, SampleGameplay.AdmittedPlayerPosition.X);
+        Assert.Equal(16.5f, SampleGameplay.AdmittedPlayerPosition.Z);
+    }
+
+    [Fact]
+    public void NativeSweepAtAdmissionPoseAdmitsAHorizontalStep()
+    {
+        string nativePath = Environment.GetEnvironmentVariable("LUMIO_ENGINE_NATIVE_PATH")
+            ?? throw new InvalidOperationException("NativeSweepAtAdmissionPoseAdmitsAHorizontalStep requires LUMIO_ENGINE_NATIVE_PATH.");
+        using NativeEngineLease native = NativeEngineLoader.LoadFromBuildInfo(nativePath);
+        byte[] catalog = File.ReadAllBytes(Path.Combine(RepoRoot(), "maps", "official-catalog.json"));
+        byte[] voxel = File.ReadAllBytes(Path.Combine(RepoRoot(), "maps", "sample.voxel"));
+        using WorldManager source = SampleGameplay.CreateWorld(17UL);
+        source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
+        using DedicatedServerHostBinding attached = Assert.IsType<DedicatedServerHostBinding>(
+            DedicatedServerHostBinding.TryAttach(source, catalog));
+        source.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(source);
+        EntityOrder order = PlayerLifecycleTests.QueuePlayer(source.World, "acct-native-spawn");
+        source.Tick();
+        byte[] runtime = source.CaptureSnapshot();
+        attached.Dispose();
+        DedicatedServerRestoreResult restored = DedicatedServerHostBinding.RestoreNew(
+            runtime,
+            voxel,
+            GeneratedRegistry.Instance,
+            null,
+            source.IngressBudget,
+            catalog);
+        Assert.True(restored.Succeeded, restored.ErrorCode);
+        using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(restored.Binding);
+        using WorldManager manager = binding.Manager;
+        manager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(manager);
+        NetEntityId player = order.AssignedId;
+        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, manager.World.Get<LogicTransform>(player).LocalPosition);
+        AbilityComponent abilities = manager.World.Get<AbilityComponent>(player);
+        Assert.Same(AbilityPhysicsBinding.Resolve(manager), abilities.Physics);
+        var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
+        AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);
+        Assert.True(result.Succeeded, result.FailureCode ?? "MoveAbility refused the committed sample.voxel admission pose");
+        Assert.Equal(
+            SampleGameplay.AdmittedPlayerPosition + new Vector3((float)SampleTables.StepMeters, 0f, 0f),
+            manager.World.Get<LogicTransform>(player).LocalPosition);
+        _ = native;
+    }
+
+    [Fact]
+    public void TryAttachRestoresCommittedSampleVoxelAndAdmitsAHorizontalStep()
+    {
+        string nativePath = Environment.GetEnvironmentVariable("LUMIO_ENGINE_NATIVE_PATH")
+            ?? throw new InvalidOperationException("TryAttachRestoresCommittedSampleVoxelAndAdmitsAHorizontalStep requires LUMIO_ENGINE_NATIVE_PATH.");
+        using NativeEngineLease native = NativeEngineLoader.LoadFromBuildInfo(nativePath);
+        byte[] catalog = File.ReadAllBytes(Path.Combine(RepoRoot(), "maps", "official-catalog.json"));
+        byte[] voxel = File.ReadAllBytes(Path.Combine(RepoRoot(), "maps", "sample.voxel"));
+        using WorldManager manager = SampleGameplay.CreateWorld(19UL);
+        manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
+        using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(
+            DedicatedServerHostBinding.TryAttach(manager, catalog, voxel));
+        manager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(manager);
+        EntityOrder order = PlayerLifecycleTests.QueuePlayer(manager.World, "acct-tryattach-spawn");
+        manager.Tick();
+        NetEntityId player = order.AssignedId;
+        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, manager.World.Get<LogicTransform>(player).LocalPosition);
+        AbilityComponent abilities = manager.World.Get<AbilityComponent>(player);
+        Assert.Same(AbilityPhysicsBinding.Resolve(manager), abilities.Physics);
+        var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
+        AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);
+        Assert.True(result.Succeeded, result.FailureCode ?? "MoveAbility refused TryAttach-restored sample.voxel");
+        Assert.Equal(
+            SampleGameplay.AdmittedPlayerPosition + new Vector3((float)SampleTables.StepMeters, 0f, 0f),
+            manager.World.Get<LogicTransform>(player).LocalPosition);
+        _ = native;
+    }
+
+    private static string RepoRoot() =>
+        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+
+    [Fact]
     public void AdmitPlayerActivateMoveChangesLogicTransformWhenPhysicsPortIsPresent()
     {
         using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
@@ -341,6 +433,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         Assert.IsType<RecordingAbilityPhysicsPort>(abilities.Physics);
 
         LogicTransform logic = world.World.Get<LogicTransform>(player);
+        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, logic.LocalPosition);
         Vector3 origin = logic.LocalPosition;
         var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
         AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);

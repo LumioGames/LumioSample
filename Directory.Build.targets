@@ -70,6 +70,7 @@
   </ItemGroup>
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client'">
     <DefineConstants>$(DefineConstants);LUMIO_CLIENT</DefineConstants>
+    <!-- OutputPath isolation lives in Directory.Build.props (evaluated before the SDK). -->
   </PropertyGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client'">
     <Compile Remove="**/*.Server.cs" />

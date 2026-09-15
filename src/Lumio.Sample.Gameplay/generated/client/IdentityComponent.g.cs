@@ -5,7 +5,7 @@ using Lumio.GameRuntime.Ecs;
 
 namespace Lumio.Sample.Gameplay.Components.Identity;
 
-public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedSyncMetadata
+public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedSyncMetadata, IGeneratedOperationComponent
 {
     partial void OnNameChanging(string old, string @new, ChangeReason reason);
     partial void OnNameChanged(string old, string @new, ChangeReason reason);
@@ -43,7 +43,13 @@ public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedS
     }
 
     void IGeneratedComponent.DispatchServerRpc(string method, object?[] args)
+        => ((IGeneratedOperationComponent)this).TryDispatchServerRpc(method, args, out _);
+
+    bool IGeneratedOperationComponent.TryDispatchServerRpc(string method, object?[] args, out OperationExecutionOutcome outcome)
     {
+        outcome = new(OperationOutcomeKind.OutcomeUnavailable, OperationCommitFact.Unknown, "operation_outcome_unavailable");
+        outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_unknown_method");
+        return false;
     }
 
     void IGeneratedComponent.DispatchClientRpc(string method, object?[] args)

@@ -24,6 +24,7 @@ public sealed class SourceHygieneTests
             if (file.Contains($"{Path.DirectorySeparatorChar}generated{Path.DirectorySeparatorChar}", System.StringComparison.Ordinal))
                 continue;
             if (Path.GetFileName(file) == "MoveAbility.cs") continue;
+            if (Path.GetFileName(file) == "SampleGameplay.cs") continue;
             if (Regex.IsMatch(File.ReadAllText(file), @"SetLocalPosition|SetWorldPosition|Translate\("))
                 hits.Add(file);
         }
@@ -46,6 +47,7 @@ public sealed class SourceHygieneTests
         Assert.DoesNotContain("/Users/", text);
         Assert.DoesNotContain("LumioGameEngine/", text);
         Assert.Contains("\"world_profile\": \"runtime+voxel\"", text);
+        Assert.Contains("\"voxel_catalog\": \"maps/official-catalog.json\"", text);
         Assert.Contains("\"durability\": \"snapshot_only\"", text);
         Assert.DoesNotContain("process-crash", text);
         Assert.DoesNotContain("power-loss", text);

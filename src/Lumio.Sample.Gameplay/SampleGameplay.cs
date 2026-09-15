@@ -1,9 +1,12 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
 using Lumio.Sample.Gameplay.Config;
+
+[assembly: InternalsVisibleTo("Lumio.Sample.Gameplay.Tests")]
 
 namespace Lumio.Sample.Gameplay;
 
@@ -58,6 +61,28 @@ public static class SampleGameplay
             },
             _ => { },
             _ => attributes.SetCurrentValue(stamina, attributes.GetBaseValue(stamina)));
+        PlaceAdmittedPlayer(world, player);
+    }
+
+    /// <summary>
+    /// Capture floor is y=0 with a one-cell wall at y=1. Default LogicTransform
+    /// is the origin, which SweepBox cannot answer without sealing the DS.
+    /// MoveAbility is the sole writer; this is the admission pose, not a step.
+    /// Y is the open-cell height already proven by
+    /// <c>RealHostAabbWallAndOpenMovementSurviveColdRestore</c> (y=4.5).
+    /// Wave B r13 issued MoveAbility from (16.5, 1.5, 16.5) and every replica
+    /// stayed there: a 0.35 AABB at y=1.5 overlaps unwritten y=1 interior
+    /// cells, which SweepBox reports as unresolved rather than air.
+    /// </summary>
+    internal static readonly Vector3 AdmittedPlayerPosition = new(16.5f, 4.5f, 16.5f);
+
+    private static void PlaceAdmittedPlayer(World world, NetEntityId player)
+    {
+        LogicTransform logic = world.Get<LogicTransform>(player);
+        if (logic.LocalPosition != Vector3.Zero) return;
+        TransformController controller = world.RegisterTransformController(player, nameof(MoveAbility));
+        using (logic.BeginWrite(controller))
+            logic.SetLocalPosition(AdmittedPlayerPosition);
     }
 
     /// <summary>Generic Activate. Owner for CanActivate comes from <see cref="BindPlayer"/>'s context, not this wrapper.</summary>

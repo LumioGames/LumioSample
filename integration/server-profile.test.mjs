@@ -8,6 +8,7 @@ import {
   FROZEN_DURABILITY,
   FROZEN_ENTRY_METHOD,
   FROZEN_ENTRY_TYPE,
+  FROZEN_VOXEL_CATALOG,
   FROZEN_WORLD_PROFILE,
   assertFrozenServerProfile,
   describeLocalOverlay,
@@ -19,6 +20,7 @@ import {
 test('committed server.json is runtime+voxel snapshot_only with required base_map_*', () => {
   const config = loadCommittedServerJson();
   assert.equal(config.world_profile, FROZEN_WORLD_PROFILE);
+  assert.equal(config.voxel_catalog, FROZEN_VOXEL_CATALOG);
   assert.equal(config.durability, FROZEN_DURABILITY);
   assert.notEqual(config.durability, 'process-crash');
   assert.notEqual(config.durability, 'power-loss');
@@ -48,6 +50,7 @@ test('sha mismatch and retired durability are refused before treating bytes as a
   writeFileSync(join(isolated, 'maps', 'sample.voxel'), fakeBytes);
   const config = {
     world_profile: 'runtime+voxel',
+    voxel_catalog: FROZEN_VOXEL_CATALOG,
     durability: 'snapshot_only',
     base_map_id: 'sample',
     base_map_version: '0.1.0',

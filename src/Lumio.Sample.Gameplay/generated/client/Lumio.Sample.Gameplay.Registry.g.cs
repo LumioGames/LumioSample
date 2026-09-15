@@ -46,14 +46,31 @@ public sealed class GeneratedRegistry : EcsRegistry
 
     /// <inheritdoc />
     public override bool TryApplyMappedInput(World world, InputCommandMessage input)
+        => TryApplyMappedInput(world, input, out _);
+
+    /// <inheritdoc />
+    public override bool TryApplyMappedInput(World world, InputCommandMessage input, out OperationExecutionOutcome outcome)
     {
+        outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_unknown_mapping");
         if (string.Equals(input.MappingId, "chat.input", StringComparison.Ordinal))
         {
-            if (!WireCodec.TryReadUtf8Payload(input.Payload.Span, out string text) || !world.IsLive(input.Sender)) return true;
+            outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_invalid_payload");
+            if (!WireCodec.TryReadUtf8Payload(input.Payload.Span, out string text)) return true;
+            outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_unknown_component");
+            if (!world.IsLive(input.Sender)) return true;
             Component? component = world.NamedComponent(input.Sender, "ChatComponent");
             if (component is null) return true;
             component.SetRpcContext(new RpcContext(input.Sender, world.Tick));
-            Generated(component)?.DispatchServerRpc("SendMessage", new object[] { text });
+            if (component is IGeneratedOperationComponent operationComponent)
+            {
+                if (!operationComponent.TryDispatchServerRpc("SendMessage", new object[] { text }, out outcome))
+                    outcome = new(OperationOutcomeKind.ProtocolReject, OperationCommitFact.NotApplied, "operation_unknown_method");
+            }
+            else
+            {
+                Generated(component)?.DispatchServerRpc("SendMessage", new object[] { text });
+                outcome = new(OperationOutcomeKind.OutcomeUnavailable, OperationCommitFact.Unknown, "operation_outcome_unavailable");
+            }
             return true;
         }
         return false;

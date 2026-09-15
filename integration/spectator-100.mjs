@@ -40,9 +40,6 @@ import {
 import { assertRunnableDsConfig } from './ds-config.mjs';
 import { blocked, loadProcessTools } from './engine-tools.mjs';
 import {
-  collectBotEvidenceText,
-  countAdmittedBots,
-  inspectBotAdmit,
   parseBotAdmit,
   parseLaunchArgs,
   resolveSpectatorPageUrl,
@@ -62,6 +59,15 @@ export const TICKET_MANIFEST_NAME = 'spectator-102.json';
 export const TICKET_PREFIX = 'stressbot';
 export const TICKET_START_INDEX = 0;
 export const REQUIRED_PREFLIGHT_PORTS = Object.freeze([9110, 8080, 4173, 9222, 9223]);
+/** Owner PASS H2aczB admitted 100/100 at ~100 ms between Bot.Host starts. */
+export const WAVE_B_STAGGER_MS = 100;
+export const BOT_HOLD_INPUT_FLAG = 'bot-hold-input.flag';
+/** After hold-input lifts, wait so 4 Hz MoveAbility can leave the admission pose before the 5s probe. r11 t0/t5 were both 16.5,16.5. */
+export const WAVE_B_MOVE_SETTLE_MS = 3000;
+/** Owner PASS H2aczB had no cadence_lag lines; this-round last-three handshake faults while DS already dropped cadence. */
+export const DS_CADENCE_LAG_MARKER = 'cadence_lag';
+/** host.drop cadence_lag lands in logging.dir ~400ms after DS_READY; wait before spawn. */
+export const DS_CADENCE_LAG_SETTLE_MS = 1000;
 export const LIVE_ENV_FLAG = 'LUMIO_WAVE_B_LIVE';
 export const LIVE_AUTH_FLAG = 'authorizeLive';
 export const CDP_SPECTATOR_SNAPSHOT_EXPRESSION = 'window.__lumioSpectator ?? null';
@@ -99,7 +105,7 @@ export const CDP_CANVAS_STATS_EXPRESSION = `(() => {
     spanX: maxX >= 0 ? maxX - minX : 0, spanY: maxY >= 0 ? maxY - minY : 0 };
 })()`;
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_STATIC_PORT = 4173;
 const DEFAULT_DS_PORT = 9110;
 const BOT_NAME_PATTERN = /^Bot[0-9]+$/;
@@ -176,6 +182,399 @@ export function requiredLivePaths(env = process.env) {
     spectatorOrigin: env.LUMIO_SPECTATOR_ORIGIN,
     liveBots: env.LIVE_BOTS,
   };
+}
+
+const NATIVE_LOADER_DLL = 'Lumio.Engine.NativeLoader.dll';
+const NATIVE_ABI_HEX = /^[0-9a-f]{64}$/;
+
+export function nativeSidecarPath(nativePath) {
+  return join(dirname(resolve(String(nativePath))), 'build-info.json');
+}
+
+export function nativeLoaderBeside(gameplayPath) {
+  return join(dirname(resolve(String(gameplayPath))), NATIVE_LOADER_DLL);
+}
+
+function uniqueAbiHashes(text) {
+  const found = [];
+  const seen = new Set();
+  for (const match of String(text).matchAll(/[0-9a-f]{64}/g)) {
+    const value = match[0];
+    if (seen.has(value)) continue;
+    seen.add(value);
+    found.push(value);
+  }
+  return found;
+}
+
+/**
+ * Compiled consumer ABI is NativeLoader's `AbiConstants.DefinitionSha256`.
+ * The live DS loads that assembly from beside the named gameplay DLL.
+ */
+export function compiledNativeLoaderAbi(nativeLoaderPath) {
+  if (!isFilePath(nativeLoaderPath)) {
+    throw new Error(`NativeLoader assembly is missing: ${nativeLoaderPath}`);
+  }
+  const bytes = readFileSync(nativeLoaderPath);
+  const utf16 = uniqueAbiHashes(Buffer.from(bytes).toString('utf16le'));
+  if (utf16.length === 1) return utf16[0];
+  const ascii = uniqueAbiHashes(Buffer.from(bytes).toString('latin1'));
+  if (ascii.length === 1) return ascii[0];
+  const hashes = utf16.length > 0 ? utf16 : ascii;
+  if (hashes.length === 0) {
+    throw new Error(`NativeLoader compiled ABI hash is not present in ${nativeLoaderPath}`);
+  }
+  throw new Error(`NativeLoader compiled ABI hash is ambiguous in ${nativeLoaderPath}: ${hashes.join(', ')}`);
+}
+
+export function readNativeSidecar(nativePath) {
+  const sidecar = nativeSidecarPath(nativePath);
+  if (!isFilePath(sidecar)) {
+    throw new Error(`native build-info sidecar is missing: ${sidecar}`);
+  }
+  let info;
+  try {
+    info = JSON.parse(readFileSync(sidecar, 'utf8'));
+  } catch (error) {
+    throw new Error(`native build-info sidecar is invalid JSON: ${error.message}`);
+  }
+  if (!info || typeof info !== 'object' || Array.isArray(info)) {
+    throw new Error(`native build-info sidecar must be an object: ${sidecar}`);
+  }
+  const abiHash = String(info.abiHash ?? '').trim().toLowerCase();
+  const buildId = String(info.buildId ?? '').trim().toLowerCase();
+  const binarySha256 = String(info.binarySha256 ?? '').trim().toLowerCase();
+  if (!NATIVE_ABI_HEX.test(abiHash)) {
+    throw new Error(`native sidecar abiHash must be 64 hex characters: ${sidecar}`);
+  }
+  if (!buildId) throw new Error(`native sidecar buildId is missing: ${sidecar}`);
+  if (!NATIVE_ABI_HEX.test(binarySha256)) {
+    throw new Error(`native sidecar binarySha256 must be 64 hex characters: ${sidecar}`);
+  }
+  return { sidecar, abiHash, buildId, binarySha256 };
+}
+
+/**
+ * Fail closed when the operator-named native image does not match the
+ * NativeLoader sitting next to gameplay. WorldTickBinding.Bind loads
+ * clock_now through that pair; a stale sidecar used to surface only as
+ * DS_FATAL tick_binding_unavailable after tickets had already been minted.
+ */
+export function nativeAbiAgreement({ engineNative, gameplay } = {}) {
+  const nativePath = resolve(String(engineNative ?? ''));
+  const gameplayPath = resolve(String(gameplay ?? ''));
+  if (!isFilePath(nativePath)) {
+    return { ok: false, reason: `LUMIO_ENGINE_NATIVE is not a file: ${nativePath}` };
+  }
+  if (!isFilePath(gameplayPath)) {
+    return { ok: false, reason: `LUMIO_GAMEPLAY is not a file: ${gameplayPath}` };
+  }
+  let sidecar;
+  try {
+    sidecar = readNativeSidecar(nativePath);
+  } catch (error) {
+    return { ok: false, reason: error.message };
+  }
+  const actualBinary = createHash('sha256').update(readFileSync(nativePath)).digest('hex');
+  if (actualBinary !== sidecar.binarySha256) {
+    return {
+      ok: false,
+      reason: `native binary SHA-256 ${actualBinary} does not match sidecar ${sidecar.binarySha256}: ${nativePath}`,
+      sidecarAbi: sidecar.abiHash,
+      binarySha256: actualBinary,
+      sidecarBinarySha256: sidecar.binarySha256,
+    };
+  }
+  const loaderPath = nativeLoaderBeside(gameplayPath);
+  let compiledAbi;
+  try {
+    compiledAbi = compiledNativeLoaderAbi(loaderPath);
+  } catch (error) {
+    return { ok: false, reason: error.message, sidecarAbi: sidecar.abiHash };
+  }
+  if (compiledAbi !== sidecar.abiHash) {
+    return {
+      ok: false,
+      reason: `native sidecar ABI ${sidecar.abiHash} does not match NativeLoader compiled ABI ${compiledAbi} (WorldTickBinding.Bind will fail as tick_binding_unavailable)`,
+      sidecarAbi: sidecar.abiHash,
+      compiledAbi,
+      nativeLoader: loaderPath,
+      sidecar: sidecar.sidecar,
+    };
+  }
+  return {
+    ok: true,
+    sidecarAbi: sidecar.abiHash,
+    compiledAbi,
+    buildId: sidecar.buildId,
+    binarySha256: sidecar.binarySha256,
+    nativeLoader: loaderPath,
+    sidecar: sidecar.sidecar,
+  };
+}
+
+/**
+ * Engine timer v2 requires `timer_register_scope(manager, owner, scope_id,
+ * scope_kind, out_generation)`. A lumio-ds built before 323581b still calls
+ * the four-argument form, so Engine treats SCOPE_ID as owner and returns
+ * TimerScopeInvalid (status 7) before DS_READY. The rebuilt host-runtime
+ * keeps the `timer_manager_owner` marker in the image; absence is FAIL.
+ */
+export const DS_TIMER_OWNER_MARKER = 'timer_manager_owner';
+
+export function dsTimerOwnerAbi(dsExe) {
+  const dsPath = resolve(String(dsExe ?? ''));
+  if (!isFilePath(dsPath)) {
+    return { ok: false, reason: `LUMIO_DS_EXE is not a file: ${dsPath}` };
+  }
+  const bytes = readFileSync(dsPath);
+  const latin1 = bytes.toString('latin1');
+  if (!latin1.includes(DS_TIMER_OWNER_MARKER)) {
+    return {
+      ok: false,
+      reason: `lumio-ds is missing ${DS_TIMER_OWNER_MARKER} (pre-timer-v2 binary; timer_register_scope status 7)`,
+      marker: DS_TIMER_OWNER_MARKER,
+      dsExe: dsPath,
+    };
+  }
+  return { ok: true, marker: DS_TIMER_OWNER_MARKER, dsExe: dsPath };
+}
+
+/**
+ * host-runtime copies Engine `native_abi_identity.rs` at compile time. A
+ * lumio-ds built against a detached Engine checkout (0942b99a) rejects a
+ * current sidecar (3b62124b) as sdk_version_mismatch before DS_READY.
+ */
+export function dsConsumerAbiAgreement({ dsExe, sidecarAbi } = {}) {
+  const owner = dsTimerOwnerAbi(dsExe);
+  if (!owner.ok) return owner;
+  const expected = String(sidecarAbi ?? '').trim().toLowerCase();
+  if (!NATIVE_ABI_HEX.test(expected)) {
+    return { ok: false, reason: `native sidecar ABI is not 64 hex characters: ${sidecarAbi}` };
+  }
+  const latin1 = readFileSync(owner.dsExe).toString('latin1').toLowerCase();
+  if (!latin1.includes(expected)) {
+    return {
+      ok: false,
+      reason: `lumio-ds compiled consumer ABI does not contain sidecar ${expected} (sdk_version_mismatch)`,
+      sidecarAbi: expected,
+      dsExe: owner.dsExe,
+    };
+  }
+  return { ok: true, marker: owner.marker, sidecarAbi: expected, dsExe: owner.dsExe };
+}
+
+/**
+ * Sample compiles one gameplay tree twice. Server is the default
+ * (`LumioEcsSide` unset) and omits Local FX types; Bot.Host ReplicaWorld
+ * requires the client compile (`LumioEcsSide=client`). Night1 loaded the
+ * server DLL and Login returned accepted=False after handshakeBegin=1.
+ * `MiningSparkEntity` exists only in the client compile.
+ */
+export const GAMEPLAY_CLIENT_MARKER = 'MiningSparkEntity';
+
+export function gameplayRegistrySideAgreement(gameplay) {
+  const gameplayPath = resolve(String(gameplay ?? ''));
+  if (!isFilePath(gameplayPath)) {
+    return { ok: false, reason: `LUMIO_GAMEPLAY is not a file: ${gameplayPath}` };
+  }
+  const bytes = readFileSync(gameplayPath);
+  const utf16 = Buffer.from(bytes).toString('utf16le');
+  const latin1 = Buffer.from(bytes).toString('latin1');
+  if (!utf16.includes(GAMEPLAY_CLIENT_MARKER) && !latin1.includes(GAMEPLAY_CLIENT_MARKER)) {
+    return {
+      ok: false,
+      reason: `LUMIO_GAMEPLAY is a server-side assembly (missing ${GAMEPLAY_CLIENT_MARKER}); ReplicaWorld requires LumioEcsSide=client`,
+      gameplay: gameplayPath,
+      marker: GAMEPLAY_CLIENT_MARKER,
+    };
+  }
+  return {
+    ok: true,
+    gameplay: gameplayPath,
+    marker: GAMEPLAY_CLIENT_MARKER,
+    side: 'client',
+  };
+}
+
+/**
+ * Empty-store DS boot used to TryAttach an Authority world with no cells, so
+ * Wave B avatars stacked at (16.5, 16.5) while Activate still issued. HostEntry
+ * restores maps/sample.voxel from LUMIO_BASE_MAP_PATH; this gate fails closed
+ * before tickets when that capture is missing or the SHA disagrees.
+ */
+export function baseMapCaptureAgreement({ root = ROOT, dsConfig, env = {} } = {}) {
+  const mapPath = resolve(String(env.LUMIO_BASE_MAP_PATH || join(root, 'maps', 'sample.voxel')));
+  if (!isFilePath(mapPath)) {
+    return {
+      ok: false,
+      reason: `first-boot voxel capture is not a file: ${mapPath} (empty TryAttach leaves avatars at 16.5; DS boot must restore maps/sample.voxel)`,
+      path: mapPath,
+    };
+  }
+  const bytes = readFileSync(mapPath);
+  if (bytes.length === 0) {
+    return { ok: false, reason: `first-boot voxel capture is empty: ${mapPath}`, path: mapPath };
+  }
+  const latin1 = Buffer.from(bytes).toString('latin1');
+  if (!latin1.includes('LUMIOSNP1') && !latin1.includes('configHash')) {
+    return { ok: false, reason: `${mapPath} is not a VoxelEngine capture`, path: mapPath };
+  }
+  const actualSha = createHash('sha256').update(bytes).digest('hex');
+  let expectedSha = String(env.LUMIO_BASE_MAP_SHA256 || '').trim().toLowerCase();
+  if (!expectedSha && dsConfig && isFilePath(dsConfig)) {
+    try {
+      const config = JSON.parse(readFileSync(dsConfig, 'utf8'));
+      expectedSha = String(config.base_map_content_sha256 || '').trim().toLowerCase();
+    } catch { /* JSON validity is asserted later */ }
+  }
+  if (expectedSha && NATIVE_ABI_HEX.test(expectedSha) && expectedSha !== actualSha) {
+    return {
+      ok: false,
+      reason: `base_map_content_sha256 ${expectedSha} does not match ${mapPath} (${actualSha})`,
+      path: mapPath,
+      sha256: actualSha,
+    };
+  }
+  return { ok: true, path: mapPath, sha256: actualSha };
+}
+
+/**
+ * Wave B serves `LumioClient/modules/web/spectator/` as a static tree.
+ * `main.js` only flushes MoveAbility after wasm `ConnectionState()==="active"`.
+ * A `_framework` published before replica-host Program.cs (r15 served 2026-09-12
+ * wasm without that export) leaves both self-dots at the admission pose while
+ * Bot.Host still moves. Fail closed before minting tickets.
+ */
+export const SPECTATOR_WASM_CONNECTION_STATE_MARKER = 'ConnectionState';
+
+export function spectatorPageRoot(clientRoot) {
+  return resolve(String(clientRoot ?? ''), 'modules', 'web', 'spectator');
+}
+
+export function spectatorWasmAgreement({ clientRoot } = {}) {
+  const pageRoot = spectatorPageRoot(clientRoot);
+  const framework = join(pageRoot, '_framework');
+  if (!existsSync(framework)) {
+    return {
+      ok: false,
+      reason: `spectator _framework is missing: ${framework} (main.js cannot load wasm; self-dot never issues MoveAbility)`,
+      framework,
+    };
+  }
+  const loader = join(framework, 'dotnet.js');
+  if (!isFilePath(loader)) {
+    return {
+      ok: false,
+      reason: `spectator _framework is missing dotnet.js: ${loader} (main.js import of ./_framework/dotnet.js fails closed)`,
+      framework,
+    };
+  }
+  let names;
+  try {
+    names = readdirSync(framework);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `spectator _framework is unreadable: ${framework} (${error.message})`,
+      framework,
+    };
+  }
+  const wasmNames = names.filter((name) => /^Lumio\.Client\.Spectator\.[^/\\]+\.wasm$/.test(name));
+  if (wasmNames.length === 0) {
+    return {
+      ok: false,
+      reason: `spectator _framework has no Lumio.Client.Spectator.*.wasm: ${framework}`,
+      framework,
+    };
+  }
+  const wasmPath = join(framework, wasmNames.sort()[wasmNames.length - 1]);
+  if (!isFilePath(wasmPath)) {
+    return {
+      ok: false,
+      reason: `spectator wasm is not a file: ${wasmPath}`,
+      framework,
+      wasm: wasmPath,
+    };
+  }
+  const latin1 = readFileSync(wasmPath).toString('latin1');
+  if (!latin1.includes(SPECTATOR_WASM_CONNECTION_STATE_MARKER)) {
+    return {
+      ok: false,
+      reason: `spectator wasm is missing ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} (stale pre-replica-host publish; flushSelfMove never leaves the admission pose)`,
+      framework,
+      wasm: wasmPath,
+      marker: SPECTATOR_WASM_CONNECTION_STATE_MARKER,
+    };
+  }
+  return {
+    ok: true,
+    framework,
+    wasm: wasmPath,
+    marker: SPECTATOR_WASM_CONNECTION_STATE_MARKER,
+  };
+}
+
+/**
+ * Owner PASS H2aczB had zero cadence_lag lines. This-round last-three
+ * handshake faults while DS already dropped cadence from boot. Count the
+ * latest `dropped=N` on host.drop cadence_lag lines so Wave B can fail closed
+ * before spawning Bot.Host into a lagged owner.
+ */
+function collectCadenceLagLogPaths(logPath) {
+  const paths = [];
+  const seen = new Set();
+  const add = (value) => {
+    if (typeof value !== 'string' || value.length === 0) return;
+    const resolved = resolve(value);
+    if (seen.has(resolved)) return;
+    seen.add(resolved);
+    paths.push(resolved);
+  };
+  add(logPath);
+  if (typeof logPath === 'string' && logPath.length > 0 && existsSync(logPath)) {
+    try {
+      if (statSync(logPath).isDirectory()) {
+        for (const name of readdirSync(logPath)) {
+          if (!name.endsWith('.log')) continue;
+          add(join(logPath, name));
+        }
+      }
+    } catch { /* directory still being created */ }
+  }
+  return paths;
+}
+
+/**
+ * Cadence_lag is emitted into DS `logging.dir` (ADR-081 post office), not
+ * the runner's captured lumio-ds stdout. Scan stdout, the capture log, and
+ * any extra operator log dirs/files (typically logging.dir).
+ */
+export function dsCadenceLagEvidence(logPath, stdout, extraLogPaths = []) {
+  const chunks = [];
+  if (typeof stdout === 'string' && stdout.length > 0) chunks.push(stdout);
+  const paths = [
+    ...collectCadenceLagLogPaths(logPath),
+    ...(Array.isArray(extraLogPaths) ? extraLogPaths : [extraLogPaths]).flatMap((value) => collectCadenceLagLogPaths(value)),
+  ];
+  for (const path of paths) {
+    if (!existsSync(path)) continue;
+    try {
+      if (statSync(path).isDirectory()) continue;
+      chunks.push(readFileSync(path, 'utf8'));
+    } catch { /* log still being written */ }
+  }
+  let dropped = 0;
+  const re = /target=host\.drop[^\n]*msg="cadence_lag[\s\S]*?dropped=(\d+)/g;
+  for (const text of chunks) {
+    re.lastIndex = 0;
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      const n = Number(match[1]);
+      if (Number.isFinite(n) && n > dropped) dropped = n;
+    }
+  }
+  return { dropped, marker: DS_CADENCE_LAG_MARKER, paths };
 }
 
 /** Return the first missing prerequisite without starting anything. */
@@ -930,15 +1329,39 @@ export async function processCensus(options = {}) {
   return defaultProcessCensus();
 }
 
-async function checkHttpListener(origin, options = {}) {
-  if (typeof options.waitForListener === 'function') return options.waitForListener(origin, options);
+function platformHealthUrl(origin, options = {}) {
   let parsed;
   try { parsed = new URL(String(origin)); } catch { throw new Error(`listener origin is invalid: ${origin}`); }
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error('Platform origin must be an HTTP(S) origin without credentials, query, or fragment');
   }
   const healthPath = String(options.platformHealthPath ?? '/healthz');
-  const healthUrl = new URL(healthPath, parsed).href;
+  return { parsed, healthUrl: new URL(healthPath, parsed).href };
+}
+
+function httpStatusOk(response) {
+  const status = Number(response?.status ?? 0);
+  return Boolean(response && ((response.ok === true) || (status >= 200 && status < 300)));
+}
+
+/** One-shot /healthz probe. Does not wait out the live timeout. */
+export async function probePlatformHealth(origin, options = {}) {
+  const { healthUrl } = platformHealthUrl(origin, options);
+  try {
+    const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(2_000)
+      : undefined;
+    const response = await (options.fetchImpl ?? globalThis.fetch)(healthUrl, signal ? { signal } : undefined);
+    const status = Number(response?.status ?? 0);
+    return { ok: httpStatusOk(response), status, healthUrl };
+  } catch (error) {
+    return { ok: false, status: 0, healthUrl, error: String(error?.message ?? error) };
+  }
+}
+
+async function checkHttpListener(origin, options = {}) {
+  if (typeof options.waitForListener === 'function') return options.waitForListener(origin, options);
+  const { healthUrl } = platformHealthUrl(origin, options);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
   let lastError;
@@ -949,12 +1372,18 @@ async function checkHttpListener(origin, options = {}) {
         : undefined;
       const response = await (options.fetchImpl ?? globalThis.fetch)(healthUrl, signal ? { signal } : undefined);
       const status = Number(response?.status ?? 0);
-      if (response && ((response.ok === true) || (status >= 200 && status < 300))) return { ok: true, status };
+      if (httpStatusOk(response)) return { ok: true, status };
       lastError = new Error(`HTTP ${status || 'unknown'}`);
     } catch (error) { lastError = error; }
     await sleep(100);
   }
   throw new Error(`listener ${healthUrl} did not become reachable${lastError ? `: ${lastError.message}` : ''}`);
+}
+
+function platformStartRequested(options = {}) {
+  return options.startPlatform === true
+    || options.composeFileExplicit === true
+    || (Array.isArray(options.platformCommand) && options.platformCommand.length > 0);
 }
 
 function buildChildEnv({ env = process.env, root = ROOT, dsConfig, engineNative } = {}) {
@@ -973,6 +1402,18 @@ function buildChildEnv({ env = process.env, root = ROOT, dsConfig, engineNative 
     } catch { /* config validation reports the useful error later */ }
   }
   if (!output.LUMIO_CONFIG_DIR) output.LUMIO_CONFIG_DIR = resolve(root, 'config');
+  if (!output.LUMIO_BASE_MAP_PATH) {
+    output.LUMIO_BASE_MAP_PATH = resolve(root, 'maps', 'sample.voxel');
+  } else {
+    output.LUMIO_BASE_MAP_PATH = resolve(output.LUMIO_BASE_MAP_PATH);
+  }
+  if (!output.LUMIO_BASE_MAP_SHA256 && dsConfig && existsSync(dsConfig)) {
+    try {
+      const config = JSON.parse(readFileSync(dsConfig, 'utf8'));
+      const sha = String(config.base_map_content_sha256 || '').trim().toLowerCase();
+      if (NATIVE_ABI_HEX.test(sha)) output.LUMIO_BASE_MAP_SHA256 = sha;
+    } catch { /* config validation reports the useful error later */ }
+  }
   const native = engineNative ?? output.LUMIO_ENGINE_NATIVE ?? output.LUMIO_ENGINE_NATIVE_PATH;
   if (native) {
     output.LUMIO_ENGINE_NATIVE = resolve(String(native));
@@ -1091,7 +1532,17 @@ export async function preflightLiveTopology({ env = process.env, options = {}, r
   ].map(Number).filter((port) => Number.isInteger(port) && port > 0 && port < 65_536))];
   const busy = [];
   const allowedBusy = new Set((Array.isArray(options.allowBusyPorts) ? options.allowBusyPorts : []).map(Number));
-  if (options.platformAlreadyRunning === true) allowedBusy.add(originPort ?? 8080);
+  const startingPlatform = platformStartRequested(options);
+  let platformAlreadyRunning = options.platformAlreadyRunning === true;
+  // Reuse a healthy Platform that the operator already started. Occupied 8080
+  // is then the origin we intend to mint tickets against, not a colliding
+  // spectator/DS role. A listener that fails /healthz stays a reserved-port
+  // collision. Starting compose still requires the origin port to be free.
+  if (!startingPlatform && originValue) {
+    const health = await probePlatformHealth(originValue, options);
+    if (health.ok) platformAlreadyRunning = true;
+  }
+  if (platformAlreadyRunning) allowedBusy.add(originPort ?? 8080);
   for (const value of configured) {
     const port = safePort(value, 0);
     if (!port) continue;
@@ -1099,6 +1550,16 @@ export async function preflightLiveTopology({ env = process.env, options = {}, r
   }
   if (busy.length > 0) {
     return { ok: false, status: 'BLOCKED_ENV', reason: `preflight found listeners on reserved port(s): ${busy.join(', ')}`, botHosts, busyPorts: busy };
+  }
+  if (!startingPlatform && !platformAlreadyRunning) {
+    return {
+      ok: false,
+      status: 'BLOCKED_ENV',
+      reason: 'Platform origin is not reachable; pass --start-platform to start it',
+      botHosts,
+      busyPorts: [],
+      platformAlreadyRunning: false,
+    };
   }
 
   const collect = options.collectRepoShas ?? collectRepoShas;
@@ -1111,7 +1572,7 @@ export async function preflightLiveTopology({ env = process.env, options = {}, r
     return { ok: false, status: 'BLOCKED_ENV', reason: 'repository SHA changed between planning and startup', botHosts, shas: currentShas };
   }
   if (String(env.LIVE_BOTS ?? '') !== '0') return { ok: false, status: 'BLOCKED_ENV', reason: 'LIVE_BOTS changed before startup', botHosts };
-  return { ok: true, status: 'READY', botHosts: 0, busyPorts: [], shas: currentShas, cdpPorts };
+  return { ok: true, status: 'READY', botHosts: 0, busyPorts: [], shas: currentShas, cdpPorts, platformAlreadyRunning };
 }
 
 function safePort(value, fallback) {
@@ -1758,13 +2219,64 @@ export function parseAdmittedText(text) {
   return parseBotAdmit(text);
 }
 
+const LOG_EXTENSIONS = new Set(['.log', '.ndjson', '.jsonl']);
+
+function listLogFiles(root, result = []) {
+  if (!root || !existsSync(root)) return result;
+  let info;
+  try { info = statSync(root); } catch { return result; }
+  if (info.isFile()) {
+    if (LOG_EXTENSIONS.has(extname(root).toLowerCase())) result.push(root);
+    return result;
+  }
+  if (!info.isDirectory()) return result;
+  let names = [];
+  try { names = readdirSync(root); } catch { return result; }
+  for (const name of names.sort()) listLogFiles(join(root, name), result);
+  return result;
+}
+
+function readTextIfPresent(path) {
+  if (!path || !existsSync(path)) return '';
+  try { return readFileSync(path, 'utf8'); } catch { return ''; }
+}
+
+function botLogDirFromChild(child) {
+  const args = child?.args;
+  if (!Array.isArray(args)) return null;
+  const flag = args.findIndex((value) => value === '--log-dir');
+  if (flag < 0 || flag + 1 >= args.length) return null;
+  const value = String(args[flag + 1] ?? '').trim();
+  return value ? resolve(value) : null;
+}
+
+/**
+ * Wave B retries spawn into `bot-N-retryK` so a replaced attempt's
+ * session_faulted line cannot condemn its replacement. The shared launcher
+ * walker always reads `bot-N/` plus the overwritten `bot-N.log`, so Wave B
+ * must parse only this child's stdout and its current --log-dir.
+ */
+export function collectLiveBotEvidenceText({ evidenceDir, index, child } = {}) {
+  const chunks = [];
+  if (child?.stdout) chunks.push(String(child.stdout));
+  const logDir = botLogDirFromChild(child);
+  if (logDir) {
+    for (const file of listLogFiles(logDir)) chunks.push(readTextIfPresent(file));
+    return chunks.join('\n');
+  }
+  if (evidenceDir && Number.isInteger(index) && index >= 0) {
+    chunks.push(readTextIfPresent(join(evidenceDir, `bot-${index + 1}.log`)));
+    for (const file of listLogFiles(join(evidenceDir, `bot-${index + 1}`))) {
+      chunks.push(readTextIfPresent(file));
+    }
+  }
+  return chunks.join('\n');
+}
+
 function admissionDetails(botChildren, evidenceDir) {
-  const count = botChildren.length;
-  // Reuse the launcher parser, which also walks nested --log-dir files emitted
-  // by FoundationHostCommand.  Keeping one parser avoids a false admit when a
-  // process first reaches Active and later enters Faulted/session_faulted.
-  const result = countAdmittedBots(count, { evidenceDir, children: botChildren });
-  return result.details ?? botChildren.map((child) => inspectBotAdmit(child?.stdout ?? ''));
+  return botChildren.map((child, index) => parseBotAdmit(
+    collectLiveBotEvidenceText({ evidenceDir, index, child }),
+  ));
 }
 
 export function countAdmittedBotHosts(botChildren = [], { evidenceDir } = {}) {
@@ -1773,6 +2285,13 @@ export function countAdmittedBotHosts(botChildren = [], { evidenceDir } = {}) {
   const rejected = details.filter((item) => item?.rejected === true).length;
   const faulted = details.filter((item) => item?.faulted === true).length;
   return { admitted, rejected, faulted, details };
+}
+
+function admissionSlotClassified(item) {
+  if (!item) return false;
+  if (item.rejected === true) return true;
+  if (item.faulted === true) return true;
+  return item.admitted === true && item.rejected !== true && item.faulted !== true;
 }
 
 export async function waitForBotAdmissions({
@@ -1792,7 +2311,12 @@ export async function waitForBotAdmissions({
       await tools?.assertAlive?.(child);
     }
     latest = countAdmittedBotHosts(botChildren, { evidenceDir });
-    if (latest.rejected > 0 || latest.faulted > 0) return latest;
+    // Rejected tickets are terminal. A session_faulted line is retryable
+    // (Wave B replaces that Bot.Host). Keep waiting while any slot is still
+    // unclassified so a replacement can write Active+established; once every
+    // slot is admitted, rejected, or faulted, return so retries are not held
+    // behind the remaining overall timeout.
+    if (latest.rejected > 0) return latest;
     if (latest.admitted >= expected) {
       // One final liveness/evidence tick prevents a transient Active line from
       // being reported as a durable admission.
@@ -1802,6 +2326,9 @@ export async function waitForBotAdmissions({
       latest = countAdmittedBotHosts(botChildren, { evidenceDir });
       return latest;
     }
+    const details = latest.details ?? [];
+    const classified = details.filter(admissionSlotClassified).length;
+    if (botChildren.length > 0 && classified >= botChildren.length) return latest;
     await sleep(pollMs);
   }
   return latest;
@@ -2787,6 +3314,35 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     if (!isFilePath(botDll)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_BOT_DLL is not set or is not a file' };
     if (!isFilePath(gameplay)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_GAMEPLAY is not set or is not a file' };
     if (!isFilePath(engineNative)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_ENGINE_NATIVE is not set or is not a file' };
+    const abi = nativeAbiAgreement({ engineNative, gameplay });
+    if (!abi.ok) return { status: 'FAIL', error: abi.reason };
+    document.processes.nativeAbi = {
+      sidecarAbi: abi.sidecarAbi,
+      compiledAbi: abi.compiledAbi,
+      buildId: abi.buildId,
+      binarySha256: abi.binarySha256,
+    };
+    const dsAbi = dsConsumerAbiAgreement({ dsExe, sidecarAbi: abi.sidecarAbi });
+    if (!dsAbi.ok) return { status: 'FAIL', error: dsAbi.reason };
+    document.processes.dsTimerOwnerAbi = {
+      ok: true,
+      marker: dsAbi.marker,
+      sidecarAbi: dsAbi.sidecarAbi,
+    };
+    const gameplaySide = gameplayRegistrySideAgreement(gameplay);
+    if (!gameplaySide.ok) return { status: 'FAIL', error: gameplaySide.reason };
+    document.processes.gameplayRegistrySide = {
+      ok: true,
+      side: gameplaySide.side,
+      marker: gameplaySide.marker,
+    };
+    const baseMap = baseMapCaptureAgreement({ root, dsConfig: effectiveDsConfig, env: childEnv });
+    if (!baseMap.ok) return { status: 'FAIL', error: baseMap.reason };
+    document.processes.baseMapCapture = {
+      ok: true,
+      path: baseMap.path,
+      sha256: baseMap.sha256,
+    };
     let dsConfigValue;
     try { dsConfigValue = JSON.parse(readFileSync(effectiveDsConfig, 'utf8')); } catch (error) {
       return { status: 'FAIL', error: `DS config is invalid JSON: ${error.message}` };
@@ -2801,6 +3357,13 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     if (!isFilePath(pageEntry) && !requestedSpectatorUrl) {
       return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: spectator page is missing: ${pageEntry}` };
     }
+    const spectatorWasm = spectatorWasmAgreement({ clientRoot: pageRoot });
+    if (!spectatorWasm.ok) return { status: 'FAIL', error: spectatorWasm.reason };
+    document.processes.spectatorWasm = {
+      ok: true,
+      wasm: spectatorWasm.wasm,
+      marker: spectatorWasm.marker,
+    };
     const chrome = options.chrome ?? findChromePath(env);
     if (!chrome && typeof options.startChrome !== 'function') return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: Chrome executable is not available' };
     const hasCustomPlatformCommand = Array.isArray(options.platformCommand) && options.platformCommand.length > 0;
@@ -2830,6 +3393,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     document.processes.preflightBotHosts = preflight.botHosts ?? null;
     document.processes.preflightBusyPorts = preflight.busyPorts ?? [];
     document.processes.preflightShas = preflight.shas ?? null;
+    if (preflight.platformAlreadyRunning === true) options.platformAlreadyRunning = true;
     if (!preflight.ok) return { status: preflight.status, error: `BLOCKED_ENV: ${preflight.reason}` };
 
     // Keep the operator's filesystem untouched until every prerequisite and
@@ -2926,6 +3490,25 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
       endpoint,
       ...(ready.roomId != null ? { roomId: String(ready.roomId) } : {}),
     };
+    const dsLogPath = join(evidence, 'lumio-ds.log');
+    const dsLoggingDir = typeof dsConfigValue?.logging?.dir === 'string' ? dsConfigValue.logging.dir : null;
+    const settleMs = Number.isFinite(options.dsCadenceLagSettleMs)
+      ? Math.max(0, Number(options.dsCadenceLagSettleMs))
+      : DS_CADENCE_LAG_SETTLE_MS;
+    if (settleMs > 0) {
+      await sleep(settleMs);
+      await tools.assertAlive?.(ds);
+    }
+    const cadenceLag = dsCadenceLagEvidence(dsLogPath, ds?.stdout, dsLoggingDir ? [dsLoggingDir] : []);
+    document.processes.dsCadenceLagDropped = cadenceLag.dropped;
+    document.processes.dsCadenceLagLogDir = dsLoggingDir;
+    document.processes.dsCadenceLagSettleMs = settleMs;
+    if (cadenceLag.dropped > 0) {
+      return {
+        status: 'FAIL',
+        error: `lumio-ds already dropped ${cadenceLag.dropped} cadence frames before Bot.Host spawn (Owner PASS H2aczB had 0); last-three handshake faults under cadence_lag`,
+      };
+    }
     // Bots and spectators both dial the Platform-issued ticket URL, allocator
     // route included; DS_READY's root endpoint only proves which listener that
     // URL must point at. All rows share one wsUrl string (validated above).
@@ -2950,14 +3533,23 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
         accountTo: row.loginName,
         gameplay,
       });
-      return track(() => tools.startLogged(options.dotnet ?? env.LUMIO_DOTNET ?? 'dotnet', args, {
+      const child = await track(() => tools.startLogged(options.dotnet ?? env.LUMIO_DOTNET ?? 'dotnet', args, {
         cwd: dirname(botDll), env: childEnv, log: join(evidence, `bot-${index + 1}.log`),
       }));
+      // process-tools startLogged does not retain argv. Stamp --log-dir so
+      // collectLiveBotEvidenceText reads this attempt, not a replaced bot-N/.
+      if (child && typeof child === 'object') child.args = args;
+      return child;
     };
 
+    const holdInputPath = join(evidence, BOT_HOLD_INPUT_FLAG);
+    writeFileSync(holdInputPath, '1');
+    cleanupPaths.push(holdInputPath);
+    childEnv.LUMIO_BOT_HOLD_INPUT = holdInputPath;
+    document.processes.botHoldInput = holdInputPath;
     const botChildren = [];
     for (let index = 0; index < botRows.length; index += 1) {
-      if (index > 0) await sleep(options.staggerMs ?? 250);
+      if (index > 0) await sleep(options.staggerMs ?? WAVE_B_STAGGER_MS);
       if (String(env.LIVE_BOTS ?? '') !== '0') return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LIVE_BOTS changed while starting Bot.Host processes' };
       botChildren.push(await spawnBotChild(index, minted.ticketsPath));
     }
@@ -2983,7 +3575,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
             botChildren,
             evidenceDir: evidence,
             expected: BOTS,
-            timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            timeoutMs: options.admitTimeoutMs ?? DEFAULT_TIMEOUT_MS,
             tools,
             pollMs: options.pollMs ?? 100,
             evidenceTick: options.evidenceTick,
@@ -3011,7 +3603,10 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
       for (let i = 0; i < botChildren.length; i += 1) {
         const item = details[i];
         const closed = botChildren[i]?.closed === true;
-        if (closed || (item && (item.rejected === true || item.faulted === true))) broken.push(i);
+        const notAdmitted = !(item && item.admitted === true && !item.rejected && !item.faulted);
+        if (closed || (item && (item.rejected === true || item.faulted === true)) || notAdmitted) {
+          broken.push(i);
+        }
       }
       if (broken.length === 0) continue;
       document.processes.botRetryRounds = round + 1;
@@ -3060,6 +3655,15 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     document.processes.admittedBots = lastReport.admitted;
     document.processes.rejectedBots = lastReport.rejected;
     document.processes.faultedBots = lastReport.faulted;
+    if (existsSync(holdInputPath)) {
+      try { unlinkSync(holdInputPath); } catch { /* already gone */ }
+    }
+    document.processes.botHoldInputReleased = !existsSync(holdInputPath);
+    const moveSettleMs = Number.isFinite(Number(options.moveSettleMs))
+      ? Number(options.moveSettleMs)
+      : WAVE_B_MOVE_SETTLE_MS;
+    document.processes.botMoveSettleMs = moveSettleMs;
+    if (moveSettleMs > 0) await sleep(moveSettleMs);
     // A second census is part of the evidence, and every child must still be
     // alive after the final admission tick.
     for (const child of botChildren) await tools.assertAlive?.(child);
@@ -3436,10 +4040,13 @@ export function parseSpectatorCliArgs(argv = process.argv.slice(2), environment 
     error.code = 'USAGE';
     throw error;
   }
+  const staggerExplicit = forwarded.includes('--stagger-ms')
+    || (environment.LUMIO_STAGGER_MS != null && String(environment.LUMIO_STAGGER_MS).trim() !== '');
   return {
     ...parsed,
     bots: BOTS,
     spectators: SPECTATORS,
+    staggerMs: staggerExplicit ? parsed.staggerMs : WAVE_B_STAGGER_MS,
     authorizeLive,
     // The CLI is the attached runner.  The separate authorization flag keeps
     // process creation opt-in even when a caller has supplied live paths.
