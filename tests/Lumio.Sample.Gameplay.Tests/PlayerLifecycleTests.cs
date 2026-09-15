@@ -128,7 +128,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         }
     }
 
-    private static void PlaceFixturePlayer(World world, NetEntityId player, Vector3 position)
+    internal static void PlaceFixturePlayer(World world, NetEntityId player, Vector3 position)
     {
         LogicTransform logic = world.Get<LogicTransform>(player);
         TransformController controller = world.RegisterTransformController(player, nameof(MoveAbility));

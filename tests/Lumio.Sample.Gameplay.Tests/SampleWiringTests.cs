@@ -15,8 +15,18 @@ using Xunit;
 namespace Lumio.Sample.Gameplay.Tests;
 
 [CollectionDefinition("SampleWorld", DisableParallelization = true)]
-public sealed class SampleWorldSerialDefinition
+public sealed class SampleWorldSerialDefinition : ICollectionFixture<SampleWorldNativeFixture>
 {
+}
+
+public sealed class SampleWorldNativeFixture : IDisposable
+{
+    public SampleWorldNativeFixture()
+    {
+        GasHfsmFacade.BindNative(KernelConfigurationFixture.Create());
+    }
+
+    public void Dispose() => GasHfsmFacade.Unbind();
 }
 
 [Collection("SampleWorld")]
@@ -332,7 +342,11 @@ internal sealed class SampleWorldHarness : IDisposable
         EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
         EntityOrder vein = SampleVein.Queue(manager.World);
         manager.Tick();
-        manager.World.Get<AbilityComponent>(player.AssignedId).Physics = new RecordingAbilityPhysicsPort();
+        // The mining fixture's vein is at the origin; admission-pose tests use BootEmpty.
+        PlayerLifecycleTests.PlaceFixturePlayer(manager.World, player.AssignedId, System.Numerics.Vector3.Zero);
+        AbilityComponent abilities = manager.World.Get<AbilityComponent>(player.AssignedId);
+        Assert.True(MineAbility.WithinReach(abilities, vein.AssignedId));
+        abilities.Physics = new RecordingAbilityPhysicsPort();
         return new SampleWorldHarness(manager, player.AssignedId, vein.AssignedId);
     }
 
