@@ -3555,6 +3555,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
         // account name.  The raw ticket never appears on argv.
         admissionTicket: ticketsPath,
         engineNative,
+        kernelConfig: kernelConfigPath,
         logDir,
         accountFrom: row.loginName,
         accountTo: row.loginName,

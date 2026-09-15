@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildBotArgs, buildServerArgs, parseDsReadyLine, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
@@ -68,4 +69,14 @@ test('formal endpoint stays loopback and matches DS_READY', () => {
 
 test('redact hides the admission ticket', () => {
   assert.deepEqual(redactArgs(['--admission-ticket', 'secret'], 'secret'), ['--admission-ticket', '<redacted>']);
+});
+
+test('spectator startup forwards its per-run config into real Bot argument construction', () => {
+  const source = readFileSync(new URL('./spectator-100.mjs', import.meta.url), 'utf8');
+  const call = source.match(/const args = buildBotArgs\((\{[\s\S]*?\})\);/);
+  assert.ok(call, 'spectator Bot argument call must exist');
+  const kernelConfigPath = 'run/kernel-config.json';
+  const args = Function('buildBotArgs', 'botDll', 'ticketWsUrl', 'ticketsPath', 'engineNative', 'kernelConfigPath', 'logDir', 'row', 'gameplay', `return buildBotArgs(${call[1]});`)(
+    buildBotArgs, 'Bot.dll', 'ws://127.0.0.1:9110/', 'tickets.json', 'native.dll', kernelConfigPath, 'logs', { loginName: 'bot1' }, 'Game.dll');
+  assert.equal(args[args.indexOf('--kernel-config') + 1], kernelConfigPath);
 });
