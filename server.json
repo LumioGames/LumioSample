@@ -64,6 +64,12 @@
     "max_pending_queries": 1024,
     "reconnect_window_ms": 300000,
     "owner_call_timeout_ms": 2000,
-    "owner_cold_start_timeout_ms": 30000
+    "owner_cold_start_timeout_ms": 30000,
+    "quiesce_timeout_ms": 3000,
+    "checkpoint_timeout_ms": 30000,
+    "pending_checkpoint_timeout_ms": 30000,
+    "final_checkpoint_timeout_ms": 30000,
+    "checkpoint_retention_generations": 3,
+    "cleanup_watchdog_join_timeout_ms": 1000
   }
 }
