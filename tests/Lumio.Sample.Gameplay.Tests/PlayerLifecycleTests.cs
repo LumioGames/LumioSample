@@ -47,16 +47,16 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal("4B7F9F7127ECA9E9BDAAB54D6E839EB38B45A7147C96B93EE685EA63B5650BEB", Convert.ToHexString(SHA256.HashData(catalog)));
         Assert.Equal("2D491FB70C5F1353020A3789EE9F579D08A5C8F78D7DCA2D94817726AC12464C", Convert.ToHexString(SHA256.HashData(wall)));
         // Resolve only the frozen public API; absence is an explicit failed test, never a fallback.
-        MethodInfo attachMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("TryAttach", new[] { typeof(WorldManager), typeof(byte[]) }), exactMatch: false);
+        MethodInfo attachMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("TryAttach", new[] { typeof(WorldManager), typeof(KernelConfig), typeof(byte[]) }), exactMatch: false);
         MethodInfo restoreMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("RestoreNew", new[]
         {
-            typeof(byte[]), typeof(byte[]), typeof(EcsRegistry), typeof(ILoggerFactory), typeof(WorldIngressBudget), typeof(byte[])
+            typeof(byte[]), typeof(byte[]), typeof(EcsRegistry), typeof(KernelConfig), typeof(ILoggerFactory), typeof(WorldIngressBudget), typeof(byte[])
         }), exactMatch: false);
-        var attach = attachMethod.CreateDelegate<Func<WorldManager, byte[], DedicatedServerHostBinding?>>();
-        var restore = restoreMethod.CreateDelegate<Func<byte[], byte[], EcsRegistry, ILoggerFactory?, WorldIngressBudget, byte[], DedicatedServerRestoreResult>>();
+        var attach = attachMethod.CreateDelegate<Func<WorldManager, KernelConfig, byte[], DedicatedServerHostBinding?>>();
+        var restore = restoreMethod.CreateDelegate<Func<byte[], byte[], EcsRegistry, KernelConfig, ILoggerFactory?, WorldIngressBudget, byte[], DedicatedServerRestoreResult>>();
         using WorldManager source = SampleGameplay.CreateWorld(91UL);
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
-        using DedicatedServerHostBinding initial = Assert.IsType<DedicatedServerHostBinding>(attach(source, catalog));
+        using DedicatedServerHostBinding initial = Assert.IsType<DedicatedServerHostBinding>(attach(source, KernelConfigurationFixture.Create(), catalog));
         source.Start(Thread.CurrentThread);
         WorldTickBinding.Bind(source);
         EntityOrder blockedOrder = QueuePlayer(source.World, "native-blocked");
@@ -72,7 +72,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         long spent = SampleTables.StaminaInitial - 1;
         ledger.SetBaseValue(SampleTables.StaminaAttributeName, spent);
         byte[] runtime = source.CaptureSnapshot();
-        DedicatedServerRestoreResult loaded = restore(runtime, wall, GeneratedRegistry.Instance, null, source.IngressBudget, catalog);
+        DedicatedServerRestoreResult loaded = restore(runtime, wall, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, source.IngressBudget, catalog);
         Assert.True(loaded.Succeeded, loaded.ErrorCode);
         using DedicatedServerHostBinding first = Assert.IsType<DedicatedServerHostBinding>(loaded.Binding);
         using WorldManager manager = first.Manager;
@@ -93,7 +93,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.True(capture.Succeeded, capture.ErrorCode);
         DualCutCheckpointPayload checkpoint = capture.Checkpoint!.Value;
         Assert.True(checkpoint.SectionCount > 0);
-        DedicatedServerRestoreResult cold = restore(checkpoint.Runtime, checkpoint.Voxel, GeneratedRegistry.Instance, null, manager.IngressBudget, catalog);
+        DedicatedServerRestoreResult cold = restore(checkpoint.Runtime, checkpoint.Voxel, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, manager.IngressBudget, catalog);
         Assert.True(cold.Succeeded, cold.ErrorCode);
         using DedicatedServerHostBinding second = Assert.IsType<DedicatedServerHostBinding>(cold.Binding);
         using WorldManager restored = second.Manager;
@@ -128,7 +128,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         }
     }
 
-    private static void PlaceFixturePlayer(World world, NetEntityId player, Vector3 position)
+    internal static void PlaceFixturePlayer(World world, NetEntityId player, Vector3 position)
     {
         LogicTransform logic = world.Get<LogicTransform>(player);
         TransformController controller = world.RegisterTransformController(player, nameof(MoveAbility));

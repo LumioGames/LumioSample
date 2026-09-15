@@ -56,6 +56,8 @@ import {
 } from './spectator-100.mjs';
 
 const SAMPLE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const KERNEL_CONFIG = Object.freeze({ maxContexts: 64, maxHandles: 4096, maxNativeBytes: 67108864, maxJobsQueued: 256, maxJobsRunning: 4, maxCompletionItems: 1024, logMailboxCapacity: 8192 });
+
 const GAMEPLAY_CSPROJ = resolve(SAMPLE_ROOT, 'src', 'Lumio.Sample.Gameplay', 'Lumio.Sample.Gameplay.csproj');
 const REPLICA_CSPROJ = resolve(SAMPLE_ROOT, '..', 'LumioClient', 'modules', 'replica', 'src', 'Lumio.Client.Replica.csproj');
 
@@ -857,6 +859,7 @@ test('runLiveTopology refuses a lumio-ds compiled against a detached Engine ABI 
     writeFileSync(dsExe, `stale-consumer ${DS_TIMER_OWNER_MARKER} ${STALE_ABI}`);
     const dsConfig = join(dir, 'server.json');
     writeFileSync(dsConfig, JSON.stringify({
+      clr: { kernel_config: KERNEL_CONFIG },
       allocation: {
         serverAudience: 'game-fleet-local',
         gameId: 'sample',
@@ -916,6 +919,7 @@ test('runLiveTopology refuses a pre-timer-v2 lumio-ds before minting tickets or 
     writeFileSync(dsExe, 'stale-four-arg-timer_register_scope');
     const dsConfig = join(dir, 'server.json');
     writeFileSync(dsConfig, JSON.stringify({
+      clr: { kernel_config: KERNEL_CONFIG },
       allocation: {
         serverAudience: 'game-fleet-local',
         gameId: 'sample',
@@ -1061,6 +1065,7 @@ test('runLiveTopology refuses a missing first-boot voxel capture before minting 
     writeFileSync(dsExe, `ok-consumer ${DS_TIMER_OWNER_MARKER} ${MATCHING_ABI}`);
     const dsConfig = join(dir, 'server.json');
     writeFileSync(dsConfig, JSON.stringify({
+      clr: { kernel_config: KERNEL_CONFIG },
       allocation: {
         serverAudience: 'game-fleet-local',
         gameId: 'sample',
@@ -1122,6 +1127,7 @@ test('runLiveTopology refuses a server gameplay assembly before minting tickets'
     writeFileSync(dsExe, `ok-consumer ${DS_TIMER_OWNER_MARKER} ${MATCHING_ABI}`);
     const dsConfig = join(dir, 'server.json');
     writeFileSync(dsConfig, JSON.stringify({
+      clr: { kernel_config: KERNEL_CONFIG },
       allocation: {
         serverAudience: 'game-fleet-local',
         gameId: 'sample',
@@ -1287,6 +1293,7 @@ test('runLiveTopology refuses a stale spectator wasm before minting tickets', as
     writeFileSync(dsExe, `ok-consumer ${DS_TIMER_OWNER_MARKER} ${MATCHING_ABI}`);
     const dsConfig = join(dir, 'server.json');
     writeFileSync(dsConfig, JSON.stringify({
+      clr: { kernel_config: KERNEL_CONFIG },
       allocation: {
         serverAudience: 'game-fleet-local',
         gameId: 'sample',
@@ -1353,6 +1360,7 @@ test('runLiveTopology refuses NativeLoader in spectator _framework before mintin
     writeFileSync(dsExe, `ok-consumer ${DS_TIMER_OWNER_MARKER} ${MATCHING_ABI}`);
     const dsConfig = join(dir, 'server.json');
     writeFileSync(dsConfig, JSON.stringify({
+      clr: { kernel_config: KERNEL_CONFIG },
       allocation: {
         serverAudience: 'game-fleet-local',
         gameId: 'sample',
@@ -1420,6 +1428,7 @@ test('runLiveTopology refuses a stale native sidecar before minting tickets or s
     writeFileSync(dsExe, 'ds');
     const dsConfig = join(dir, 'server.json');
     writeFileSync(dsConfig, JSON.stringify({
+      clr: { kernel_config: KERNEL_CONFIG },
       allocation: {
         serverAudience: 'game-fleet-local',
         gameId: 'sample',
@@ -1510,6 +1519,7 @@ function liveTopologyHarness({ dir, nativePath, dsStdout = 'DS_READY {"pid":1,"e
   writeFileSync(dsExe, `ok-consumer ${DS_TIMER_OWNER_MARKER} ${MATCHING_ABI}`);
   const dsConfig = join(dir, 'server.json');
   const config = {
+    clr: { kernel_config: KERNEL_CONFIG },
     allocation: {
       serverAudience: 'game-fleet-local',
       gameId: 'sample',

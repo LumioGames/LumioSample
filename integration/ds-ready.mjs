@@ -50,7 +50,8 @@ export function buildServerArgs(configPath) {
   return ['--config', configPath];
 }
 
-export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, logDir, accountFrom, accountTo, gameplay }) {
+export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, kernelConfig, logDir, accountFrom, accountTo, gameplay }) {
+  if (kernelConfig == null || String(kernelConfig).trim() === '') throw new TypeError('kernel config path is required (--kernel-config).');
   if (gameplay == null || String(gameplay).trim() === '') {
     throw new TypeError('gameplay assembly path is required (--gameplay).');
   }
@@ -59,6 +60,7 @@ export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, 
     '--server', endpoint,
     '--admission-ticket', admissionTicket,
     '--engine-native', engineNative,
+    '--kernel-config', kernelConfig,
     '--log-dir', logDir,
     '--account-from', accountFrom,
     '--account-to', accountTo ?? accountFrom,

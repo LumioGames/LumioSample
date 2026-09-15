@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from 'node:fs';
 /**
  * Operator-fillable DS config (R-00520 / S1).
  *
@@ -73,4 +74,16 @@ export function assertRunnableDsConfig(config) {
     );
   }
   return config;
+}
+
+
+/** Copy the operator-selected generated KernelConfig for one run. */
+export function writeKernelConfigForRun(configPath, outputPath) {
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  const kernelConfig = config?.clr?.kernel_config;
+  if (!kernelConfig || typeof kernelConfig !== 'object' || Array.isArray(kernelConfig) || Object.keys(kernelConfig).length === 0) {
+    throw missing('clr.kernel_config must be an explicit KernelConfig object');
+  }
+  writeFileSync(outputPath, `${JSON.stringify(kernelConfig, null, 2)}\n`);
+  return outputPath;
 }

@@ -12,17 +12,22 @@ test('Bot.Host invocation carries server, ticket, native SDK, log directory and 
     endpoint: 'ws://127.0.0.1:9110/',
     admissionTicket: 'ticket_123',
     engineNative: 'lumio.dll',
+    kernelConfig: 'run/kernel-config.json',
     logDir: 'logs/bot',
     accountFrom: 'Bot1',
     accountTo: 'Bot1',
     gameplay: 'Lumio.Sample.Gameplay.dll',
   });
-  assert.deepEqual(args.slice(1, 7), ['--server', 'ws://127.0.0.1:9110/', '--admission-ticket', 'ticket_123', '--engine-native', 'lumio.dll']);
+  assert.deepEqual(args.slice(1, 9), ['--server', 'ws://127.0.0.1:9110/', '--admission-ticket', 'ticket_123', '--engine-native', 'lumio.dll', '--kernel-config', 'run/kernel-config.json']);
   assert.ok(args.includes('--log-dir'));
   const gameplayAt = args.indexOf('--gameplay');
   assert.ok(gameplayAt >= 0);
   assert.equal(args[gameplayAt + 1], 'Lumio.Sample.Gameplay.dll');
   assert.ok(!args.includes('test-harness'));
+});
+
+test('Bot.Host invocation refuses to omit --kernel-config', () => {
+  assert.throws(() => buildBotArgs({ botDll: 'Bot.Host.dll', endpoint: 'ws://127.0.0.1:9110/', admissionTicket: 'ticket_123', engineNative: 'lumio.dll', logDir: 'logs/bot', accountFrom: 'Bot1' }), /--kernel-config/);
 });
 
 test('Bot.Host invocation refuses to omit --gameplay', () => {
@@ -32,6 +37,7 @@ test('Bot.Host invocation refuses to omit --gameplay', () => {
       endpoint: 'ws://127.0.0.1:9110/',
       admissionTicket: 'ticket_123',
       engineNative: 'lumio.dll',
+      kernelConfig: 'run/kernel-config.json',
       logDir: 'logs/bot',
       accountFrom: 'Bot1',
     }),
