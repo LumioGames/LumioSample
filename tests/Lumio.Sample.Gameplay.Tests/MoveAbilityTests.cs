@@ -351,7 +351,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         using WorldManager source = SampleGameplay.CreateWorld(17UL);
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
         using DedicatedServerHostBinding attached = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(source, catalog));
+            DedicatedServerHostBinding.TryAttach(source, KernelConfigurationFixture.Create(), catalog));
         source.Start(Thread.CurrentThread);
         WorldTickBinding.Bind(source);
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(source.World, "acct-native-spawn");
@@ -362,6 +362,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
             runtime,
             voxel,
             GeneratedRegistry.Instance,
+            KernelConfigurationFixture.Create(),
             null,
             source.IngressBudget,
             catalog);
@@ -394,7 +395,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         using WorldManager manager = SampleGameplay.CreateWorld(19UL);
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
         using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(manager, catalog, voxel));
+            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(), catalog, voxel));
         manager.Start(Thread.CurrentThread);
         WorldTickBinding.Bind(manager);
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(manager.World, "acct-tryattach-spawn");
