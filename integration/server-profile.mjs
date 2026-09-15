@@ -21,6 +21,7 @@ const MISSING_CAPTURE_COMMAND =
 
 export const FROZEN_WORLD_PROFILE = 'runtime+voxel';
 export const FROZEN_DURABILITY = 'snapshot_only';
+export const FROZEN_VOXEL_CATALOG = 'maps/official-catalog.json';
 export const FROZEN_BASE_MAP_ID = 'sample';
 export const FROZEN_BASE_MAP_VERSION = '0.1.0';
 export const FROZEN_ENTRY_TYPE = 'Lumio.Server.EntityChat.HostEntry.HostEntry, Lumio.Server.EntityChat.HostEntry';
@@ -68,6 +69,9 @@ export function assertFrozenServerProfile(config, repoRoot = ROOT) {
   if (!config || typeof config !== 'object') throw new Error('server.json must parse as an object.');
   if (config.world_profile !== FROZEN_WORLD_PROFILE) {
     throw new Error(`server.json world_profile must be ${FROZEN_WORLD_PROFILE}, not ${config.world_profile}`);
+  }
+  if (config.voxel_catalog !== FROZEN_VOXEL_CATALOG) {
+    throw new Error(`server.json voxel_catalog must be ${FROZEN_VOXEL_CATALOG}, not ${config.voxel_catalog}`);
   }
   if (config.durability !== FROZEN_DURABILITY) {
     throw new Error(`server.json durability must be ${FROZEN_DURABILITY} (persistence-container-v1), not ${config.durability}`);

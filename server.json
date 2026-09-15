@@ -23,6 +23,7 @@
   "store_path": "state/room",
   "config_dir": "config",
   "world_profile": "runtime+voxel",
+  "voxel_catalog": "maps/official-catalog.json",
   "durability": "snapshot_only",
   "base_map_id": "sample",
   "base_map_version": "0.1.0",

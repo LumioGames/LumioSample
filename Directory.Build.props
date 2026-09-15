@@ -15,4 +15,15 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <!-- Client compile must not overwrite the default server output DS loads.
+       OutputPath has to be set here: Directory.Build.targets runs after the
+       SDK already computed bin/$(Configuration)/net10.0/. LumioEcsSide is a
+       global -p: property, so it is visible at props import. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client'">
+    <OutputPath>$(MSBuildProjectDirectory)/bin/$(Configuration)/net10.0-client/</OutputPath>
+    <IntermediateOutputPath>$(MSBuildProjectDirectory)/obj/$(Configuration)/net10.0-client/</IntermediateOutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
 </Project>
