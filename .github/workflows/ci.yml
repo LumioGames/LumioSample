@@ -114,6 +114,8 @@ jobs:
       - name: Provision liblumio_engine_native
         working-directory: ${{ github.workspace }}/LumioGameRuntime
         run: bash eng/provision-engine-native.sh
+      - name: Provide committed Native scene fixtures
+        run: echo "LUMIO_RT_FIXTURES=${{ github.workspace }}/LumioGameRuntime/modules/coordination/tests/fixtures/voxel-native" >> "$GITHUB_ENV"
       - run: dotnet test LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine -- --minimum-expected-tests 1
       - run: node --test integration/verify-evidence.mjs
       - run: node --test integration/account-client.test.mjs
