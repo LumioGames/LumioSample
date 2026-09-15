@@ -41,7 +41,11 @@ public static class SampleGameplay
     /// <summary>Binds transient ability ports to the player's existing ledgers.</summary>
     public static void BindPlayer(World world, NetEntityId player)
     {
+#if NET5_0_OR_GREATER
         ArgumentNullException.ThrowIfNull(world);
+#else
+        if (world is null) throw new ArgumentNullException(nameof(world));
+#endif
         if (!world.IsLive(player))
             throw new InvalidOperationException("BindPlayer requires a live player.");
 
@@ -88,7 +92,11 @@ public static class SampleGameplay
     /// <summary>Generic Activate. Owner for CanActivate comes from <see cref="BindPlayer"/>'s context, not this wrapper.</summary>
     public static AbilityActivateResult ActivateMine(AbilityComponent owner, in MineAbility.Input input, ulong sequence = 0)
     {
+#if NET5_0_OR_GREATER
         ArgumentNullException.ThrowIfNull(owner);
+#else
+        if (owner is null) throw new ArgumentNullException(nameof(owner));
+#endif
         return owner.Activate<MineAbility, MineAbility.Input>(in input, sequence);
     }
 

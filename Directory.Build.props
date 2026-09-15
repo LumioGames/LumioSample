@@ -20,9 +20,18 @@
        OutputPath has to be set here: Directory.Build.targets runs after the
        SDK already computed bin/$(Configuration)/net10.0/. LumioEcsSide is a
        global -p: property, so it is visible at props import. -->
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client'">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client' and '$(LumioBrowserReplica)' != 'true'">
     <OutputPath>$(MSBuildProjectDirectory)/bin/$(Configuration)/net10.0-client/</OutputPath>
     <IntermediateOutputPath>$(MSBuildProjectDirectory)/obj/$(Configuration)/net10.0-client/</IntermediateOutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+  <!-- Spectator wasm must not overwrite Bot.Host's net10.0-client output.
+       TargetFramework=netstandard2.1 is set in the gameplay csproj when
+       LumioBrowserReplica=true so NativeLoader cannot enter the wasm graph. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioBrowserReplica)' == 'true'">
+    <OutputPath>$(MSBuildProjectDirectory)/bin/$(Configuration)/net10.0-browser/</OutputPath>
+    <IntermediateOutputPath>$(MSBuildProjectDirectory)/obj/$(Configuration)/net10.0-browser/</IntermediateOutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>

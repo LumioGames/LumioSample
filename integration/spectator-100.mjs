@@ -447,6 +447,7 @@ export function baseMapCaptureAgreement({ root = ROOT, dsConfig, env = {} } = {}
  * Bot.Host still moves. Fail closed before minting tickets.
  */
 export const SPECTATOR_WASM_CONNECTION_STATE_MARKER = 'ConnectionState';
+export const SPECTATOR_WASM_APPLY_ERROR_MARKER = 'LastApplyError';
 
 export function spectatorPageRoot(clientRoot) {
   return resolve(String(clientRoot ?? ''), 'modules', 'web', 'spectator');
@@ -507,11 +508,32 @@ export function spectatorWasmAgreement({ clientRoot } = {}) {
       marker: SPECTATOR_WASM_CONNECTION_STATE_MARKER,
     };
   }
+  if (!latin1.includes(SPECTATOR_WASM_APPLY_ERROR_MARKER)) {
+    return {
+      ok: false,
+      reason: `spectator wasm is missing ${SPECTATOR_WASM_APPLY_ERROR_MARKER} (stale r18 wasm; dump status=failed stays unattributed)`,
+      framework,
+      wasm: wasmPath,
+      marker: SPECTATOR_WASM_APPLY_ERROR_MARKER,
+    };
+  }
+  const nativeLoader = names.find((name) => /^Lumio\.Engine\.NativeLoader\.[^/\\]+\.wasm$/.test(name)
+    && !/^Lumio\.Engine\.NativeLoader\.Hfsm\./.test(name));
+  if (nativeLoader) {
+    return {
+      ok: false,
+      reason: `spectator _framework still publishes NativeLoader (${nativeLoader}); browser wasm TypeLoadException on RuntimeInformation leaves dump stub empty`,
+      framework,
+      wasm: wasmPath,
+      nativeLoader: join(framework, nativeLoader),
+    };
+  }
   return {
     ok: true,
     framework,
     wasm: wasmPath,
     marker: SPECTATOR_WASM_CONNECTION_STATE_MARKER,
+    applyErrorMarker: SPECTATOR_WASM_APPLY_ERROR_MARKER,
   };
 }
 
@@ -1662,6 +1684,7 @@ const MIME = {
   '.wasm': 'application/wasm',
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
+  '.dat': 'application/octet-stream',
 };
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -2164,7 +2187,7 @@ function launchExpression(launch) {
   })};`;
 }
 
-function normalizeSnapshot(value) {
+export function normalizeSnapshot(value) {
   const source = value?.value ?? value?.result?.value ?? value;
   if (!source || typeof source !== 'object') return null;
   const positions = Array.isArray(source.positions)
@@ -2178,7 +2201,7 @@ function normalizeSnapshot(value) {
     positions,
     updatedAtMs: finiteNumber(Number(source.updatedAtMs)) ? Number(source.updatedAtMs) : null,
   };
-  for (const key of ['worldId', 'roomId', 'worldFrame', 'entityFrame', 'frameId', 'instanceId', 'selfId']) {
+  for (const key of ['worldId', 'roomId', 'worldFrame', 'entityFrame', 'frameId', 'instanceId', 'selfId', 'lastError', 'lastFrameType']) {
     if (typeof source[key] === 'string' || typeof source[key] === 'number') snapshot[key] = source[key];
     else if (source[key] && typeof source[key] === 'object') {
       try { snapshot[key] = JSON.stringify(source[key]); } catch { /* ignore malformed metadata */ }
@@ -2601,6 +2624,9 @@ async function waitForSnapshot(cdp, {
       Math.max(1, Math.min(Number(cdpTimeoutMs ?? timeoutMs) || timeoutMs, Math.max(1, deadline - Date.now()))),
     ).catch(() => null);
     if (snapshotReady(latest) && runtime?.hasRuntime && (!runtimeStatuses.length || runtimeStatuses.includes(latest.status))) return latest;
+    if (latest?.status === 'failed') {
+      throw new Error(`spectator page replica apply failed (last=${JSON.stringify(latest)})`);
+    }
     await sleep(Math.min(Math.max(0, pollMs), Math.max(0, deadline - Date.now())));
   }
   throw new Error(`spectator page did not expose ${REQUIRED_IDS} entities before timeout (last=${JSON.stringify(latest)})`);
