@@ -65,7 +65,9 @@
     <WarningsNotAsErrors>$(WarningsNotAsErrors);CS1591</WarningsNotAsErrors>
   </PropertyGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
-    <Compile Include="generated/config/server/*.cs" />
+    <!-- Default SDK globs may already contain both projections before generator props load. -->
+    <Compile Remove="generated/config/**/*.cs" />
+    <Compile Include="generated/config/$(_LumioConfigSide)/*.cs" />
   </ItemGroup>
 
   <!-- Same analyzer exemptions the SDK pack props apply when the generator is on.

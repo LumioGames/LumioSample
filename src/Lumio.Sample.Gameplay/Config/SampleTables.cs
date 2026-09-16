@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Lumio.Config.Generated.Server;
 using Lumio.GameRuntime.Config;
 
 namespace Lumio.Sample.Gameplay.Config;
@@ -120,7 +119,7 @@ public static class SampleTables
             string directory = ResolveDirectory();
             LumioConfigLoadResult result = LumioConfigLoader.Load(
                 directory,
-                ConfigTarget.Server,
+                SampleConfigProjection.Target,
                 requiredTables: RequiredTables,
                 typedTableFactory: SampleTypedTables.Create);
             if (!result.IsSuccess || result.TypedTables is not SampleTypedTables typed)
