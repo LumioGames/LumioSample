@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using Lumio.Config.Generated.Server;
 using Lumio.GameRuntime.Config;
 
 namespace Lumio.Sample.Gameplay.Config;

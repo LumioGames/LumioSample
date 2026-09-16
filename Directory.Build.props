@@ -6,6 +6,7 @@
     在这里写 Condition="'$(SomeMarker)' == 'true'" 是永远不成立的死配置。
   -->
   <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>14.0</LangVersion>
@@ -20,7 +21,7 @@
        OutputPath has to be set here: Directory.Build.targets runs after the
        SDK already computed bin/$(Configuration)/net10.0/. LumioEcsSide is a
        global -p: property, so it is visible at props import. -->
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client' and '$(LumioBrowserReplica)' != 'true'">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioEcsSide)' == 'client' and '$(LumioBrowserReplica)' != 'true' and '$(ArtifactsPath)' == ''">
     <OutputPath>$(MSBuildProjectDirectory)/bin/$(Configuration)/net10.0-client/</OutputPath>
     <IntermediateOutputPath>$(MSBuildProjectDirectory)/obj/$(Configuration)/net10.0-client/</IntermediateOutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -29,10 +30,16 @@
   <!-- Spectator wasm must not overwrite Bot.Host's net10.0-client output.
        TargetFramework=netstandard2.1 is set in the gameplay csproj when
        LumioBrowserReplica=true so NativeLoader cannot enter the wasm graph. -->
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioBrowserReplica)' == 'true'">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(LumioBrowserReplica)' == 'true' and '$(ArtifactsPath)' == ''">
     <OutputPath>$(MSBuildProjectDirectory)/bin/$(Configuration)/net10.0-browser/</OutputPath>
     <IntermediateOutputPath>$(MSBuildProjectDirectory)/obj/$(Configuration)/net10.0-browser/</IntermediateOutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+  <!-- Preserve the SDK's per-project artifact layout when callers isolate the whole graph. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(ArtifactsPath)' != ''">
+    <ArtifactsPivots>$(Configuration)</ArtifactsPivots>
+    <ArtifactsPivots Condition="'$(LumioEcsSide)' == 'client'">$(Configuration)_client</ArtifactsPivots>
+    <ArtifactsPivots Condition="'$(LumioBrowserReplica)' == 'true'">$(Configuration)_browser</ArtifactsPivots>
   </PropertyGroup>
 </Project>
