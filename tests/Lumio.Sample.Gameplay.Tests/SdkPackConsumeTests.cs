@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using Xunit;
 
 namespace Lumio.Sample.Gameplay.Tests
@@ -83,11 +84,41 @@ namespace Lumio.Sample.Gameplay.Tests
             return output + Environment.NewLine + error;
         }
 
-        [Fact]
-        public void CentralPackageManifestPinsTheEngineSdkVersion()
+        [Theory]
+        [InlineData("", "0.1.0")]
+        [InlineData("0.1.0-dev.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "0.1.0-dev.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+        public void CentralPackageManifestSelectsTheExactEngineSdkVersion(string selectedVersion, string expectedVersion)
         {
-            string props = File.ReadAllText(Path.Combine(RepoRoot, "Directory.Packages.props"));
-            Assert.Contains("PackageVersion Include=\"Lumio.Engine.SDK\" Version=\"0.1.0\"", props);
+            var start = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                WorkingDirectory = RepoRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            };
+            start.ArgumentList.Add("msbuild");
+            start.ArgumentList.Add("src/Lumio.Sample.Gameplay/Lumio.Sample.Gameplay.csproj");
+            start.ArgumentList.Add("-nologo");
+            start.ArgumentList.Add("-getItem:PackageVersion");
+            start.Environment.Remove("LumioSdkVersion");
+            if (selectedVersion.Length != 0)
+                start.ArgumentList.Add("-p:LumioSdkVersion=" + selectedVersion);
+            using Process process = Process.Start(start)!;
+            string output = process.StandardOutput.ReadToEnd();
+            string error = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            Assert.True(process.ExitCode == 0, error + output);
+            using JsonDocument document = JsonDocument.Parse(output);
+            bool found = false;
+            foreach (JsonElement package in document.RootElement.GetProperty("Items").GetProperty("PackageVersion").EnumerateArray())
+            {
+                if (package.GetProperty("Identity").GetString() != "Lumio.Engine.SDK") continue;
+                Assert.False(found);
+                Assert.Equal(expectedVersion, package.GetProperty("Version").GetString());
+                found = true;
+            }
+            Assert.True(found);
         }
 
         [Fact]
