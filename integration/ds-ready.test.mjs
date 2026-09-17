@@ -18,6 +18,7 @@ test('Bot.Host invocation carries server, ticket, native SDK, log directory and 
     accountFrom: 'Bot1',
     accountTo: 'Bot1',
     gameplay: 'Lumio.Sample.Gameplay.dll',
+    configDir: 'exports/sample',
   });
   assert.deepEqual(args.slice(1, 9), ['--server', 'ws://127.0.0.1:9110/', '--admission-ticket', 'ticket_123', '--engine-native', 'lumio.dll', '--kernel-config', 'run/kernel-config.json']);
   assert.ok(args.includes('--log-dir'));
@@ -25,6 +26,7 @@ test('Bot.Host invocation carries server, ticket, native SDK, log directory and 
   assert.ok(gameplayAt >= 0);
   assert.equal(args[gameplayAt + 1], 'Lumio.Sample.Gameplay.dll');
   assert.ok(!args.includes('test-harness'));
+  assert.equal(args[args.indexOf('--config-dir') + 1], 'exports/sample');
 });
 
 test('Bot.Host invocation refuses to omit --kernel-config', () => {
@@ -76,7 +78,14 @@ test('spectator startup forwards its per-run config into real Bot argument const
   const call = source.match(/const args = buildBotArgs\((\{[\s\S]*?\})\);/);
   assert.ok(call, 'spectator Bot argument call must exist');
   const kernelConfigPath = 'run/kernel-config.json';
-  const args = Function('buildBotArgs', 'botDll', 'ticketWsUrl', 'ticketsPath', 'engineNative', 'kernelConfigPath', 'logDir', 'row', 'gameplay', `return buildBotArgs(${call[1]});`)(
-    buildBotArgs, 'Bot.dll', 'ws://127.0.0.1:9110/', 'tickets.json', 'native.dll', kernelConfigPath, 'logs', { loginName: 'bot1' }, 'Game.dll');
+  const args = Function('buildBotArgs', 'botDll', 'ticketWsUrl', 'ticketsPath', 'engineNative', 'kernelConfigPath', 'logDir', 'row', 'gameplay', 'options', 'childEnv', `return buildBotArgs(${call[1]});`)(
+    buildBotArgs, 'Bot.dll', 'ws://127.0.0.1:9110/', 'tickets.json', 'native.dll', kernelConfigPath, 'logs', { loginName: 'bot1' }, 'Game.dll', {}, { LUMIO_CONFIG_DIR: 'exports/sample' });
   assert.equal(args[args.indexOf('--kernel-config') + 1], kernelConfigPath);
+  assert.equal(args[args.indexOf('--config-dir') + 1], 'exports/sample');
+});
+
+test('SDK-backed Bot refuses a missing or blank typed-config export', () => {
+  for (const configDir of [undefined, '', '   ']) {
+    assert.throws(() => buildBotArgs({ kernelConfig: 'kernel.json', gameplay: 'Game.dll', configDir }), /--config-dir/);
+  }
 });
