@@ -43,7 +43,30 @@ public sealed class SampleWiringTests : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, null);
-        MineAbility.Writer = null;
+    }
+
+    [Fact]
+    public void MineAbilityDoesNotClaimAVoxelWrite()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        world.VoxelWriter = null;
+        Assert.False(MineAbility.TryRequestAirWrite(world.World, world.Vein));
+    }
+
+    [Fact]
+    public void VoxelWritersAreIsolatedAndStaleLeaseCannotDetachReplacement()
+    {
+        using SampleWorldHarness first = SampleWorldHarness.Boot();
+        using SampleWorldHarness second = SampleWorldHarness.Boot();
+        using IDisposable old = SampleVoxelWriterBinding.Bind(first.World.Manager, new FailingVoxelWriter());
+        Assert.False(MineAbility.TryRequestAirWrite(first.World, first.Vein));
+        Assert.True(MineAbility.TryRequestAirWrite(second.World, second.Vein));
+        using IDisposable replacement = SampleVoxelWriterBinding.Bind(first.World.Manager, new SucceedingVoxelWriter());
+        old.Dispose();
+        Assert.True(MineAbility.TryRequestAirWrite(first.World, first.Vein));
+        replacement.Dispose();
+        Assert.False(MineAbility.TryRequestAirWrite(first.World, first.Vein));
+        Assert.True(MineAbility.TryRequestAirWrite(second.World, second.Vein));
     }
 
     [Fact]
@@ -111,7 +134,7 @@ public sealed class SampleWiringTests : IDisposable
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         long stamina = world.StaminaBase;
         int remaining = world.Remaining;
-        MineAbility.Writer = new FailingVoxelWriter();
+        world.VoxelWriter = new FailingVoxelWriter();
         try
         {
             AbilityActivateResult result = world.Mine();
@@ -126,7 +149,7 @@ public sealed class SampleWiringTests : IDisposable
         }
         finally
         {
-            MineAbility.Writer = new SucceedingVoxelWriter();
+            world.VoxelWriter = new SucceedingVoxelWriter();
         }
     }
 
@@ -343,15 +366,25 @@ internal sealed class TempConfig : IDisposable
 internal sealed class SampleWorldHarness : IDisposable
 {
     private readonly WorldManager _manager;
+    private IDisposable? _writerBinding;
 
     private SampleWorldHarness(WorldManager manager, NetEntityId player, NetEntityId vein)
     {
         _manager = manager;
+        VoxelWriter = new SucceedingVoxelWriter();
         Player = player;
         Vein = vein;
     }
 
     public World World => _manager.World;
+    public ISampleVoxelWriter? VoxelWriter
+    {
+        set
+        {
+            _writerBinding?.Dispose();
+            _writerBinding = value is null ? null : SampleVoxelWriterBinding.Bind(_manager, value);
+        }
+    }
     public NetEntityId Player { get; }
     public NetEntityId Vein { get; }
     public long StaminaBase => World.Get<AttributeComponent>(Player).GetBaseValue(SampleConfigBinding.For(World).Stamina.Name);
@@ -386,7 +419,6 @@ internal sealed class SampleWorldHarness : IDisposable
 
     private static WorldManager StartManager()
     {
-        MineAbility.Writer ??= new SucceedingVoxelWriter();
         WorldManager manager = SampleGameplay.CreateWorld(11UL);
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
         manager.Start(Thread.CurrentThread);
@@ -408,7 +440,11 @@ internal sealed class SampleWorldHarness : IDisposable
 
     public void FlushCreates() => _manager.Tick();
 
-    public void Dispose() => _manager.Dispose();
+    public void Dispose()
+    {
+        _writerBinding?.Dispose();
+        _manager.Dispose();
+    }
 
     private sealed class CommitTickLoop : IWorldTickLoop
     {

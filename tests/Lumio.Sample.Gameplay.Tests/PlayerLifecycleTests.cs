@@ -215,6 +215,5 @@ public sealed class PlayerLifecycleTests : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, null);
-        MineAbility.Writer = null;
     }
 }
