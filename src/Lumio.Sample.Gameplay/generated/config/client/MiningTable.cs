@@ -2,12 +2,13 @@
 // 生成物不得手改。由 LumioConfig `export --csharp-out` 重建。
 // table: mining
 // target: C
-// schemaFingerprint: a3d6a72d176f589e88ae5f4ef0c205faf51ff4a5ce3ba6b29ad7e18258e9ee42
+// schemaFingerprint: bc03d5f6efa2c98aa1d4bc9eca9f0ebfaeab39dbd4913aef6cc6060a3a725fae
 // </auto-generated>
 
 #nullable enable
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace Lumio.Config.Generated.Client;
@@ -19,13 +20,15 @@ public readonly struct MiningRow
         string name,
         long staminaCost,
         int veinHitsToBreak,
-        int orePerVein)
+        int orePerVein,
+        uint cooldownTicks)
     {
         Id = id;
         Name = name;
         StaminaCost = staminaCost;
         VeinHitsToBreak = veinHitsToBreak;
         OrePerVein = orePerVein;
+        CooldownTicks = cooldownTicks;
     }
 
     public uint Id { get; }
@@ -33,11 +36,13 @@ public readonly struct MiningRow
     public long StaminaCost { get; }
     public int VeinHitsToBreak { get; }
     public int OrePerVein { get; }
+    public uint CooldownTicks { get; }
 }
 
 public readonly struct MiningTable
 {
     private readonly MiningRow[] _rows;
+    private readonly IReadOnlyList<MiningRow> _readOnlyRows;
     private readonly Dictionary<uint, int> _index;
 
     public MiningTable(IReadOnlyList<MiningRow> rows)
@@ -65,12 +70,13 @@ public readonly struct MiningTable
         }
 
         _rows = copy;
+        _readOnlyRows = new ReadOnlyRows(copy);
         _index = index;
     }
 
     public int Count => _rows.Length;
 
-    public IReadOnlyList<MiningRow> Rows => _rows;
+    public IReadOnlyList<MiningRow> Rows => _readOnlyRows;
 
     public bool TryGet(uint id, out MiningRow row)
     {
@@ -82,5 +88,22 @@ public readonly struct MiningTable
 
         row = default;
         return false;
+    }
+
+    // Expose only traversal; collection interfaces such as SyncRoot can leak storage.
+    private sealed class ReadOnlyRows : IReadOnlyList<MiningRow>
+    {
+        private readonly MiningRow[] _items;
+
+        public ReadOnlyRows(MiningRow[] items) => _items = items;
+
+        public int Count => _items.Length;
+
+        public MiningRow this[int index] => _items[index];
+
+        public IEnumerator<MiningRow> GetEnumerator() =>
+            ((IEnumerable<MiningRow>)_items).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

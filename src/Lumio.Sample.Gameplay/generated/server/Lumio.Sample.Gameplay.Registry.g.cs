@@ -79,6 +79,11 @@ public sealed class GeneratedRegistry : EcsRegistry
     public override RegistrySide Side => RegistrySide.Server;
 
     /// <inheritdoc />
+    public override Type RequiredGameplayConfigContract => typeof(global::Lumio.Sample.Gameplay.Config.ISampleConfig);
+    /// <inheritdoc />
+    public override IGameConfigExportBinding CreateGameplayConfigBinding() => new global::Lumio.Sample.Gameplay.Config.SampleConfigBinding();
+
+    /// <inheritdoc />
     public override Type WorldEntityType => typeof(WorldEntity);
 
     /// <inheritdoc />

@@ -1,0 +1,6 @@
+table: map
+schema: schemas/map.json
+
+| id | name | width | depth | vein_ratio |
+| --- | --- | --- | --- | --- |
+| 100001 | default | 32 | 32 | 0.00390625 |

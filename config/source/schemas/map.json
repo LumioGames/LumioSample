@@ -1,0 +1,41 @@
+{
+  "table": "map",
+  "idColumn": "id",
+  "columns": [
+    {
+      "name": "id",
+      "type": "u32",
+      "ordinal": 0,
+      "required": true,
+      "visibility": "CSV"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "ordinal": 1,
+      "required": true,
+      "visibility": "CSV"
+    },
+    {
+      "name": "width",
+      "type": "i32",
+      "ordinal": 2,
+      "required": true,
+      "visibility": "CSV"
+    },
+    {
+      "name": "depth",
+      "type": "i32",
+      "ordinal": 3,
+      "required": true,
+      "visibility": "CSV"
+    },
+    {
+      "name": "vein_ratio",
+      "type": "f64",
+      "ordinal": 4,
+      "required": true,
+      "visibility": "CSV"
+    }
+  ]
+}

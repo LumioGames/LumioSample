@@ -1,0 +1,36 @@
+{
+  "table": "movement",
+  "idColumn": "id",
+  "columns": [
+    {
+      "name": "id",
+      "ordinal": 0,
+      "type": "u32",
+      "required": true,
+      "visibility": "CS"
+    },
+    {
+      "name": "name",
+      "ordinal": 1,
+      "type": "string",
+      "required": true,
+      "visibility": "CS"
+    },
+    {
+      "name": "step_meters",
+      "ordinal": 2,
+      "type": "f64",
+      "required": true,
+      "minimum": 0,
+      "visibility": "CS"
+    },
+    {
+      "name": "sweep_radius_meters",
+      "ordinal": 3,
+      "type": "f64",
+      "required": true,
+      "minimum": 0,
+      "visibility": "CS"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "contentFingerprint": "f4d28a847985b51aaf26b9843ccc69c85112347a71a0fd15f60703f27e42e996",
+  "rows": [
+    {
+      "depth": 32,
+      "id": 100001,
+      "name": "default",
+      "vein_ratio": 0.00390625,
+      "width": 32
+    }
+  ],
+  "table": "map",
+  "target": "V"
+}

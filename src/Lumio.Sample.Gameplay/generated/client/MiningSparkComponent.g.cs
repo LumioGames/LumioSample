@@ -48,10 +48,15 @@ public sealed partial class MiningSparkComponent : IGeneratedComponent, IGenerat
 
     void IGeneratedComponent.CapturePersist(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter) return;
     }
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter prediction)
+        {
+            return;
+        }
     }
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)

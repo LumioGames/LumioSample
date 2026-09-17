@@ -31,5 +31,5 @@ test('re-running LumioConfig export --csharp-out leaves the six Readers byte-ide
   const result = syncConfigReaders({ repoRoot: ROOT, checkOnly: true });
   assert.equal(result.status, 'OK');
   assert.equal(result.checkOnly, true);
-  assert.equal(result.files, 6);
+  assert.equal(result.files, READER_FILES.length);
 });

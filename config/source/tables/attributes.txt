@@ -1,0 +1,8 @@
+table: attributes
+schema: schemas/attributes.json
+
+| id    | name    | initial |
+| ----- | ------- | ------- |
+| 90001 | Stamina | 17      |
+
+| 90002 | Ore     | 9       |

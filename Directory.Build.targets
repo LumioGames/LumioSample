@@ -125,8 +125,10 @@
       <_LumioEcsSources Condition="'$(_LumioEcsSources)' == ''">$(MSBuildProjectDirectory)</_LumioEcsSources>
       <_LumioEcsOut>$(MSBuildProjectDirectory)/generated/$(_LumioEcsSide)</_LumioEcsOut>
       <_LumioEcsJson>$(_LumioEcsOut)/attribute-declarations.json</_LumioEcsJson>
+      <_LumioEcsStamp>$(_LumioEcsOut)/gen.hash</_LumioEcsStamp>
       <_LumioEcsNamespace Condition="'$(RootNamespace)' != ''">$(RootNamespace)</_LumioEcsNamespace>
       <_LumioEcsNamespace Condition="'$(_LumioEcsNamespace)' == ''">$(MSBuildProjectName)</_LumioEcsNamespace>
+      <_LumioGameplayConfigArgs Condition="'$(LumioGameplayConfigContract)' != '' or '$(LumioGameplayConfigAdapter)' != ''">--gameplay-config-contract &quot;$(LumioGameplayConfigContract)&quot; --gameplay-config-adapter &quot;$(LumioGameplayConfigAdapter)&quot;</_LumioGameplayConfigArgs>
     </PropertyGroup>
     <Error Condition="!Exists('$(_LumioEcsToolProject)')" Text="LUMIO_SDK_UNRESOLVED: sibling Runtime is missing tools/gen-declarations." />
     <MakeDir Directories="$(_LumioEcsOut)" />
@@ -136,7 +138,14 @@
              RemoveProperties="TargetFramework;TargetFrameworks" BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" PropertyName="_LumioEcsToolDll" />
     </MSBuild>
-    <Exec Command="dotnet exec &quot;$(_LumioEcsToolDll)&quot; --sources &quot;$(_LumioEcsSources)&quot; --side $(_LumioEcsSide) --output-dir &quot;$(_LumioEcsOut)&quot; --output &quot;$(_LumioEcsJson)&quot; --assembly-name &quot;$(AssemblyName)&quot; --namespace &quot;$(_LumioEcsNamespace)&quot;" />
+    <Exec Command="dotnet exec &quot;$(_LumioEcsToolDll)&quot; --sources &quot;$(_LumioEcsSources)&quot; --side $(_LumioEcsSide) --output-dir &quot;$(_LumioEcsOut)&quot; --output &quot;$(_LumioEcsJson)&quot; --assembly-name &quot;$(AssemblyName)&quot; --namespace &quot;$(_LumioEcsNamespace)&quot; $(_LumioGameplayConfigArgs) --hash" ConsoleToMSBuild="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_LumioEcsInputHash" />
+    </Exec>
+    <PropertyGroup>
+      <_LumioEcsPreviousHash Condition="Exists('$(_LumioEcsStamp)')">$([System.IO.File]::ReadAllText('$(_LumioEcsStamp)').Trim())</_LumioEcsPreviousHash>
+    </PropertyGroup>
+    <Exec Condition="'$(_LumioEcsInputHash)' != '$(_LumioEcsPreviousHash)'" Command="dotnet exec &quot;$(_LumioEcsToolDll)&quot; --sources &quot;$(_LumioEcsSources)&quot; --side $(_LumioEcsSide) --output-dir &quot;$(_LumioEcsOut)&quot; --output &quot;$(_LumioEcsJson)&quot; --assembly-name &quot;$(AssemblyName)&quot; --namespace &quot;$(_LumioEcsNamespace)&quot; $(_LumioGameplayConfigArgs)" />
+    <WriteLinesToFile File="$(_LumioEcsStamp)" Lines="$(_LumioEcsInputHash)" Overwrite="true" Encoding="UTF-8" />
     <ItemGroup>
       <Compile Include="$(_LumioEcsOut)/**/*.cs" Exclude="@(Compile)" />
     </ItemGroup>

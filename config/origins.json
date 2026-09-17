@@ -43,8 +43,18 @@
       "name": "engine"
     }
   },
+  "map": {
+    "default": {
+      "depth": "engine",
+      "id": "engine",
+      "name": "engine",
+      "vein_ratio": "engine",
+      "width": "engine"
+    }
+  },
   "mining": {
     "default": {
+      "cooldown_ticks": "engine",
       "id": "engine",
       "name": "engine",
       "ore_per_vein": "engine",

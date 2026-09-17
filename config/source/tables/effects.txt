@@ -1,0 +1,8 @@
+table: effects
+schema: schemas/effects.json
+
+| id    | name  | duration_frames | fx_key   | formula_key      |
+| ----- | ----- | --------------- | -------- | ---------------- |
+| 50001 | burn  | 180             | fx_burn  | damage_over_time |
+
+| 50002 | chill | 120             | fx_chill | slow_percent     |

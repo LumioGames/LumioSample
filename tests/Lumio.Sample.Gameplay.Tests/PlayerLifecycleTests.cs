@@ -50,10 +50,10 @@ public sealed class PlayerLifecycleTests : IDisposable
         MethodInfo attachMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("TryAttach", new[] { typeof(WorldManager), typeof(KernelConfig), typeof(byte[]) }), exactMatch: false);
         MethodInfo restoreMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("RestoreNew", new[]
         {
-            typeof(byte[]), typeof(byte[]), typeof(EcsRegistry), typeof(KernelConfig), typeof(ILoggerFactory), typeof(WorldIngressBudget), typeof(byte[])
+            typeof(byte[]), typeof(byte[]), typeof(EcsRegistry), typeof(KernelConfig), typeof(ILoggerFactory), typeof(WorldIngressBudget), typeof(byte[]), typeof(WorldConfigBinding)
         }), exactMatch: false);
         var attach = attachMethod.CreateDelegate<Func<WorldManager, KernelConfig, byte[], DedicatedServerHostBinding?>>();
-        var restore = restoreMethod.CreateDelegate<Func<byte[], byte[], EcsRegistry, KernelConfig, ILoggerFactory?, WorldIngressBudget, byte[], DedicatedServerRestoreResult>>();
+        var restore = restoreMethod.CreateDelegate<Func<byte[], byte[], EcsRegistry, KernelConfig, ILoggerFactory?, WorldIngressBudget, byte[], WorldConfigBinding, DedicatedServerRestoreResult>>();
         using WorldManager source = SampleGameplay.CreateWorld(91UL);
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
         using DedicatedServerHostBinding initial = Assert.IsType<DedicatedServerHostBinding>(attach(source, KernelConfigurationFixture.Create(), catalog));
@@ -72,7 +72,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         long spent = SampleTables.StaminaInitial - 1;
         ledger.SetBaseValue(SampleTables.StaminaAttributeName, spent);
         byte[] runtime = source.CaptureSnapshot();
-        DedicatedServerRestoreResult loaded = restore(runtime, wall, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, source.IngressBudget, catalog);
+        DedicatedServerRestoreResult loaded = restore(runtime, wall, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, source.IngressBudget, catalog, SampleConfigBinding.Load());
         Assert.True(loaded.Succeeded, loaded.ErrorCode);
         using DedicatedServerHostBinding first = Assert.IsType<DedicatedServerHostBinding>(loaded.Binding);
         using WorldManager manager = first.Manager;
@@ -93,7 +93,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.True(capture.Succeeded, capture.ErrorCode);
         DualCutCheckpointPayload checkpoint = capture.Checkpoint!.Value;
         Assert.True(checkpoint.SectionCount > 0);
-        DedicatedServerRestoreResult cold = restore(checkpoint.Runtime, checkpoint.Voxel, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, manager.IngressBudget, catalog);
+        DedicatedServerRestoreResult cold = restore(checkpoint.Runtime, checkpoint.Voxel, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, manager.IngressBudget, catalog, SampleConfigBinding.Load());
         Assert.True(cold.Succeeded, cold.ErrorCode);
         using DedicatedServerHostBinding second = Assert.IsType<DedicatedServerHostBinding>(cold.Binding);
         using WorldManager restored = second.Manager;
@@ -157,7 +157,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         SampleGameplay.BindPlayer(world.World, order.AssignedId);
         Assert.Same(componentPort, owner.Physics);
         byte[] snapshot = world.World.Manager.CaptureSnapshot();
-        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance);
+        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance, config: SampleConfigBinding.Load());
         Assert.Null(restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
         using IDisposable restoredBinding = AbilityPhysicsBinding.Bind(restored, managerPort);
         SampleGameplay.BindPlayer(restored.World, order.AssignedId);
@@ -194,7 +194,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         attributes.SetBaseValue(SampleTables.OreAttributeName, ore);
         attributes.SetCurrentValue(SampleTables.OreAttributeName, ore);
         byte[] snapshot = world.World.Manager.CaptureSnapshot();
-        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance);
+        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance, config: SampleConfigBinding.Load());
         AttributeComponent next = restored.World.Get<AttributeComponent>(world.Player);
         // CURRENT is derived, never serialized; phase 9 uses this same evaluator.
         AttributeEvaluator.Recompute(restored.World);

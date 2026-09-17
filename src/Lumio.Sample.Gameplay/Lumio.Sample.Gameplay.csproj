@@ -7,6 +7,8 @@
     <TargetFramework Condition="'$(LumioBrowserReplica)' != 'true'">net10.0</TargetFramework>
     <AssemblyName>Lumio.Sample.Gameplay</AssemblyName>
     <RootNamespace>Lumio.Sample.Gameplay</RootNamespace>
+    <LumioGameplayConfigContract>Lumio.Sample.Gameplay.Config.ISampleConfig</LumioGameplayConfigContract>
+    <LumioGameplayConfigAdapter>Lumio.Sample.Gameplay.Config.SampleConfigBinding</LumioGameplayConfigAdapter>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <_LumioConfigSide Condition="'$(LumioEcsSide)' == 'client'">client</_LumioConfigSide>
     <_LumioConfigSide Condition="'$(_LumioConfigSide)' == ''">server</_LumioConfigSide>

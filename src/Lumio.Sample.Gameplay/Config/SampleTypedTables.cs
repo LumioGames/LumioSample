@@ -12,11 +12,12 @@ namespace Lumio.Sample.Gameplay.Config;
 public sealed class SampleTypedTables : ITypedTableSet
 {
     /// <summary>Binds the three gameplay tables Sample reads at runtime.</summary>
-    public SampleTypedTables(MiningTable mining, MovementTable movement, AttributesTable attributes)
+    public SampleTypedTables(MiningTable mining, MovementTable movement, AttributesTable attributes, MapTable map = default)
     {
         Mining = mining;
         Movement = movement;
         Attributes = attributes;
+        Map = map;
     }
 
     /// <summary>Mining typed Reader.</summary>
@@ -27,10 +28,12 @@ public sealed class SampleTypedTables : ITypedTableSet
 
     /// <summary>Attributes typed Reader.</summary>
     public AttributesTable Attributes { get; }
+    public MapTable Map { get; }
 
     /// <inheritdoc />
     public bool TryGetTable<TTable>(out TTable table)
     {
+        if (typeof(TTable) == typeof(MapTable)) { table = (TTable)(object)Map; return true; }
         if (typeof(TTable) == typeof(MiningTable))
         {
             table = (TTable)(object)Mining;
@@ -60,6 +63,7 @@ public sealed class SampleTypedTables : ITypedTableSet
         var mining = new List<MiningRow>();
         var movement = new List<MovementRow>();
         var attributes = new List<AttributesRow>();
+        var map = new List<MapRow>();
 
         foreach (ConfigSnapshotTable tbl in tables)
         {
@@ -67,18 +71,20 @@ public sealed class SampleTypedTables : ITypedTableSet
             {
                 Dictionary<string, string> cells = Cells(row);
                 if (string.Equals(tbl.TableId, "mining", StringComparison.OrdinalIgnoreCase))
-                    mining.Add(new MiningRow(UInt(cells, "id"), Text(cells, "name"), Long(cells, "stamina_cost"), Int(cells, "vein_hits_to_break"), Int(cells, "ore_per_vein")));
+                    mining.Add(new MiningRow(UInt(cells, "id"), Text(cells, "name"), Long(cells, "stamina_cost"), Int(cells, "vein_hits_to_break"), Int(cells, "ore_per_vein"), UInt(cells, "cooldown_ticks")));
                 else if (string.Equals(tbl.TableId, "movement", StringComparison.OrdinalIgnoreCase))
                     movement.Add(new MovementRow(UInt(cells, "id"), Text(cells, "name"), Double(cells, "step_meters"), Double(cells, "sweep_radius_meters")));
                 else if (string.Equals(tbl.TableId, "attributes", StringComparison.OrdinalIgnoreCase))
                     attributes.Add(new AttributesRow(UInt(cells, "id"), Text(cells, "name"), Long(cells, "initial")));
+                else if (string.Equals(tbl.TableId, "map", StringComparison.OrdinalIgnoreCase))
+                    map.Add(new MapRow(UInt(cells, "id"), Text(cells, "name"), Int(cells, "width"), Int(cells, "depth"), Double(cells, "vein_ratio")));
             }
         }
 
         return new SampleTypedTables(
             new MiningTable(mining),
             new MovementTable(movement),
-            new AttributesTable(attributes));
+            new AttributesTable(attributes), new MapTable(map));
     }
 
     private static Dictionary<string, string> Cells(ConfigSnapshotRow row)

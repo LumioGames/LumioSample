@@ -9,7 +9,7 @@ namespace Lumio.Sample.Gameplay.EntityTypes;
 /// Admitted player. Identity binds platform accountId and display name;
 /// chat still names the speaker by net entity id.
 /// ADR-090 ledgers: Stamina and Ore, each Base + Current. Initials come from
-/// <c>config/attributes.json</c> via <c>SampleAttributeSeed</c>.
+/// <c>config/attributes.json</c> via the bound typed gameplay config.
 /// </summary>
 [EntityType(Mode.CS)]
 [DeclareAttribute("Stamina", Persist = true)]

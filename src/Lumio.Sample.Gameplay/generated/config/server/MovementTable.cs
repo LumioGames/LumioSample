@@ -8,6 +8,7 @@
 #nullable enable
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace Lumio.Config.Generated.Server;
@@ -35,6 +36,7 @@ public readonly struct MovementRow
 public readonly struct MovementTable
 {
     private readonly MovementRow[] _rows;
+    private readonly IReadOnlyList<MovementRow> _readOnlyRows;
     private readonly Dictionary<uint, int> _index;
 
     public MovementTable(IReadOnlyList<MovementRow> rows)
@@ -62,12 +64,13 @@ public readonly struct MovementTable
         }
 
         _rows = copy;
+        _readOnlyRows = new ReadOnlyRows(copy);
         _index = index;
     }
 
     public int Count => _rows.Length;
 
-    public IReadOnlyList<MovementRow> Rows => _rows;
+    public IReadOnlyList<MovementRow> Rows => _readOnlyRows;
 
     public bool TryGet(uint id, out MovementRow row)
     {
@@ -79,5 +82,22 @@ public readonly struct MovementTable
 
         row = default;
         return false;
+    }
+
+    // Expose only traversal; collection interfaces such as SyncRoot can leak storage.
+    private sealed class ReadOnlyRows : IReadOnlyList<MovementRow>
+    {
+        private readonly MovementRow[] _items;
+
+        public ReadOnlyRows(MovementRow[] items) => _items = items;
+
+        public int Count => _items.Length;
+
+        public MovementRow this[int index] => _items[index];
+
+        public IEnumerator<MovementRow> GetEnumerator() =>
+            ((IEnumerable<MovementRow>)_items).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

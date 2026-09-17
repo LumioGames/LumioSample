@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Sync the six Sample typed Readers from LumioConfig `export --csharp-out`.
+ * Sync the Sample typed Readers from LumioConfig `export --csharp-out`.
  *
  * Do not hand-edit src/Lumio.Sample.Gameplay/generated/config/**. Re-run:
  *
  *   node integration/sync-config-readers.mjs
  *   node integration/sync-config-readers.mjs --check
  *
- * `--check` re-exports and asserts the six committed files are byte-identical
+ * `--check` re-exports and asserts the committed files are byte-identical
  * (git diff empty on those paths). Missing LumioConfig is a loud error.
  */
 
@@ -24,9 +24,11 @@ export const READER_FILES = Object.freeze([
   ['server', 'AttributesTable.cs'],
   ['server', 'MiningTable.cs'],
   ['server', 'MovementTable.cs'],
+  ['server', 'MapTable.cs'],
   ['client', 'AttributesTable.cs'],
   ['client', 'MiningTable.cs'],
   ['client', 'MovementTable.cs'],
+  ['client', 'MapTable.cs'],
 ]);
 
 export function readerDest(repoRoot, side, name) {
@@ -48,6 +50,7 @@ export function resolveConfigRoot({ env = process.env, repoRoot = ROOT } = {}) {
 function pythonBin(env = process.env) {
   if (env.LUMIO_PYTHON) return env.LUMIO_PYTHON;
   if (env.PYTHON) return env.PYTHON;
+  if (process.platform === 'win32') return 'py -3';
   for (const candidate of ['python3.13', 'python3.12', 'python3.11', 'python3']) {
     const probe = spawnSync(candidate, ['-c', 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'], {
       encoding: 'utf8',
@@ -57,7 +60,7 @@ function pythonBin(env = process.env) {
   return 'python3';
 }
 
-export function exportCsharpReaders({ configRoot, python = pythonBin(), env = process.env } = {}) {
+export function exportCsharpReaders({ configRoot, sourceRoot = join(ROOT, 'config', 'source'), python = pythonBin(), env = process.env } = {}) {
   if (!configRoot) {
     throw new Error(
       'LumioConfig root was not found. Set LUMIO_CONFIG_ROOT or clone LumioConfig next to this repo, then re-run node integration/sync-config-readers.mjs.',
@@ -69,7 +72,8 @@ export function exportCsharpReaders({ configRoot, python = pythonBin(), env = pr
   const csharpOut = join(scratch, 'csharp');
   mkdirSync(out, { recursive: true });
   mkdirSync(csharpOut, { recursive: true });
-  const result = spawnSync(python, [cli, 'export', '--out', out, '--csharp-out', csharpOut], {
+  const pythonCommand = python === 'py -3' ? ['py', '-3'] : [python];
+  const result = spawnSync(pythonCommand[0], [...pythonCommand.slice(1), cli, 'export', '--root', sourceRoot, '--out', out, '--csharp-out', csharpOut], {
     cwd: configRoot,
     encoding: 'utf8',
     env,
@@ -83,7 +87,7 @@ export function exportCsharpReaders({ configRoot, python = pythonBin(), env = pr
   return { scratch, csharpOut, stdout: result.stdout };
 }
 
-export function copySixReaders(csharpOut, repoRoot) {
+export function copyReaders(csharpOut, repoRoot) {
   const copied = [];
   for (const [side, name] of READER_FILES) {
     const source = join(csharpOut, side, name);
@@ -98,7 +102,7 @@ export function copySixReaders(csharpOut, repoRoot) {
   return copied;
 }
 
-export function diffSixReaders(csharpOut, repoRoot) {
+export function diffReaders(csharpOut, repoRoot) {
   const diffs = [];
   for (const [side, name] of READER_FILES) {
     const source = join(csharpOut, side, name);
@@ -129,15 +133,15 @@ export function syncConfigReaders({
   const exported = exportCsharpReaders({ configRoot, env });
   try {
     if (checkOnly) {
-      const diffs = diffSixReaders(exported.csharpOut, repoRoot);
+      const diffs = diffReaders(exported.csharpOut, repoRoot);
       if (diffs.length > 0) {
         const list = diffs.map((item) => `${item.side}/${item.name} (${item.reason})`).join(', ');
         throw new Error(`typed Readers drifted from LumioConfig export --csharp-out: ${list}`);
       }
       return { status: 'OK', checkOnly: true, files: READER_FILES.length, configRoot };
     }
-    copySixReaders(exported.csharpOut, repoRoot);
-    const diffs = diffSixReaders(exported.csharpOut, repoRoot);
+    copyReaders(exported.csharpOut, repoRoot);
+    const diffs = diffReaders(exported.csharpOut, repoRoot);
     if (diffs.length > 0) {
       throw new Error('copy left a non-empty diff against the export');
     }

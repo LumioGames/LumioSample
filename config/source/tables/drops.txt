@@ -1,0 +1,8 @@
+table: drops
+schema: schemas/drops.json
+
+| id    | name         | skill_id | chance_permille | display_name |
+| ----- | ------------ | -------- | --------------- | ------------ |
+| 60001 | ember_cache  | 40001    | 250             | Ember Cache  |
+
+| 60002 | winter_cache | 40002    | 125             | Winter Cache |

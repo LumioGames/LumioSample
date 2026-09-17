@@ -118,9 +118,9 @@ public sealed class MoveAbility : AbilityType<MoveAbility.Input>
             failureCode = "physics_unavailable";
             return false;
         }
-        float step = (float)SampleTables.StepMeters;
+        float step = (float)SampleConfigBinding.For(owner.World).Movement.StepMeters;
         // The existing configured radius is explicitly the half-size on each AABB axis.
-        float radius = (float)SampleTables.SweepRadiusMeters;
+        float radius = (float)SampleConfigBinding.For(owner.World).Movement.SweepRadiusMeters;
         LogicTransform logic = owner.Get<LogicTransform>();
         Vector3 origin = logic.LocalPosition;
         Vector3 displacement = new(input.Dx * step, 0f, input.Dz * step);

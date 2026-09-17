@@ -1,0 +1,52 @@
+{
+  "table": "mining",
+  "idColumn": "id",
+  "columns": [
+    {
+      "name": "id",
+      "ordinal": 0,
+      "type": "u32",
+      "required": true,
+      "visibility": "CS"
+    },
+    {
+      "name": "name",
+      "ordinal": 1,
+      "type": "string",
+      "required": true,
+      "visibility": "CS"
+    },
+    {
+      "name": "stamina_cost",
+      "ordinal": 2,
+      "type": "i64",
+      "required": true,
+      "minimum": 0,
+      "visibility": "CS"
+    },
+    {
+      "name": "vein_hits_to_break",
+      "ordinal": 3,
+      "type": "i32",
+      "required": true,
+      "minimum": 1,
+      "visibility": "CS"
+    },
+    {
+      "name": "ore_per_vein",
+      "ordinal": 4,
+      "type": "i32",
+      "required": true,
+      "minimum": 0,
+      "visibility": "CS"
+    },
+    {
+      "name": "cooldown_ticks",
+      "ordinal": 5,
+      "type": "u32",
+      "required": true,
+      "minimum": 1,
+      "visibility": "CS"
+    }
+  ]
+}

@@ -301,19 +301,44 @@ internal sealed class FailingVoxelWriter : ISampleVoxelWriter
 
 internal sealed class TempConfig : IDisposable
 {
+    private readonly string? _previous = Environment.GetEnvironmentVariable(SampleTables.ConfigDirVariable);
     private TempConfig(string directory) => Directory = directory;
 
     public string Directory { get; }
 
     public static TempConfig WithHits(int hits)
     {
-        SampleTables.OverrideMiningHits(hits);
-        return new TempConfig(":memory:");
+        string repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        string directory = Path.Combine(Path.GetTempPath(), "sample527-" + Guid.NewGuid().ToString("N"));
+        var result = new TempConfig(directory);
+        string source = Path.Combine(directory, "source");
+        foreach (string file in System.IO.Directory.GetFiles(Path.Combine(repo, "config", "source"), "*", SearchOption.AllDirectories))
+        {
+            string target = Path.Combine(source, Path.GetRelativePath(Path.Combine(repo, "config", "source"), file));
+            System.IO.Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+        }
+        string table = Path.Combine(source, "tables", "mining.txt");
+        File.WriteAllText(table, File.ReadAllText(table).Replace("| 6 |", "| " + hits + " |", StringComparison.Ordinal));
+        var start = new System.Diagnostics.ProcessStartInfo(OperatingSystem.IsWindows() ? "py" : "python3") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        if (OperatingSystem.IsWindows()) start.ArgumentList.Add("-3");
+        string compiler = Environment.GetEnvironmentVariable("LUMIO_CONFIG_ROOT") ?? Path.GetFullPath(Path.Combine(repo, "..", "LumioConfig"));
+        foreach (string argument in new[] { Path.Combine(compiler, "tools", "lumio_config.py"), "export", "--root", source, "--out", directory }) start.ArgumentList.Add(argument);
+        using var process = System.Diagnostics.Process.Start(start)!;
+        string output = process.StandardOutput.ReadToEnd();
+        string error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0) throw new InvalidOperationException(output + error);
+        Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, directory);
+        SampleTables.ResetCache();
+        return result;
     }
 
     public void Dispose()
     {
+        Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, _previous);
         SampleTables.ResetCache();
+        System.IO.Directory.Delete(Directory, recursive: true);
     }
 }
 

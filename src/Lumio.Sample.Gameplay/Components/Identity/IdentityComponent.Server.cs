@@ -10,7 +10,7 @@ public sealed partial class IdentityComponent
 
     protected override void Awake()
     {
-        World.SeedProvider ??= Config.SampleAttributeSeed.Provider;
+        _ = Config.SampleConfigBinding.For(World);
     }
 
     protected override void Start()
@@ -21,7 +21,7 @@ public sealed partial class IdentityComponent
 
     protected override void OnHydrate()
     {
-        World.SeedProvider ??= Config.SampleAttributeSeed.Provider;
+        _ = Config.SampleConfigBinding.For(World);
         SampleGameplay.BindPlayer(World, Entity);
         ColorHue.Value = SampleGameplay.StableAccountHue(AccountId.Value ?? string.Empty);
     }

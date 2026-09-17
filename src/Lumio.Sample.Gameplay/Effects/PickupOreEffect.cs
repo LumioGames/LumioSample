@@ -48,7 +48,7 @@ public sealed class PickupOreEffect : EffectType<PickupOreEffect.Parameters>
             throw new System.InvalidOperationException("PickupOreEffect.Apply requires EffectSettlementContext.");
 
         AttributeComponent attributes = world.Get<AttributeComponent>(target);
-        long next = attributes.GetBaseValue(SampleTables.OreAttributeName) + parameters.Magnitude;
-        attributes.GetBase(SampleTables.OreAttributeName).Value = next;
+        long next = attributes.GetBaseValue(SampleConfigBinding.For(world).Ore.Name) + parameters.Magnitude;
+        attributes.GetBase(SampleConfigBinding.For(world).Ore.Name).Value = next;
     }
 }

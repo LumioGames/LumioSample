@@ -69,7 +69,7 @@ public static class SampleTables
         SampleTypedTables loaded = Load();
         MiningRow row = MiningRow();
         Use(
-            new MiningTable(new[] { new MiningRow(row.Id, row.Name, staminaCost, hits, row.OrePerVein) }),
+            new MiningTable(new[] { new MiningRow(row.Id, row.Name, staminaCost, hits, row.OrePerVein, row.CooldownTicks) }),
             loaded.Movement,
             loaded.Attributes);
     }

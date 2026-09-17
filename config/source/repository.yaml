@@ -1,0 +1,30 @@
+repository:
+  name: LumioConfig
+  organization: LumioGames
+  kind: configuration-tooling
+  visibility: public
+  defaultBranch: main
+  url: https://github.com/LumioGames/LumioConfig
+  description: Schema-first configuration table source, compiler, and export tooling for LumioGameEngine
+architecture:
+  sourceRepository: LumioGames/LumioGameEngineArchitecture
+  sourcePullRequest: 49
+  sourceCommit: a7c1221d3797db696e60bf8a8c748c907975a64c
+  designCommit: d2a7883ea447d2c34b92269c1f84ac9c3c53f5eb
+  baselineId: LGE-V1.4-2026-08-27
+ownership:
+  architecture: public cross-repository contracts, canonical rules, ID namespace authorization, runtime lifecycle
+  contentAndTooling: table source, schema instances, tombstones, validation, formatting, compilation, export
+  implementationConsumers: read-only generated projections and future generated readers
+outputs:
+  targets:
+    - S
+    - C
+    - V
+  generatedPolicy: reproducible-read-only
+security:
+  productionActivation: human-only
+  aiActivation: forbidden
+  secretsInRepository: forbidden
+simulation:
+  tickRate: 60

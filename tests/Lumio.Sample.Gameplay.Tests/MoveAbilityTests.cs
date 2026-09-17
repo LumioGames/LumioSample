@@ -365,7 +365,8 @@ public sealed class MoveAbilityWorldTests : IDisposable
             KernelConfigurationFixture.Create(),
             null,
             source.IngressBudget,
-            catalog);
+            catalog,
+            SampleConfigBinding.Load());
         Assert.True(restored.Succeeded, restored.ErrorCode);
         using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(restored.Binding);
         using WorldManager manager = binding.Manager;
