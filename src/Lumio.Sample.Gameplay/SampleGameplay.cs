@@ -52,6 +52,9 @@ public static class SampleGameplay
         AttributeComponent attributes = world.Get<AttributeComponent>(player);
 
         AbilityComponent abilities = world.Get<AbilityComponent>(player);
+        // The sample uses the deterministic empty-space adapter for authoritative
+        // movement and ability admission until a live voxel physics adapter is bound.
+        abilities.Physics = new RecordingAbilityPhysicsPort();
         string stamina = SampleConfigBinding.For(world).Stamina.Name;
         // R-00468 G2 still rejects only when the cost Base is <= 0. Map "below table cost" to 0 so
         // insufficient stamina is admit step 3 on today's engine. Execute still deducts the table cost from Base.
