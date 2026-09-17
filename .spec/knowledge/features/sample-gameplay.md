@@ -22,7 +22,7 @@ metadata:
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |
 | 跑动 | `MoveAbility`：唯一调用 `LogicTransform.SetLocalPosition` 的地方 |
 | 挖掘 | `MineAbility`：准入在 `CanActivate`（目标活、储量大于 0）；体力不足走引擎消耗步。`Execute` 扣体力 **基础账**。`TryRequestAirWrite` 在体素 ABI 未公开前恒为 false |
-| 四条账 | 体力 / 矿石各 Base+Current。PlayerEntity 用 DeclareAttribute 声明持久基础账，Identity.Awake 挂接 SampleAttributeSeed 的 IAttributeSeedProvider，由 Runtime PostAttribute 读取 config/attributes.json 初值。Start 绑定能力上下文；OnHydrate 仅重绑瞬态引用，基础账从存档恢复，Current 由现有属性计算器重建（R-00613） |
+| 四条账 | 体力 / 矿石各 Base+Current。PlayerEntity 用 DeclareAttribute 声明持久基础账，SampleConfigBinding.BindWorld 把 World.GameplayConfig 中的 IAttributeSeedProvider 绑定到 World.SeedProvider，由 Runtime PostAttribute 读取已投影的 attributes 初值。Start 绑定能力上下文；OnHydrate 仅重绑瞬态引用，基础账从存档恢复，Current 由现有属性计算器重建（R-00613） |
 | 矿脉出现 | `SampleVein.Queue` 下结构单；`VeinReserveComponent.PostAttribute` 把储量写成 `vein_hits_to_break`。稀疏引用走 `ISampleVoxelBinding`（宿主接 R-00469；端口空则返回 false，不假绑） |
 | 拾取 | `PickupOreEffect` 由 `SampleGameplay` 模块初始化注册；`SampleOrePickup.TryPickup` 调用 `Effects.Apply` 再 `EffectSettlement.Settle` |
 
@@ -32,7 +32,9 @@ metadata:
 
 ## 配表
 
-数值在 `config/*.json`。`SampleTables` 经 Runtime M9 `LumioConfigLoader` 装载 typed Reader，不另写 JSON 解析。六份 Reader（`AttributesTable` / `MiningTable` / `MovementTable` × server+client）来自上游 LumioConfig `export --csharp-out`，本仓用 `node integration/sync-config-readers.mjs` 同步，`--check` 要求这六份与导出逐字节一致。生成物不得手改。源码里不得出现这些数字的字面量。
+源表在 `config/source/`，导出按端位于 `config/server/*.json`、`config/client/*.json`。`SampleConfigBinding` 经 Runtime M9 `LumioConfigLoader` 装载 typed Reader，并将 `ISampleConfig` 投影绑定到 `World.GameplayConfig`；Boot 与 Restore 均要求此绑定。玩法统一通过 `SampleConfigBinding.For(world)` 读取该世界的数值，`SampleTables` 仅解析目录，不再持有缓存或读表入口。八份 Reader（`AttributesTable` / `MiningTable` / `MovementTable` / `MapTable` × server+client）来自上游 LumioConfig `export --csharp-out`，本仓用 `node integration/sync-config-readers.mjs` 同步，`--check` 要求这八份与导出逐字节一致。生成物不得手改。
+
+导出使用 `node integration/sync-config-export.mjs`：在两个全新临时目录编译，逐字节比较全部输出（含根 manifest），再同步回仓库；`--check` 只验证。禁止直接向含源表的 `config/` 导出，因为编译器会把已有文件计入 outputHash。完整命令见 [`config/README.md`](../../../config/README.md)。储量、冷却、体力消耗、掉落数、地图宽深及矿脉比例均来自表；源码检查对数值碰撞逐行分类，不能把输入索引或单次扣除的 `1` 当作冷却默认值。地图尺寸与比例供作者时 `capture-basemap.mjs` 消费 `server/map.json`，修改后须重新 Capture；DS 只恢复底图，不运行时重建地图。
 
 `MoveAbility` 在 GAS 第五步通过 owner 查询一次 `SweepBox`，将 `sweep_radius_meters` 明确用于 AABB 三轴半尺寸。`Execute` 只消费同实例、同 owner、同输入和同 Tick 的准备位置一次。缺端口返回 `physics_unavailable`；已分类查询拒绝在扣费、冷却和执行条目前返回失败，损坏结果和未知异常保留故障诊断。Start/OnHydrate 只重绑既有账本上下文，不安装物理替身；正式物理来自 Runtime Host 的 Manager 绑定，纯托管测试由 harness 显式注入端口。
 
