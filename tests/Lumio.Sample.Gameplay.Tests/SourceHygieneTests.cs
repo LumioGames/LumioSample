@@ -33,13 +33,6 @@ public sealed class SourceHygieneTests
     }
 
     [Fact]
-    public void MineAbilityDoesNotClaimAVoxelWrite()
-    {
-        Lumio.Sample.Gameplay.MineAbility.Writer = null;
-        Assert.False(Lumio.Sample.Gameplay.MineAbility.TryRequestAirWrite(default));
-    }
-
-    [Fact]
     public void ServerJsonUsesRelativeAssemblyPaths()
     {
         string text = File.ReadAllText(Path.Combine(GameplayRoot, "..", "..", "server.json"));

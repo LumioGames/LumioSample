@@ -322,7 +322,6 @@ public sealed class MoveAbilityWorldTests : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, null);
-        MineAbility.Writer = null;
     }
 
     [Fact]

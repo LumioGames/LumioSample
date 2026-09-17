@@ -19,7 +19,7 @@ public sealed partial class MineAbility
         VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
         owner.SetCooldown(TypeId, checked(owner.World.Tick + SampleConfigBinding.For(owner.World).Mining.CooldownTicks));
         bool exhausts = reserve.Remaining.Value <= 1;
-        if (exhausts && !TryRequestAirWrite(veinId))
+        if (exhausts && !TryRequestAirWrite(owner.World, veinId))
             return;
 
         AttributeComponent attributes = owner.Get<AttributeComponent>();
