@@ -2,6 +2,7 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <LumioSdkVersion Condition="'$(LumioSdkVersion)' == ''">0.1.0</LumioSdkVersion>
     <!--
       Option 1 (B-00069): Locally packed Lumio.Engine.SDK produces fluctuating content hashes per build/machine,
       so a committed lock file would fail restore with NU1403 on every repack. Until the SDK is published to
@@ -14,7 +15,7 @@
     <PackageVersion Include="xunit.v3" Version="4.0.0" />
     <PackageVersion Include="Microsoft.Testing.Platform" Version="2.3.3" />
     <!-- Gameplay consumes this package when no sibling Runtime checkout is available. -->
-    <PackageVersion Include="Lumio.Engine.SDK" Version="0.1.0" />
+    <PackageVersion Include="Lumio.Engine.SDK" Version="$(LumioSdkVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
     <PackageVersion Include="System.Text.Json" Version="10.0.11" />
   </ItemGroup>
