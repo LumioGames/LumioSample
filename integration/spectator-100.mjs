@@ -3556,6 +3556,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
         admissionTicket: ticketsPath,
         engineNative,
         kernelConfig: kernelConfigPath,
+        configDir: options.configDir == null ? childEnv.LUMIO_CONFIG_DIR : resolve(root, options.configDir),
         logDir,
         accountFrom: row.loginName,
         accountTo: row.loginName,

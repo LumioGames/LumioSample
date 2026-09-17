@@ -98,6 +98,7 @@ function processTools({ evidenceDir, botLogs = [] } = {}) {
 function runnableDsConfig() {
   return {
     clr: { kernel_config: { maxContexts: 64, maxHandles: 4096, maxNativeBytes: 67108864, maxJobsQueued: 256, maxJobsRunning: 4, maxCompletionItems: 1024, logMailboxCapacity: 8192 } },
+    config_dir: 'config',
     allocation: {
       serverAudience: 'sample-local',
       gameId: 'sample',
@@ -160,6 +161,11 @@ test('CLI parses --gameplay and --duration-ms', () => {
   const options = parseLaunchArgs(['--gameplay', 'Lumio.Sample.Gameplay.dll', '--duration-ms', '80'], {});
   assert.equal(options.gameplay, 'Lumio.Sample.Gameplay.dll');
   assert.equal(options.durationMs, 80);
+});
+
+test('typed config export can be selected by environment or CLI', () => {
+  assert.equal(parseLaunchArgs([], { LUMIO_CONFIG_DIR: 'export/env' }).configDir, 'export/env');
+  assert.equal(parseLaunchArgs(['--config-dir', 'export/cli'], { LUMIO_CONFIG_DIR: 'export/env' }).configDir, 'export/cli');
 });
 
 test('CLI parses --spectator as a boolean flag without a value', () => {
@@ -315,6 +321,8 @@ test('started bots stay up for --duration-ms before forceCleanup', async () => {
   assert.ok(firstCleanup.at - firstStart.at >= 70, `cleanup raced start by ${firstCleanup.at - firstStart.at}ms`);
   assert.equal(report.steps.find((step) => step.id === '04').status, 'PASS');
   assert.equal(report.admittedBots, 1);
+  const botStart = tools.events.find((event) => event.kind === 'start' && event.args.includes('--gameplay'));
+  assert.equal(botStart.args[botStart.args.indexOf('--config-dir') + 1], join(isolated, 'config'));
   assert.equal(report.steps.find((step) => step.id === '05').status, 'BLOCKED_ENV');
   assert.equal(report.steps.find((step) => step.id === '07').detail, 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
   assert.match(report.steps.find((step) => step.id === '05').detail, /placeholder and must not be treated as a base map/);

@@ -70,6 +70,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     dsConfig: environment.LUMIO_DS_CONFIG || 'server.json',
     botDll: environment.LUMIO_BOT_DLL,
     gameplay: environment.LUMIO_GAMEPLAY,
+    configDir: environment.LUMIO_CONFIG_DIR,
     engineNative: environment.LUMIO_ENGINE_NATIVE,
     endpoint: environment.LUMIO_DS_ENDPOINT,
     dotnet: environment.LUMIO_DOTNET || 'dotnet',
@@ -92,6 +93,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     'ds-config': 'dsConfig',
     'bot-dll': 'botDll',
     gameplay: 'gameplay',
+    'config-dir': 'configDir',
     'engine-native': 'engineNative',
     endpoint: 'endpoint',
     dotnet: 'dotnet',
@@ -550,6 +552,9 @@ export async function runLauncher(options = {}) {
     const engineNative = requiredFile(options.engineNative, 'LUMIO_ENGINE_NATIVE');
     const gameplay = requiredFile(gameplayCandidate, 'LUMIO_GAMEPLAY');
     const dotnet = requiredValue(options.dotnet || 'dotnet', 'LUMIO_DOTNET');
+    const configDir = options.configDir == null
+      ? resolve(dirname(dsConfig), requiredValue(JSON.parse(readFileSync(dsConfig, 'utf8')).config_dir, 'DS config_dir'))
+      : resolve(root, requiredValue(options.configDir, '--config-dir'));
     const botSessions = spectatorMode ? sessions.slice(0, botCount) : sessions;
     const botChildren = [];
     for (const [index, session] of botSessions.entries()) {
@@ -562,6 +567,7 @@ export async function runLauncher(options = {}) {
         admissionTicket: session.launch.admissionCredential,
         engineNative,
         kernelConfig: kernelConfigPath,
+        configDir,
         logDir: botLogDir,
         accountFrom: session.login.loginName,
         accountTo: session.login.loginName,
