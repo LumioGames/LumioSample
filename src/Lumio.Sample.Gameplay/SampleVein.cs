@@ -8,13 +8,10 @@ namespace Lumio.Sample.Gameplay;
 public static class SampleVein
 {
     /// <summary>Queues <see cref="VeinEntity"/> on the command buffer. Call after lifecycle, not inside it.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1510", Justification = "Keep netstandard2.1 compatibility without conditional source branches.")]
     public static EntityOrder Queue(World world)
     {
-#if NET5_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(world);
-#else
         if (world is null) throw new ArgumentNullException(nameof(world));
-#endif
         return world.Commands.Create<VeinEntity>();
     }
 
