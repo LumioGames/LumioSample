@@ -1,2 +1,10 @@
 # Placeholder map SHA is frozen in server.json. Autocrlf must not rewrite bytes.
 maps/sample.voxel binary
+maps/official-catalog.json text eol=lf
+# Compiler exports and Readers are verified byte-for-byte on every platform.
+config/manifest.json text eol=lf
+config/origins.json text eol=lf
+config/server/*.json text eol=lf
+config/client/*.json text eol=lf
+config/voxel/*.json text eol=lf
+src/Lumio.Sample.Gameplay/generated/config/**/*.cs text eol=lf

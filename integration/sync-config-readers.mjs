@@ -84,7 +84,7 @@ export function exportCsharpReaders({ configRoot, sourceRoot = join(ROOT, 'confi
       `LumioConfig export --csharp-out failed (exit ${result.status}):\n${result.stdout || ''}\n${result.stderr || ''}`,
     );
   }
-  return { scratch, csharpOut, stdout: result.stdout };
+  return { scratch, out, csharpOut, stdout: result.stdout };
 }
 
 export function copyReaders(csharpOut, repoRoot) {

@@ -5,7 +5,7 @@
   "formatVersion": 1,
   "inputHash": "25be276a67f6bdde427100479052a519a39ca9ca2a1b39e1bbc832849835a009",
   "origins": "origins.json",
-  "outputHash": "ea3e2ed0e206dcef70aa8ebf2f1db661313703a2948d32bd443b42ddb091a81f",
+  "outputHash": "679f0ef9a0b0ca56e7927c47c653b3609cfb2cf85d8d94b80cb55aa076de15a7",
   "packageFingerprint": "261636730759aa5cb6671f08eff165df29253ecce5873d18e5b333c93a1f126c",
   "projectionRoots": {
     "C": "client/manifest.json",

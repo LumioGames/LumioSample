@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Lumio.GameRuntime.Ecs;
 using Lumio.Sample.Gameplay.Config;
 using Xunit;
@@ -15,7 +16,8 @@ public sealed class WorldConfigTests
         Assert.Throws<WorldConfigBindingException>(() => WorldManager.Create(GeneratedRegistry.Instance, 1));
         using var manager = SampleGameplay.CreateWorld(1);
         var config = Assert.IsAssignableFrom<ISampleConfig>(manager.World.GameplayConfig);
-        Assert.Equal(SampleTables.VeinHitsToBreak, config.Mining.VeinHitsToBreak);
+        Assert.Same(config, SampleConfigBinding.For(manager.World));
+        manager.Start(Thread.CurrentThread);
         Assert.Throws<WorldConfigBindingException>(() => WorldManager.CreateFromSnapshot(manager.CaptureSnapshot(), GeneratedRegistry.Instance));
     }
 

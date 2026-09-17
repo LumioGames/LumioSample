@@ -11,7 +11,7 @@ namespace Lumio.Sample.Gameplay.Config;
 /// </summary>
 public sealed class SampleTypedTables : ITypedTableSet
 {
-    /// <summary>Binds the three gameplay tables Sample reads at runtime.</summary>
+    /// <summary>Binds the four gameplay tables projected into each World.</summary>
     public SampleTypedTables(MiningTable mining, MovementTable movement, AttributesTable attributes, MapTable map = default)
     {
         Mining = mining;

@@ -20,7 +20,7 @@ for (const side of ['client', 'server', '']) {
     const selected = side || 'server';
     const readers = result.Items.Compile.map(x => x.Identity.replaceAll('\\', '/'))
       .filter(x => x.includes('generated/config/'));
-    assert.equal(readers.length, 3);
+    assert.equal(readers.length, 4);
     assert.ok(readers.every(x => x.startsWith(`generated/config/${selected}/`)), readers.join('\n'));
     const copies = result.Items.None.filter(x => x.CopyToOutputDirectory)
       .map(x => (x.Link || x.Identity).replaceAll('\\', '/'))
