@@ -99,6 +99,10 @@ public sealed class GeneratedRegistry : EcsRegistry
     /// <inheritdoc />
     public override Component[] CreateComponents(Type entityType)
     {
+        if (entityType == typeof(BotEntity))
+        {
+            return BotEntityTemplate.CreateComponents();
+        }
         if (entityType == typeof(MiningSparkEntity))
         {
             return MiningSparkEntityTemplate.CreateComponents();
@@ -125,6 +129,17 @@ public sealed class GeneratedRegistry : EcsRegistry
     /// <inheritdoc />
     public override int ComponentIndex(Type entityType, Type componentType)
     {
+        if (entityType == typeof(BotEntity))
+        {
+            if (componentType == typeof(ObserverComponent)) return 0;
+            if (componentType == typeof(IdentityComponent)) return 1;
+            if (componentType == typeof(LogicTransform)) return 2;
+            if (componentType == typeof(ChatComponent)) return 3;
+            if (componentType == typeof(AbilityComponent)) return 4;
+            if (componentType == typeof(AttributeComponent)) return 5;
+            if (componentType == typeof(EffectComponent)) return 6;
+            return -1;
+        }
         if (entityType == typeof(MiningSparkEntity))
         {
             if (componentType == typeof(MiningSparkComponent)) return 0;
@@ -165,6 +180,17 @@ public sealed class GeneratedRegistry : EcsRegistry
     /// <inheritdoc />
     public override int ComponentIndex(Type entityType, string componentName)
     {
+        if (entityType == typeof(BotEntity))
+        {
+            if (string.Equals(componentName, "ObserverComponent", StringComparison.Ordinal)) return 0;
+            if (string.Equals(componentName, "IdentityComponent", StringComparison.Ordinal)) return 1;
+            if (string.Equals(componentName, "LogicTransform", StringComparison.Ordinal)) return 2;
+            if (string.Equals(componentName, "ChatComponent", StringComparison.Ordinal)) return 3;
+            if (string.Equals(componentName, "AbilityComponent", StringComparison.Ordinal)) return 4;
+            if (string.Equals(componentName, "AttributeComponent", StringComparison.Ordinal)) return 5;
+            if (string.Equals(componentName, "EffectComponent", StringComparison.Ordinal)) return 6;
+            return -1;
+        }
         if (entityType == typeof(MiningSparkEntity))
         {
             if (string.Equals(componentName, "MiningSparkComponent", StringComparison.Ordinal)) return 0;
@@ -206,6 +232,7 @@ public sealed class GeneratedRegistry : EcsRegistry
     public override string WireName(Type entityType)
     {
         if (entityType is null) throw new ArgumentNullException(nameof(entityType));
+        if (entityType == typeof(BotEntity)) return "bot";
         if (entityType == typeof(MiningSparkEntity)) return "miningSpark";
         if (entityType == typeof(OreDropEntity)) return "oreDrop";
         if (entityType == typeof(PlayerEntity)) return "player";
@@ -218,6 +245,8 @@ public sealed class GeneratedRegistry : EcsRegistry
     public override bool TryResolveEntityType(string name, out Type entityType)
     {
         entityType = null!;
+        if (string.Equals(name, "bot", StringComparison.Ordinal) || string.Equals(name, "BotEntity", StringComparison.Ordinal))
+        { entityType = typeof(BotEntity); return true; }
         if (string.Equals(name, "miningSpark", StringComparison.Ordinal) || string.Equals(name, "MiningSparkEntity", StringComparison.Ordinal))
         { entityType = typeof(MiningSparkEntity); return true; }
         if (string.Equals(name, "oreDrop", StringComparison.Ordinal) || string.Equals(name, "OreDropEntity", StringComparison.Ordinal))
