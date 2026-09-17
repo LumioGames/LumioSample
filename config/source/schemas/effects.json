@@ -1,0 +1,42 @@
+{
+  "table": "effects",
+  "idColumn": "id",
+  "columns": [
+    {
+      "name": "id",
+      "ordinal": 0,
+      "type": "u32",
+      "required": true,
+      "visibility": "SCV"
+    },
+    {
+      "name": "name",
+      "ordinal": 1,
+      "type": "string",
+      "required": true,
+      "visibility": "SCV"
+    },
+    {
+      "name": "duration_frames",
+      "ordinal": 2,
+      "type": "i32",
+      "required": true,
+      "minimum": 1,
+      "visibility": "S"
+    },
+    {
+      "name": "fx_key",
+      "ordinal": 3,
+      "type": "string",
+      "required": true,
+      "visibility": "C"
+    },
+    {
+      "name": "formula_key",
+      "ordinal": 4,
+      "type": "string",
+      "required": true,
+      "visibility": "S"
+    }
+  ]
+}

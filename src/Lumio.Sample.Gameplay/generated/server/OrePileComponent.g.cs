@@ -53,10 +53,16 @@ public sealed partial class OrePileComponent : IGeneratedComponent, IGeneratedSy
 
     void IGeneratedComponent.CapturePersist(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter) return;
     }
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter prediction)
+        {
+            prediction.WritePredictionField("OrePileComponent.amount", Amount.Value);
+            return;
+        }
         writer.WriteInt32("OrePileComponent.amount", Amount.Value);
     }
 

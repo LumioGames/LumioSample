@@ -1,0 +1,8 @@
+table: skills
+schema: schemas/skills.json
+
+| id    | name      | display_name | effect_id | damage | cooldown_frames | icon         |
+| ----- | --------- | ------------ | --------- | ------ | --------------- | ------------ |
+| 40001 | fireball  | Fireball     | 50001     | 120    | 150             | fx_fireball  |
+
+| 40002 | frostbolt | Frostbolt    | 50002     | 90     | 90              | fx_frostbolt |

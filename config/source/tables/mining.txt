@@ -1,0 +1,6 @@
+table: mining
+schema: schemas/mining.json
+
+| id | name | stamina_cost | vein_hits_to_break | ore_per_vein | cooldown_ticks |
+| --- | --- | --- | --- | --- | --- |
+| 80001 | default | 13 | 6 | 4 | 1 |

@@ -39,7 +39,7 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
     }
 
     /// <summary>Registers this type on the GAS catalog. Cost name matches the generated registry.</summary>
-    public static void Register() => AbilityTypeCatalog.Register<MineAbility, Input>(TypeId, SampleTables.StaminaAttributeName);
+    public static void Register() => AbilityTypeCatalog.Register<MineAbility, Input>(TypeId, "Stamina");
 
     /// <summary>Host voxel air-write. Null means Sample consume is not wired; do not treat that as a miss that still drops ore.</summary>
     public static ISampleVoxelWriter? Writer { get; set; }
@@ -79,7 +79,7 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
         {
         }
 
-        float reach = (float)SampleTables.StepMeters;
+        float reach = (float)SampleConfigBinding.For(owner.World).Movement.StepMeters;
         Vector3 delta = player - vein;
         return delta.LengthSquared() <= reach * reach;
     }

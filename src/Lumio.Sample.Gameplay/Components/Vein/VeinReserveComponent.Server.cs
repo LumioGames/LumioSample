@@ -7,6 +7,6 @@ public sealed partial class VeinReserveComponent
     /// <summary>First appearance takes remaining from the mining table. RestorePersist still wins after this.</summary>
     partial void PostAttribute()
     {
-        Remaining.Value = SampleTables.VeinHitsToBreak;
+        Remaining.Value = SampleConfigBinding.For(World).Mining.VeinHitsToBreak;
     }
 }

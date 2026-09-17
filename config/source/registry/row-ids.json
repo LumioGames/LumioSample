@@ -1,0 +1,29 @@
+{
+  "skills": {
+    "fireball": 40001,
+    "frostbolt": 40002
+  },
+  "effects": {
+    "burn": 50001,
+    "chill": 50002
+  },
+  "drops": {
+    "ember_cache": 60001,
+    "winter_cache": 60002
+  },
+  "aliases": {
+    "skills": {},
+    "effects": {},
+    "drops": {}
+  },
+  "movement": {
+    "default": 70001
+  },
+  "mining": {
+    "default": 80001
+  },
+  "attributes": {
+    "Stamina": 90001,
+    "Ore": 90002
+  }
+}

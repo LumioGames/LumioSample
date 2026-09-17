@@ -36,7 +36,7 @@ public static class SampleGameplay
 
     /// <summary>Boots a server world with the generated registry. Hosts and tests share this entry.</summary>
     public static WorldManager CreateWorld(ulong instanceId) =>
-        WorldManager.Create(GeneratedRegistry.Instance, instanceId);
+        WorldManager.Create(GeneratedRegistry.Instance, instanceId, config: SampleConfigBinding.Load());
 
     /// <summary>Binds transient ability ports to the player's existing ledgers.</summary>
     public static void BindPlayer(World world, NetEntityId player)
@@ -52,7 +52,7 @@ public static class SampleGameplay
         AttributeComponent attributes = world.Get<AttributeComponent>(player);
 
         AbilityComponent abilities = world.Get<AbilityComponent>(player);
-        string stamina = SampleTables.StaminaAttributeName;
+        string stamina = SampleConfigBinding.For(world).Stamina.Name;
         // R-00468 G2 still rejects only when the cost Base is <= 0. Map "below table cost" to 0 so
         // insufficient stamina is admit step 3 on today's engine. Execute still deducts the table cost from Base.
         // Generic Activate (AbilityComponent.Activate / catalog RPC) uses this context; readCostBase
@@ -61,7 +61,7 @@ public static class SampleGameplay
             () =>
             {
                 SampleAbilityAdmission.CurrentOwner = abilities;
-                return attributes.GetBaseValue(stamina) < SampleTables.StaminaCost ? 0L : attributes.GetBaseValue(stamina);
+                return attributes.GetBaseValue(stamina) < SampleConfigBinding.For(world).Mining.StaminaCost ? 0L : attributes.GetBaseValue(stamina);
             },
             _ => { },
             _ => attributes.SetCurrentValue(stamina, attributes.GetBaseValue(stamina)));
@@ -75,7 +75,7 @@ public static class SampleGameplay
     /// Y is the open-cell height already proven by
     /// <c>RealHostAabbWallAndOpenMovementSurviveColdRestore</c> (y=4.5).
     /// Wave B r13 issued MoveAbility from (16.5, 1.5, 16.5) and every replica
-    /// stayed there: a 0.35 AABB at y=1.5 overlaps unwritten y=1 interior
+    /// stayed there: the configured AABB at y=1.5 overlaps unwritten y=1 interior
     /// cells, which SweepBox reports as unresolved rather than air.
     /// </summary>
     internal static readonly Vector3 AdmittedPlayerPosition = new(16.5f, 4.5f, 16.5f);

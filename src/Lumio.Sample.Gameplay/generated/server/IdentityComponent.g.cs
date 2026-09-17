@@ -63,12 +63,20 @@ public sealed partial class IdentityComponent : IGeneratedComponent, IGeneratedS
 
     void IGeneratedComponent.CapturePersist(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter) return;
         writer.WriteString("IdentityComponent.accountId", AccountId.Value);
         writer.WriteString("IdentityComponent.name", Name.Value);
     }
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter prediction)
+        {
+            prediction.WritePredictionField("IdentityComponent.accountId", AccountId.Value);
+            prediction.WritePredictionField("IdentityComponent.name", Name.Value);
+            prediction.WritePredictionField("IdentityComponent.colorHue", ColorHue.Value);
+            return;
+        }
         writer.WriteString("IdentityComponent.name", Name.Value);
         writer.WriteInt32("IdentityComponent.colorHue", ColorHue.Value);
     }

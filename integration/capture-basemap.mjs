@@ -43,6 +43,13 @@ export function loadLayout(repoRoot = ROOT) {
     throw new Error(`${LAYOUT_RELATIVE} is required (W×D / vein live in config, not in DS boot).`);
   }
   const layout = JSON.parse(readFileSync(path, 'utf8'));
+  const map = JSON.parse(readFileSync(join(repoRoot, 'config', 'server', 'map.json'), 'utf8')).rows[0];
+  layout.width = map.width;
+  layout.depth = map.depth;
+  const veinSide = Math.sqrt(layout.width * layout.depth * map.vein_ratio);
+  if (!Number.isInteger(veinSide) || veinSide < 1) throw new Error('map.vein_ratio must describe a whole square vein');
+  layout.vein.width = veinSide;
+  layout.vein.depth = veinSide;
   if (!Number.isInteger(layout.width) || layout.width < 1) throw new Error('layout.width must be a positive integer');
   if (!Number.isInteger(layout.depth) || layout.depth < 1) throw new Error('layout.depth must be a positive integer');
   const vein = layout.vein;

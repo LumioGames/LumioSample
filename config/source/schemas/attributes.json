@@ -1,0 +1,28 @@
+{
+  "table": "attributes",
+  "idColumn": "id",
+  "columns": [
+    {
+      "name": "id",
+      "ordinal": 0,
+      "type": "u32",
+      "required": true,
+      "visibility": "CS"
+    },
+    {
+      "name": "name",
+      "ordinal": 1,
+      "type": "string",
+      "required": true,
+      "visibility": "CS"
+    },
+    {
+      "name": "initial",
+      "ordinal": 2,
+      "type": "i64",
+      "required": true,
+      "minimum": 0,
+      "visibility": "CS"
+    }
+  ]
+}

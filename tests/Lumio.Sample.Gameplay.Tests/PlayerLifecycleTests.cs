@@ -50,10 +50,10 @@ public sealed class PlayerLifecycleTests : IDisposable
         MethodInfo attachMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("TryAttach", new[] { typeof(WorldManager), typeof(KernelConfig), typeof(byte[]) }), exactMatch: false);
         MethodInfo restoreMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("RestoreNew", new[]
         {
-            typeof(byte[]), typeof(byte[]), typeof(EcsRegistry), typeof(KernelConfig), typeof(ILoggerFactory), typeof(WorldIngressBudget), typeof(byte[])
+            typeof(byte[]), typeof(byte[]), typeof(EcsRegistry), typeof(KernelConfig), typeof(ILoggerFactory), typeof(WorldIngressBudget), typeof(byte[]), typeof(WorldConfigBinding)
         }), exactMatch: false);
         var attach = attachMethod.CreateDelegate<Func<WorldManager, KernelConfig, byte[], DedicatedServerHostBinding?>>();
-        var restore = restoreMethod.CreateDelegate<Func<byte[], byte[], EcsRegistry, KernelConfig, ILoggerFactory?, WorldIngressBudget, byte[], DedicatedServerRestoreResult>>();
+        var restore = restoreMethod.CreateDelegate<Func<byte[], byte[], EcsRegistry, KernelConfig, ILoggerFactory?, WorldIngressBudget, byte[], WorldConfigBinding, DedicatedServerRestoreResult>>();
         using WorldManager source = SampleGameplay.CreateWorld(91UL);
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
         using DedicatedServerHostBinding initial = Assert.IsType<DedicatedServerHostBinding>(attach(source, KernelConfigurationFixture.Create(), catalog));
@@ -69,10 +69,10 @@ public sealed class PlayerLifecycleTests : IDisposable
         PlaceFixturePlayer(source.World, blocked, new Vector3(3f, 4.5f, 4.5f));
         PlaceFixturePlayer(source.World, open, new Vector3(3f, 4.5f, 6.5f));
         AttributeComponent ledger = source.World.Get<AttributeComponent>(blocked);
-        long spent = SampleTables.StaminaInitial - 1;
-        ledger.SetBaseValue(SampleTables.StaminaAttributeName, spent);
+        long spent = SampleConfigBinding.For(source.World).Stamina.Initial - 1;
+        ledger.SetBaseValue(SampleConfigBinding.For(source.World).Stamina.Name, spent);
         byte[] runtime = source.CaptureSnapshot();
-        DedicatedServerRestoreResult loaded = restore(runtime, wall, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, source.IngressBudget, catalog);
+        DedicatedServerRestoreResult loaded = restore(runtime, wall, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, source.IngressBudget, catalog, SampleConfigBinding.Load());
         Assert.True(loaded.Succeeded, loaded.ErrorCode);
         using DedicatedServerHostBinding first = Assert.IsType<DedicatedServerHostBinding>(loaded.Binding);
         using WorldManager manager = first.Manager;
@@ -82,18 +82,18 @@ public sealed class PlayerLifecycleTests : IDisposable
         WorldTickBinding.Bind(manager);
         Assert.Same(AbilityPhysicsBinding.Resolve(manager), manager.World.Get<AbilityComponent>(blocked).Physics);
         Assert.NotSame(AbilityPhysicsBinding.Resolve(source), manager.World.Get<AbilityComponent>(blocked).Physics);
-        Assert.Equal(spent, manager.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleTables.StaminaAttributeName));
+        Assert.Equal(spent, manager.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleConfigBinding.For(source.World).Stamina.Name));
         var input = new MoveAbility.Input { Dx = 1 };
         Assert.True(manager.World.Get<AbilityComponent>(blocked).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        float boundary = 4f - (float)SampleTables.SweepRadiusMeters;
+        float boundary = 4f - (float)SampleConfigBinding.For(source.World).Movement.SweepRadiusMeters;
         Assert.InRange(manager.World.Get<LogicTransform>(blocked).LocalPosition.X, boundary - 0.00001f, boundary + 0.00001f);
         Assert.True(manager.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        Assert.Equal(new Vector3(3f + (float)SampleTables.StepMeters, 4.5f, 6.5f), manager.World.Get<LogicTransform>(open).LocalPosition);
+        Assert.Equal(new Vector3(3f + (float)SampleConfigBinding.For(source.World).Movement.StepMeters, 4.5f, 6.5f), manager.World.Get<LogicTransform>(open).LocalPosition);
         DualCutCaptureResult capture = first.Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
         DualCutCheckpointPayload checkpoint = capture.Checkpoint!.Value;
         Assert.True(checkpoint.SectionCount > 0);
-        DedicatedServerRestoreResult cold = restore(checkpoint.Runtime, checkpoint.Voxel, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, manager.IngressBudget, catalog);
+        DedicatedServerRestoreResult cold = restore(checkpoint.Runtime, checkpoint.Voxel, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, manager.IngressBudget, catalog, SampleConfigBinding.Load());
         Assert.True(cold.Succeeded, cold.ErrorCode);
         using DedicatedServerHostBinding second = Assert.IsType<DedicatedServerHostBinding>(cold.Binding);
         using WorldManager restored = second.Manager;
@@ -108,8 +108,8 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(stopped, restored.World.Get<LogicTransform>(blocked).LocalPosition);
         Vector3 openBefore = restored.World.Get<LogicTransform>(open).LocalPosition;
         Assert.True(restored.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        Assert.Equal(openBefore + new Vector3((float)SampleTables.StepMeters, 0, 0), restored.World.Get<LogicTransform>(open).LocalPosition);
-        Assert.Equal(spent, restored.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleTables.StaminaAttributeName));
+        Assert.Equal(openBefore + new Vector3((float)SampleConfigBinding.For(source.World).Movement.StepMeters, 0, 0), restored.World.Get<LogicTransform>(open).LocalPosition);
+        Assert.Equal(spent, restored.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleConfigBinding.For(source.World).Stamina.Name));
         if (evidencePath is not null)
         {
             File.WriteAllText(evidencePath, JsonSerializer.Serialize(new
@@ -120,7 +120,7 @@ public sealed class PlayerLifecycleTests : IDisposable
                         Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))) }),
                 InitialWorld = initial.VoxelWorldHandle, FirstWorld = first.VoxelWorldHandle, ColdWorld = second.VoxelWorldHandle,
                 WallCell = "4,4,4", BlockedStart = "3,4.5,4.5", OpenStart = "3,4.5,6.5", Input = "+X",
-                HalfExtents = SampleTables.SweepRadiusMeters, Step = SampleTables.StepMeters,
+                HalfExtents = SampleConfigBinding.For(source.World).Movement.SweepRadiusMeters, Step = SampleConfigBinding.For(source.World).Movement.StepMeters,
                 PartialBoundaryX = stopped.X, ColdBlockedX = restored.World.Get<LogicTransform>(blocked).LocalPosition.X,
                 ColdOpenX = restored.World.Get<LogicTransform>(open).LocalPosition.X,
                 OldBindingsDisposedBeforeNewQueries = true, CheckpointSections = checkpoint.SectionCount
@@ -139,7 +139,6 @@ public sealed class PlayerLifecycleTests : IDisposable
     {
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable,
             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "config")));
-        SampleTables.ResetCache();
     }
 
     [Fact]
@@ -157,7 +156,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         SampleGameplay.BindPlayer(world.World, order.AssignedId);
         Assert.Same(componentPort, owner.Physics);
         byte[] snapshot = world.World.Manager.CaptureSnapshot();
-        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance);
+        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance, config: SampleConfigBinding.Load());
         Assert.Null(restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
         using IDisposable restoredBinding = AbilityPhysicsBinding.Bind(restored, managerPort);
         SampleGameplay.BindPlayer(restored.World, order.AssignedId);
@@ -175,8 +174,8 @@ public sealed class PlayerLifecycleTests : IDisposable
         world.FlushCreates();
         Assert.Equal(before + 1, world.World.Tick);
         AttributeComponent attributes = world.World.Get<AttributeComponent>(order.AssignedId);
-        Assert.Equal(SampleTables.StaminaInitial, attributes.GetBaseValue(SampleTables.StaminaAttributeName));
-        Assert.Equal(SampleTables.OreInitial, attributes.GetBaseValue(SampleTables.OreAttributeName));
+        Assert.Equal(SampleConfigBinding.For(world.World).Stamina.Initial, attributes.GetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name));
+        Assert.Equal(SampleConfigBinding.For(world.World).Ore.Initial, attributes.GetBaseValue(SampleConfigBinding.For(world.World).Ore.Name));
         Assert.NotNull(world.World.Get<AbilityComponent>(order.AssignedId).ActivationContext);
         Assert.Null(world.World.Get<AbilityComponent>(order.AssignedId).Physics);
         Assert.NotEqual(0, world.World.Get<IdentityComponent>(order.AssignedId).ColorHue.Value);
@@ -187,21 +186,21 @@ public sealed class PlayerLifecycleTests : IDisposable
     {
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         AttributeComponent attributes = world.World.Get<AttributeComponent>(world.Player);
-        long spent = SampleTables.StaminaInitial - 1;
-        long ore = SampleTables.OreInitial + 3;
-        attributes.SetBaseValue(SampleTables.StaminaAttributeName, spent);
-        attributes.SetCurrentValue(SampleTables.StaminaAttributeName, spent);
-        attributes.SetBaseValue(SampleTables.OreAttributeName, ore);
-        attributes.SetCurrentValue(SampleTables.OreAttributeName, ore);
+        long spent = SampleConfigBinding.For(world.World).Stamina.Initial - 1;
+        long ore = SampleConfigBinding.For(world.World).Ore.Initial + 3;
+        attributes.SetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name, spent);
+        attributes.SetCurrentValue(SampleConfigBinding.For(world.World).Stamina.Name, spent);
+        attributes.SetBaseValue(SampleConfigBinding.For(world.World).Ore.Name, ore);
+        attributes.SetCurrentValue(SampleConfigBinding.For(world.World).Ore.Name, ore);
         byte[] snapshot = world.World.Manager.CaptureSnapshot();
-        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance);
+        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance, config: SampleConfigBinding.Load());
         AttributeComponent next = restored.World.Get<AttributeComponent>(world.Player);
         // CURRENT is derived, never serialized; phase 9 uses this same evaluator.
         AttributeEvaluator.Recompute(restored.World);
-        Assert.Equal(spent, next.GetBaseValue(SampleTables.StaminaAttributeName));
-        Assert.Equal(spent, next.GetCurrentValue(SampleTables.StaminaAttributeName));
-        Assert.Equal(ore, next.GetBaseValue(SampleTables.OreAttributeName));
-        Assert.Equal(ore, next.GetCurrentValue(SampleTables.OreAttributeName));
+        Assert.Equal(spent, next.GetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name));
+        Assert.Equal(spent, next.GetCurrentValue(SampleConfigBinding.For(world.World).Stamina.Name));
+        Assert.Equal(ore, next.GetBaseValue(SampleConfigBinding.For(world.World).Ore.Name));
+        Assert.Equal(ore, next.GetCurrentValue(SampleConfigBinding.For(world.World).Ore.Name));
         Assert.NotNull(restored.World.Get<AbilityComponent>(world.Player).ActivationContext);
         Assert.Null(restored.World.Get<AbilityComponent>(world.Player).Physics);
     }
@@ -216,7 +215,6 @@ public sealed class PlayerLifecycleTests : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, null);
-        SampleTables.ResetCache();
         MineAbility.Writer = null;
     }
 }

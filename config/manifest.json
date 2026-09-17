@@ -1,20 +1,20 @@
 {
   "baselineId": "LGE-V1.4-2026-08-27",
   "compilerHash": "1b0bef43ad68423287cedb26ef3ebf59011c4bbbf81c44af85557a87690fcdbe",
-  "contentFingerprint": "aae8a777796ae1572792e1219e23ec44e1ac44737ad2a1f697e716f97e82fea5",
+  "contentFingerprint": "a62f58e168daf315509b8735d2195d2af5f7dc809c4e183da69c2c44b040d486",
   "formatVersion": 1,
-  "inputHash": "78c98b84b9eb9cc5f2c7ed37262102cfc8aee8dc1932727a0514cafd3c06b016",
+  "inputHash": "25be276a67f6bdde427100479052a519a39ca9ca2a1b39e1bbc832849835a009",
   "origins": "origins.json",
-  "outputHash": "a30e49064ad25bac19488d67535ddfacb4a8a3a1a8c8c10c4dd3fdbf78012114",
-  "packageFingerprint": "50fb6daccd91f0d38fc25054e25655d2e0c59e8499d434687a09cca1f343bf8c",
+  "outputHash": "679f0ef9a0b0ca56e7927c47c653b3609cfb2cf85d8d94b80cb55aa076de15a7",
+  "packageFingerprint": "261636730759aa5cb6671f08eff165df29253ecce5873d18e5b333c93a1f126c",
   "projectionRoots": {
     "C": "client/manifest.json",
     "S": "server/manifest.json",
     "V": "voxel/manifest.json"
   },
-  "publicRoot": "50fb6daccd91f0d38fc25054e25655d2e0c59e8499d434687a09cca1f343bf8c",
-  "revisionId": "aae8a777796ae1572792e1219e23ec44e1ac44737ad2a1f697e716f97e82fea5",
-  "sourceFingerprint": "7ec278f938e864cbb356c5c0d52543369f6359578c2eeb9df5e3e5fcb3f750a3",
+  "publicRoot": "261636730759aa5cb6671f08eff165df29253ecce5873d18e5b333c93a1f126c",
+  "revisionId": "a62f58e168daf315509b8735d2195d2af5f7dc809c4e183da69c2c44b040d486",
+  "sourceFingerprint": "b5fc03b141a771d4bab164640fee6ab26104087a5cb311578473baf92a9b6413",
   "tables": [
     {
       "contentFingerprint": "6de68b10cbd42fc0729507bc184f9eaba2244d4605330963c9ad7edddd9d0ab7",
@@ -32,8 +32,13 @@
       "table": "effects"
     },
     {
-      "contentFingerprint": "070b3ab710eef26b19953b028900e85e427e7e7af8ccfe4adb5366b419c988d1",
-      "sourceFingerprint": "f7134809c07ddea9a956f877d000b330ee3c90dfe0152d9db286b630384bae56",
+      "contentFingerprint": "f4d28a847985b51aaf26b9843ccc69c85112347a71a0fd15f60703f27e42e996",
+      "sourceFingerprint": "158fc0b32109008efc9d002578b5733b702a7a4c3ceb5a3e40034398b3b7eb33",
+      "table": "map"
+    },
+    {
+      "contentFingerprint": "97b5df7e9c2319ef3184bd9eb084aa9cf41af681d6c71799c66128afa92a19a9",
+      "sourceFingerprint": "a8e61bf2677b1e08ca592e330f05e0d10c2785825584371e36ad7f5fe98982e4",
       "table": "mining"
     },
     {

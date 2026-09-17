@@ -69,12 +69,19 @@ public sealed partial class ChatComponent : IGeneratedComponent, IGeneratedSyncM
 
     void IGeneratedComponent.CapturePersist(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter) return;
         writer.WriteString("ChatComponent.lastMessageText", LastMessageText.Value);
         writer.WriteUInt64("ChatComponent.lastMessageTick", LastMessageTick.Value);
     }
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter prediction)
+        {
+            prediction.WritePredictionField("ChatComponent.lastMessageText", LastMessageText.Value);
+            prediction.WritePredictionField("ChatComponent.lastMessageTick", LastMessageTick.Value);
+            return;
+        }
     }
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)

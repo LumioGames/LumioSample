@@ -154,14 +154,14 @@ public sealed class MoveAbilityWorldTests : IDisposable
             Assert.Equal(0, owner.Count);
             Assert.Equal(0UL, owner.GetCooldown(MoveAbility.TypeId));
             Assert.Equal(origin, logic.LocalPosition);
-            Assert.Equal(new Vector3((float)SampleTables.SweepRadiusMeters), h);
-            Assert.Equal(new Vector3((float)SampleTables.StepMeters, 0, 0), d);
+            Assert.Equal(new Vector3((float)SampleConfigBinding.For(world.World).Movement.SweepRadiusMeters), h);
+            Assert.Equal(new Vector3((float)SampleConfigBinding.For(world.World).Movement.StepMeters, 0, 0), d);
             return new AbilitySweepHit(collided, fraction, o + d * fraction);
         });
         owner.Physics = port;
         var input = new MoveAbility.Input { Dx = 1 };
         Assert.True(owner.Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        Assert.Equal(origin + new Vector3((float)SampleTables.StepMeters * fraction, 0, 0), logic.LocalPosition);
+        Assert.Equal(origin + new Vector3((float)SampleConfigBinding.For(world.World).Movement.StepMeters * fraction, 0, 0), logic.LocalPosition);
         Assert.Equal(1, port.Queries);
         Assert.Equal(1, writes);
     }
@@ -193,11 +193,11 @@ public sealed class MoveAbilityWorldTests : IDisposable
         other.Physics = new RecordingAbilityPhysicsPort();
         Vector3 otherOrigin = world.World.Get<LogicTransform>(b).LocalPosition;
         Assert.True(other.Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        Assert.Equal(otherOrigin + new Vector3((float)SampleTables.StepMeters, 0, 0), world.World.Get<LogicTransform>(b).LocalPosition);
+        Assert.Equal(otherOrigin + new Vector3((float)SampleConfigBinding.For(world.World).Movement.StepMeters, 0, 0), world.World.Get<LogicTransform>(b).LocalPosition);
         world.FlushCreates();
         owner.Physics = new RecordingAbilityPhysicsPort();
         Assert.True(owner.Activate<MoveAbility, MoveAbility.Input>(in input, 77).Succeeded);
-        Assert.Equal(origin + new Vector3((float)SampleTables.StepMeters, 0, 0), logic.LocalPosition);
+        Assert.Equal(origin + new Vector3((float)SampleConfigBinding.For(world.World).Movement.StepMeters, 0, 0), logic.LocalPosition);
         Assert.Equal(1, writes);
     }
 
@@ -261,7 +261,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         world.FlushCreates();
         input = new MoveAbility.Input { Dz = -1 };
         Assert.True(owner.Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        Assert.Equal(origin + new Vector3((float)SampleTables.StepMeters, 0, -(float)SampleTables.StepMeters), world.World.Get<LogicTransform>(world.Player).LocalPosition);
+        Assert.Equal(origin + new Vector3((float)SampleConfigBinding.For(world.World).Movement.StepMeters, 0, -(float)SampleConfigBinding.For(world.World).Movement.StepMeters), world.World.Get<LogicTransform>(world.Player).LocalPosition);
         Assert.Equal(2, port.Queries);
     }
 
@@ -317,13 +317,11 @@ public sealed class MoveAbilityWorldTests : IDisposable
     {
         string repoConfig = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "config"));
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, repoConfig);
-        SampleTables.ResetCache();
     }
 
     public void Dispose()
     {
         Environment.SetEnvironmentVariable(SampleTables.ConfigDirVariable, null);
-        SampleTables.ResetCache();
         MineAbility.Writer = null;
     }
 
@@ -365,7 +363,8 @@ public sealed class MoveAbilityWorldTests : IDisposable
             KernelConfigurationFixture.Create(),
             null,
             source.IngressBudget,
-            catalog);
+            catalog,
+            SampleConfigBinding.Load());
         Assert.True(restored.Succeeded, restored.ErrorCode);
         using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(restored.Binding);
         using WorldManager manager = binding.Manager;
@@ -379,7 +378,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);
         Assert.True(result.Succeeded, result.FailureCode ?? "MoveAbility refused the committed sample.voxel admission pose");
         Assert.Equal(
-            SampleGameplay.AdmittedPlayerPosition + new Vector3((float)SampleTables.StepMeters, 0f, 0f),
+            SampleGameplay.AdmittedPlayerPosition + new Vector3((float)SampleConfigBinding.For(manager.World).Movement.StepMeters, 0f, 0f),
             manager.World.Get<LogicTransform>(player).LocalPosition);
         _ = native;
     }
@@ -408,7 +407,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);
         Assert.True(result.Succeeded, result.FailureCode ?? "MoveAbility refused TryAttach-restored sample.voxel");
         Assert.Equal(
-            SampleGameplay.AdmittedPlayerPosition + new Vector3((float)SampleTables.StepMeters, 0f, 0f),
+            SampleGameplay.AdmittedPlayerPosition + new Vector3((float)SampleConfigBinding.For(manager.World).Movement.StepMeters, 0f, 0f),
             manager.World.Get<LogicTransform>(player).LocalPosition);
         _ = native;
     }
@@ -443,7 +442,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         Assert.Equal(0, result.RejectedStep);
         Vector3 next = logic.LocalPosition;
         Assert.NotEqual(origin, next);
-        float step = (float)SampleTables.StepMeters;
+        float step = (float)SampleConfigBinding.For(world.World).Movement.StepMeters;
         Assert.Equal(origin + new Vector3(step, 0f, 0f), next);
     }
 

@@ -11,3 +11,4 @@ TestResults/
 integration/logs/**
 !integration/logs/README.md
 .run/
+src/Lumio.Sample.Gameplay/generated/*/gen.hash

@@ -1,14 +1,37 @@
-# config —— LumioConfig 导表根
+# Config export
 
-矿脉储量、体力消耗、步长这些数值全部来自本目录的 **LumioConfig export**（`manifest.json` + `server|client|voxel/*.json`）。玩法只经 typed Reader 查询，不自己拆 JSON，也不扫父目录。
+Sources live in `source/`; the root manifest and target directories are compiler output.
+Use the sibling LumioConfig checkout or set `LUMIO_CONFIG_ROOT` to its root.
+Python 3.11+ is required (`py -3` on Windows, or set `LUMIO_PYTHON`).
 
-根文件 `movement.json` / `mining.json` / `attributes.json` 是 ADR-0001 时期的临时平面文件，数值与 export 行相同，不再被 `SampleTables` 读取。换 `server/*.json` 并重启后行为才变；不要重编玩法程序集来改数值。
+Gameplay reads the target projection through the World binding and generated typed
+Readers; it does not parse JSON or scan parent directories. `server.json` points
+`config_dir` at the export root, and `LUMIO_CONFIG_DIR` overrides the in-process loader
+directory. Machine-specific server paths belong in ignored `.run/server.local.json`.
 
-| 路径 | 用途 |
+| Table | Values |
 |---|---|
-| `manifest.json` | 修订指纹；`revisionId` = `contentFingerprint` |
-| `server/movement.json` | 一步多远、扫掠半径 |
-| `server/mining.json` | 一镐体力、挖穿次数、掉落数量 |
-| `server/attributes.json` | 体力 / 矿石两本账的名字与初值 |
+| `mining` | Stamina cost, vein reserve, ore count, cooldown ticks |
+| `movement` | Step distance and sweep radius |
+| `attributes` | Stamina and ore ledger names and initial values |
+| `map` | Width, depth, vein ratio for author-time map capture |
 
-`server.json` 的 `config_dir` 指向该 export 根。覆盖路径用环境变量 `LUMIO_CONFIG_DIR`。DS 可运行模板本身是仓根 `server.json`（`runtime+voxel` / `snapshot_only` / `base_map_*`）；本机机器路径写 gitignored `.run/server.local.json`，不要改公共词表。
+From the Sample repository root:
+
+```sh
+node integration/sync-config-export.mjs
+node integration/sync-config-readers.mjs
+node integration/sync-config-export.mjs --check
+node integration/sync-config-readers.mjs --check
+```
+
+The export command invokes LumioConfig `export --root config/source --out <fresh>/export
+--csharp-out <fresh>/csharp` twice in separate temporary directories. It compares every
+exported file (including the root manifest) and generated Reader byte-for-byte, then
+copies only compiler output into `config/`. `--check` compares that output against the
+repository without writing it. Temporary directories are removed afterwards.
+
+Never export directly into `config/`: the compiler includes all preexisting output-tree
+files in the root `outputHash`, including source tables, documentation, and stale exports.
+Never edit a generated manifest. The clean staging tree, not the mixed source/output
+repository directory, defines the reproducible output hash.

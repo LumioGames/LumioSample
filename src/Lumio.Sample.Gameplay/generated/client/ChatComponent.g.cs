@@ -56,10 +56,15 @@ public sealed partial class ChatComponent : IGeneratedComponent, IGeneratedSyncM
 
     void IGeneratedComponent.CapturePersist(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter) return;
     }
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
     {
+        if (writer is IPredictionFieldWriter prediction)
+        {
+            return;
+        }
     }
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)
