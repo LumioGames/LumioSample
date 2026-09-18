@@ -1,20 +1,20 @@
 {
   "baselineId": "LGE-V1.4-2026-08-27",
   "compilerHash": "1b0bef43ad68423287cedb26ef3ebf59011c4bbbf81c44af85557a87690fcdbe",
-  "contentFingerprint": "a6a70e0b8fe3d7e0181c5965cf4e33f74f9e5b466b78c8a8b3dae4888b9e3c9b",
+  "contentFingerprint": "742501d909217966a274b0fa9de676284c4103c6249a00ef1ce2dbeec1eeb5ac",
   "formatVersion": 1,
-  "inputHash": "8a3efbe87aa5226266405c28d49a7bedf36f8b0281e8477fceead0bfc33b234e",
+  "inputHash": "1ad80ffd327bd9aeebc9c2cdd65ff879f5eccade94630120e24b3ad06d2e7508",
   "origins": "origins.json",
-  "outputHash": "01e7f661e6a3d5ecc824d56f1bd99a211a7aa7141a3b2edc101e764125565fa0",
-  "packageFingerprint": "f6b77228514eec13b6ce186087ad6d2c8b92703018c4db2511c3dbaca08fa3b2",
+  "outputHash": "e8871219a01e9b47b9bae2877cf88f9f3c42f45aed77e2aaffa29eadfda36154",
+  "packageFingerprint": "08da5b5656925eb75e2999ec4863496e02f43f04518b2737c08a48d9c0ae52dc",
   "projectionRoots": {
     "C": "client/manifest.json",
     "S": "server/manifest.json",
     "V": "voxel/manifest.json"
   },
-  "publicRoot": "f6b77228514eec13b6ce186087ad6d2c8b92703018c4db2511c3dbaca08fa3b2",
-  "revisionId": "a6a70e0b8fe3d7e0181c5965cf4e33f74f9e5b466b78c8a8b3dae4888b9e3c9b",
-  "sourceFingerprint": "8d0c235422daad62a998ab11661f469b79e3efebd47571bb819a01c905508df7",
+  "publicRoot": "08da5b5656925eb75e2999ec4863496e02f43f04518b2737c08a48d9c0ae52dc",
+  "revisionId": "742501d909217966a274b0fa9de676284c4103c6249a00ef1ce2dbeec1eeb5ac",
+  "sourceFingerprint": "83c3c7565b97457b3b9d138df16ce1cbc3d2cbf563fa97da30335161c77aabb6",
   "tables": [
     {
       "contentFingerprint": "25643aa38fc00fb137166d865a4a4c3d2df4b2e539939aae6ae86fe443d336a4",
@@ -32,8 +32,8 @@
       "table": "effects"
     },
     {
-      "contentFingerprint": "f4d28a847985b51aaf26b9843ccc69c85112347a71a0fd15f60703f27e42e996",
-      "sourceFingerprint": "9511441f0787e859eaad71ef918db1a9b37ba827afea363de11cb27f4e8ed2cf",
+      "contentFingerprint": "07d95d7f31d5117d0400d070175b42887f76d97d9b0a1dc7a4e5b980a69f8053",
+      "sourceFingerprint": "d09ad486ccae6e69da19a03a01203fbc488e1655466e23c488dc2b95fc5cd9cc",
       "table": "map"
     },
     {

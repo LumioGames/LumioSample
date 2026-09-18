@@ -48,6 +48,7 @@
       "depth": "engine",
       "id": "engine",
       "name": "engine",
+      "ore_block_type": "engine",
       "vein_ratio": "engine",
       "width": "engine"
     }

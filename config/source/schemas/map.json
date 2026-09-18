@@ -36,6 +36,13 @@
       "ordinal": 4,
       "required": true,
       "visibility": "CSV"
+    },
+    {
+      "name": "ore_block_type",
+      "type": "u32",
+      "ordinal": 5,
+      "required": true,
+      "visibility": "CSV"
     }
   ]
 }

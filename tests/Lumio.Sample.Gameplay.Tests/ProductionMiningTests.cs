@@ -76,6 +76,31 @@ public sealed class ProductionMiningTests
     }
 
     [Fact]
+    public void ProductionAttachDiscoversOreOutsideAuthoringRectangle()
+    {
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        using WorldManager manager = SampleGameplay.CreateWorld(522);
+        using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(
+            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(),
+                File.ReadAllBytes(Path.Combine(root, "maps", "official-catalog.json")),
+                File.ReadAllBytes(Path.Combine(root, "maps", "sample.voxel"))));
+        manager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(manager);
+        HostVoxelWorldAdapter adapter = VoxelGameplayBinding.Resolve(manager)!;
+        const int offset = 10 * 16 + 10;
+        VoxelCellQuery cell = adapter.Read(0, offset);
+        uint ore = SampleConfigBinding.For(manager.World).Map.OreBlockType << 8;
+        Assert.Equal(VoxelStageStatus.Staged, adapter.TryStageWrite(
+            new[] { new VoxelWriteEntry(0, offset, ore, cell.SectionRevision) }, "ore-outside-authoring-rectangle").Status);
+        for (int tick = 0; tick < 5; tick++) manager.Tick();
+        VeinReserveComponent vein = Assert.Single(manager.World.Each<VeinReserveComponent>(),
+            value => value.CellX.Value == 10 && value.CellZ.Value == 10);
+        Assert.Equal(5, manager.World.Each<VeinReserveComponent>().Count());
+        Assert.Equal(vein.Entity.ToHex(), adapter.BindingGet(0, offset));
+        Assert.Equal(ore, adapter.Read(0, offset).BlockId);
+    }
+
+    [Fact]
     public void ConfiguredHitsPublishOneRewardAndReplayCannotPublishAgain()
     {
         using SampleWorldHarness world = SampleWorldHarness.Boot();

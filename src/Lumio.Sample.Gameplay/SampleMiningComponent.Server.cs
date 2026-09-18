@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Ecs;
 using Lumio.Sample.Gameplay.Components.Ore;
@@ -111,17 +109,15 @@ public sealed partial class SampleMiningComponent
 
     private void Initialize(HostVoxelWorldAdapter adapter)
     {
-        using Stream stream = typeof(SampleMiningComponent).Assembly.GetManifestResourceStream("Sample.MapLayout")
-            ?? throw new InvalidOperationException("Authored Sample map layout is missing.");
-        using JsonDocument document = JsonDocument.Parse(stream);
-        JsonElement layout = document.RootElement;
-        JsonElement rectangle = layout.GetProperty("vein");
-        uint oreType = layout.GetProperty("oreType").GetUInt32();
+        ISampleConfig config = SampleConfigBinding.For(World);
+        int width = config.Map.Width;
+        int depth = config.Map.Depth;
+        uint oreType = config.Map.OreBlockType;
         var veins = World.Each<VeinReserveComponent>().Where(v => v.HasCell.Value).ToList();
         bool created = false;
         var bindings = new List<VoxelBindingOp>();
-        for (int z = rectangle.GetProperty("z").GetInt32(); z < rectangle.GetProperty("z").GetInt32() + rectangle.GetProperty("depth").GetInt32(); z++)
-        for (int x = rectangle.GetProperty("x").GetInt32(); x < rectangle.GetProperty("x").GetInt32() + rectangle.GetProperty("width").GetInt32(); x++)
+        for (int z = 0; z < depth; z++)
+        for (int x = 0; x < width; x++)
         {
             // Authored floor cells use the wire section/cell encoding, never a transform fallback.
             ulong section = ((ulong)(x >> 4) << 36) | (uint)(z >> 4);
