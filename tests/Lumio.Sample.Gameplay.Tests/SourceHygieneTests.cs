@@ -33,6 +33,20 @@ public sealed class SourceHygieneTests
     }
 
     [Fact]
+    public void MiningCallbackOnlyObservesAndPickupIsAnAbility()
+    {
+        // tick.md §3 rule 5: the phase-8 DigApplied callback may log and assert, never write business state.
+        string callback = File.ReadAllText(Path.Combine(GameplayRoot, "SampleMiningComponent.Server.cs"));
+        Assert.DoesNotContain("SetBaseValue", callback);
+        Assert.DoesNotContain("Remaining.Value =", callback);
+        Assert.DoesNotContain("Commands.Create", callback);
+        // Pickup goes through GAS admission; the static helper with its inline settlement is gone.
+        Assert.False(File.Exists(Path.Combine(GameplayRoot, "SampleOrePickup.cs")));
+        Assert.True(File.Exists(Path.Combine(GameplayRoot, "Abilities", "PickupAbility.cs")));
+        Assert.DoesNotContain("EffectSettlement.Settle", File.ReadAllText(Path.Combine(GameplayRoot, "Abilities", "PickupAbility.Server.cs")));
+    }
+
+    [Fact]
     public void ServerJsonUsesRelativeAssemblyPaths()
     {
         string text = File.ReadAllText(Path.Combine(GameplayRoot, "..", "..", "server.json"));

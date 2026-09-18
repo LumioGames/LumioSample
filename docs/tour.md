@@ -157,7 +157,7 @@ node integration/launcher.mjs --bots 2 --stagger-ms 250
 | 10 | 矿脉储量 -1 | **R-00469** / **R-00538**；S-12 | [`VeinReserveComponent`](../src/Lumio.Sample.Gameplay/Components/Vein/VeinReserveComponent.Server.cs) |
 | 11 | 储量归零，方块变空气 | **R-00469**；S-12 | `MineAbility.TryRequestAirWrite` 恒为 false |
 | 12 | 掉出矿石 | **R-00462**；S-13 | [`OreDropEntity`](../src/Lumio.Sample.Gameplay/EntityTypes/OreDropEntity.cs) |
-| 13 | 拾取（Effect 改两本账） | **R-00480** / **R-00541**；S-14 | [`PickupOreEffect`](../src/Lumio.Sample.Gameplay/Effects/PickupOreEffect.cs) |
+| 13 | 拾取（GAS Ability 准入 → Effect 单第 9 相改基础账） | **R-00636**（DS 直播归 R-00600）；S-14 | [`PickupAbility`](../src/Lumio.Sample.Gameplay/Abilities/PickupAbility.cs) → [`PickupOreEffect`](../src/Lumio.Sample.Gameplay/Effects/PickupOreEffect.cs) |
 | 14 | 存档并重启恢复 | **R-00498** / **R-00507**；S-15 | `world_profile` 已是 `runtime+voxel` + `snapshot_only`；`maps/sample.voxel` 是可 restore 的 Capture。直播冷恢复仍等这两张卡，启动器第 14 步保持 `BLOCKED_ENV`。后段正文归 S-16 |
 
 启动器这六步的 `BLOCKED_ENV` 文案在 [`launcher.mjs`](../integration/launcher.mjs) 的第 9–14 步记录处。

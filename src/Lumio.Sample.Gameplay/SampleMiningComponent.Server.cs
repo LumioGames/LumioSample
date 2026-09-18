@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Ecs;
-using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.Config;
 using Lumio.Sample.Gameplay.EntityTypes;
@@ -45,9 +44,18 @@ public sealed partial class SampleMiningComponent
             if (current is not null) current.DigApplied += OnApplied;
         }
         if (current is null) return;
-        // This world component owns Sample's result window; rewards are delivered only by DigApplied.
+        // This world component owns Sample's result window. Applied digs left _pending in OnApplied;
+        // a result that still maps to a pending dig means Native refused an admitted order after the
+        // business phase already settled it. That is an engine fault, not a business outcome
+        // (tick.md §3 rule 5 / §6): surface it instead of silently dropping the entry.
         foreach (VoxelTransactionResult result in current.DrainResults().Results)
+        {
+            if (!_pending.TryGetValue(result.TransactionId, out PendingDig? refused)) continue;
             _pending.Remove(result.TransactionId);
+            throw new InvalidOperationException(
+                $"Native refused admitted dig {result.TransactionId} (state {result.Outcome.State}, status {result.Outcome.Status}) "
+                + $"for vein {refused.Vein.ToHex()}; its settlement already happened in MineAbility.Execute.");
+        }
         if (!_initialized) Initialize(current);
     }
 
@@ -55,8 +63,11 @@ public sealed partial class SampleMiningComponent
     {
         HostVoxelWorldAdapter? adapter = VoxelGameplayBinding.Resolve(World.Manager);
         if (adapter is null || !vein.HasCell.Value || !_initialized) return false;
+        // "Who digs owns the cell": one dig per player, per vein and per section each frame. Native
+        // checks the frame-initial revision per section, so a second dig in the same section this
+        // frame would be refused at commit; the gameplay avoids the conflict here instead (tick.md §3 rule 5).
         foreach (PendingDig pending in _pending.Values)
-            if (pending.Player == owner.Entity || pending.Vein == vein.Entity) return false;
+            if (pending.Player == owner.Entity || pending.Vein == vein.Entity || pending.Section == vein.SectionKey.Value) return false;
         VoxelCellQuery cell = adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
         return cell.HasBlockId && cell.BlockId != 0
             && adapter.BindingGet(vein.SectionKey.Value, vein.CellOffset.Value) == vein.Entity.ToHex();
@@ -69,7 +80,7 @@ public sealed partial class SampleMiningComponent
         VoxelCellQuery cell = adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
         string transaction = NextTransaction("dig");
         var pending = new PendingDig(owner.Entity, vein.Entity, vein.SectionKey.Value, vein.CellOffset.Value,
-            vein.CellCenter, SampleConfigBinding.For(World).Mining.StaminaCost, SampleConfigBinding.For(World).Mining.OrePerVein);
+            SampleConfigBinding.For(World).Mining.OrePerVein);
         _pending.Add(transaction, pending);
         VoxelStageResult result = adapter.TryStageDigThrough(vein.SectionKey.Value, vein.CellOffset.Value,
             cell.SectionRevision, transaction);
@@ -84,6 +95,11 @@ public sealed partial class SampleMiningComponent
         return false;
     }
 
+    /// <summary>
+    /// Phase-8 observer only. The business writes (stamina, reserve, drop order) already happened in
+    /// <c>MineAbility.Execute</c>; this callback logs the published facts and asserts they match the
+    /// dig Sample staged. It must never write business state (tick.md §3 rule 5).
+    /// </summary>
     private void OnApplied(VoxelDigApplied applied)
     {
         if (!ReferenceEquals(VoxelGameplayBinding.Resolve(World.Manager), _adapter)) return;
@@ -92,14 +108,8 @@ public sealed partial class SampleMiningComponent
         if (applied.SectionKey != pending.Section || applied.CellOffset != pending.Cell
             || applied.BoundEntityId != pending.Vein.ToHex())
             throw new InvalidOperationException("Applied dig does not match its Sample owner.");
-        // Native has published. Any callback failure faults the host; these effects must never be replayed.
-        AttributeComponent attributes = World.Get<AttributeComponent>(pending.Player);
-        string stamina = SampleConfigBinding.For(World).Stamina.Name;
-        attributes.SetBaseValue(stamina, checked(attributes.GetBaseValue(stamina) - pending.Cost));
-        World.Get<VeinReserveComponent>(pending.Vein).Remaining.Value = 0;
-        EntityOrder drop = World.Commands.Create<OreDropEntity>();
-        drop.Get<OrePileComponent>().Amount.Value = pending.Amount;
-        drop.Get<OrePileComponent>().SpawnPosition = pending.Position;
+        if (World.Get<VeinReserveComponent>(pending.Vein).Remaining.Value != 0)
+            throw new InvalidOperationException("Applied dig found a vein whose reserve was not settled at Execute.");
         VoxelCellQuery published = _adapter!.Read(pending.Section, pending.Cell);
         LogApplied(Log, applied.TxnId, pending.Section, pending.Cell, pending.Vein.ToHex(), null);
         LogAfter(Log, applied.TxnId, published.BlockId, published.SectionRevision,
@@ -171,6 +181,5 @@ public sealed partial class SampleMiningComponent
 
     protected override void OnDestroy() => Detach();
 
-    private sealed record PendingDig(NetEntityId Player, NetEntityId Vein, ulong Section, int Cell,
-        System.Numerics.Vector3 Position, long Cost, int Amount);
+    private sealed record PendingDig(NetEntityId Player, NetEntityId Vein, ulong Section, int Cell, int Amount);
 }

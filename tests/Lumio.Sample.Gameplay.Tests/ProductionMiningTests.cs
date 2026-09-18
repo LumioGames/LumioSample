@@ -128,7 +128,9 @@ public sealed class ProductionMiningTests
             Assert.Equal(0, vein.Remaining.Value);
         };
         Assert.True(world.Mine().Succeeded);
-        Assert.Equal(cost, world.StaminaBase);
+        // The last hit settles at Execute: stamina and reserve are already final, the drop is an order.
+        Assert.Equal(0, world.StaminaBase);
+        Assert.Equal(0, world.Remaining);
         Assert.Empty(world.World.Each<OrePileComponent>());
         Assert.False(world.Mine().Succeeded);
         world.FlushCreates();
@@ -252,10 +254,76 @@ public sealed class ProductionMiningTests
         AttributeComponent coldAttributes = coldManager.World.Get<AttributeComponent>(source.Player);
         string oreName = SampleConfigBinding.For(coldManager.World).Ore.Name;
         long oreBefore = coldAttributes.GetBaseValue(oreName);
-        Assert.True(SampleOrePickup.TryPickup(coldManager.World, source.Player, coldDrop.Entity));
+        AbilityComponent coldAbilities = coldManager.World.Get<AbilityComponent>(source.Player);
+        var pickup = new PickupAbility.Input { TargetHex = coldDrop.Entity.ToHex() };
+        AbilityActivateResult picked = coldAbilities.Activate<PickupAbility, PickupAbility.Input>(in pickup);
+        Assert.True(picked.Succeeded, picked.FailureCode);
+        Assert.Equal(oreBefore, coldAttributes.GetBaseValue(oreName));
+        coldManager.Tick();
         Assert.Equal(oreBefore + SampleConfigBinding.For(coldManager.World).Mining.OrePerVein,
             coldAttributes.GetBaseValue(oreName));
-        coldManager.Tick();
         Assert.Empty(coldManager.World.Each<OrePileComponent>());
+    }
+
+    [Fact]
+    public void PickedUpDropStaysGoneAndOreLedgerSurvivesTwoColdRestores()
+    {
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness source = SampleWorldHarness.Boot();
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        byte[] catalog = File.ReadAllBytes(Path.Combine(root, "maps", "official-catalog.json"));
+        string oreName = SampleConfigBinding.For(source.World).Ore.Name;
+        int veinsBefore = source.World.Each<VeinReserveComponent>().Count();
+        Assert.True(source.Mine().Succeeded);
+        source.FlushCreates();
+        NetEntityId drop = Assert.Single(source.World.Each<OrePileComponent>()).Entity;
+        long oreBefore = source.OreBase;
+        Assert.True(source.Pickup(drop).Succeeded);
+        source.FlushCreates();
+        long oreAfter = source.OreBase;
+        Assert.Equal(oreBefore + SampleConfigBinding.For(source.World).Mining.OrePerVein, oreAfter);
+        Assert.Empty(source.World.Each<OrePileComponent>());
+
+        // First restart: the drop must not come back and the ore ledger must be the settled value.
+        DualCutCaptureResult firstCapture = source.Host.Capture();
+        Assert.True(firstCapture.Succeeded, firstCapture.ErrorCode);
+        DedicatedServerRestoreResult first = DedicatedServerHostBinding.RestoreNew(
+            firstCapture.Checkpoint!.Value.Runtime, firstCapture.Checkpoint.Value.Voxel, GeneratedRegistry.Instance,
+            KernelConfigurationFixture.Create(), null, source.World.Manager.IngressBudget, catalog, SampleConfigBinding.Load());
+        Assert.True(first.Succeeded, first.ErrorCode);
+        using DedicatedServerHostBinding firstHost = first.Binding!;
+        using WorldManager firstManager = firstHost.Manager;
+        source.Host.Dispose();
+        firstManager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(firstManager);
+        firstManager.Tick();
+        Assert.Empty(firstManager.World.Each<OrePileComponent>());
+        Assert.False(firstManager.World.IsLive(drop));
+        Assert.False(firstManager.World.IsLive(source.Vein));
+        Assert.Equal(veinsBefore - 1, firstManager.World.Each<VeinReserveComponent>().Count());
+        Assert.Equal(oreAfter, firstManager.World.Get<AttributeComponent>(source.Player).GetBaseValue(oreName));
+
+        // Second restart from the restored world: still no drop, ledger unchanged, nothing replayed.
+        DualCutCaptureResult secondCapture = firstHost.Capture();
+        Assert.True(secondCapture.Succeeded, secondCapture.ErrorCode);
+        DedicatedServerRestoreResult second = DedicatedServerHostBinding.RestoreNew(
+            secondCapture.Checkpoint!.Value.Runtime, secondCapture.Checkpoint.Value.Voxel, GeneratedRegistry.Instance,
+            KernelConfigurationFixture.Create(), null, firstManager.IngressBudget, catalog, SampleConfigBinding.Load());
+        Assert.True(second.Succeeded, second.ErrorCode);
+        using DedicatedServerHostBinding secondHost = second.Binding!;
+        using WorldManager secondManager = secondHost.Manager;
+        firstHost.Dispose();
+        secondManager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(secondManager);
+        secondManager.Tick();
+        Assert.Empty(secondManager.World.Each<OrePileComponent>());
+        Assert.False(secondManager.World.IsLive(drop));
+        Assert.Equal(veinsBefore - 1, secondManager.World.Each<VeinReserveComponent>().Count());
+        Assert.Equal(oreAfter, secondManager.World.Get<AttributeComponent>(source.Player).GetBaseValue(oreName));
+        AbilityComponent abilities = secondManager.World.Get<AbilityComponent>(source.Player);
+        var replay = new PickupAbility.Input { TargetHex = drop.ToHex() };
+        Assert.False(abilities.Activate<PickupAbility, PickupAbility.Input>(in replay).Succeeded);
+        secondManager.Tick();
+        Assert.Equal(oreAfter, secondManager.World.Get<AttributeComponent>(source.Player).GetBaseValue(oreName));
     }
 }

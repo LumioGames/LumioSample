@@ -21,16 +21,17 @@ metadata:
 | 掉落矿石 | `OreDropEntity` + `OrePileComponent` + LogicTransform |
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |
 | 跑动 | `MoveAbility`：唯一调用 `LogicTransform.SetLocalPosition` 的地方 |
-| 挖掘 | `MineAbility`：准入检查存活矿脉、Native 绑定、储量和真实格心距离，体力不足走 GAS 消耗步。非最后一击扣体力基础账和储量；最后一击经 `SampleMiningComponent.StageFinal` 暂存，只有 Original Applied 回调才扣费并下掉落结构单 |
+| 挖掘 | `MineAbility`：准入检查存活矿脉、Native 绑定、储量和真实格心距离，体力不足走 GAS 消耗步。六击同一条 `Execute` 路径：扣体力基础账、储量 -1；最后一击先经 `SampleMiningComponent.StageFinal` 下地形单，过了准入即当场归零并下掉落结构单（tick.md §3 规则 5）。第 8 相 `DigApplied` 回调只记日志与断言，不写业务 |
 | 四条账 | 体力 / 矿石各 Base+Current。PlayerEntity 用 DeclareAttribute 声明持久基础账，SampleConfigBinding.BindWorld 把 World.GameplayConfig 中的 IAttributeSeedProvider 绑定到 World.SeedProvider，由 Runtime PostAttribute 读取已投影的 attributes 初值。Start 绑定能力上下文；OnHydrate 仅重绑瞬态引用，基础账从存档恢复，Current 由现有属性计算器重建（R-00613） |
 | 矿脉出现 | `SampleMiningSystem` 驱动世界单例 `SampleMiningComponent`，按 World 配置的地图宽深扫描恢复后的地板格，以 `ore_block_type` 识别矿石。`SampleVein.Queue` 下结构单，实体正常提交后才用 `HostVoxelWorldAdapter.TryStageMutation` 暂存稀疏绑定，下一帧读到已发布绑定后才开放挖掘 |
-| 拾取 | `PickupOreEffect` 由 `SampleGameplay` 模块初始化注册；`SampleOrePickup.TryPickup` 调用 `Effects.Apply` 再 `EffectSettlement.Settle` |
+| 拾取 | `PickupAbility`（无 cost）：准入要求掉落存活、还有矿石、在移动步长内；`Execute` 把堆清零占位、`Effects.Apply` 下 `PickupOreEffect` 单并下销毁结构单，第 9 相结算入 `Ore` 基础账。同帧两人抢同一份只兑现一次 |
+| 技能上下文 | `BindPlayer` 注册 `ActivationContextFactory`：只有 `MineAbility` 走体力 cost 上下文（低于表内消耗映射为 0 在第 3 步被拒），`MoveAbility` / `PickupAbility` 返回 null 用引擎内置无 cost 上下文，体力低时仍能走路和捡矿 |
 
 聊天说话人用 `NetEntityId.ToHex()`，不另造名字属性。
 
-玩法不读取作者时布局，也不重建底图。矿脉坐标、储量与掉落数量通过生成的持久字段保存；冷恢复使用现有 Native 方块、绑定与 ECS 实体重新建立瞬态服务。最终挖掘通过 `TryStageDigThrough` 在帧末发布空气和绑定移除，Runtime 销毁被绑定的矿脉实体；`mining_stage/pre/applied/post/reward` 日志分别记录暂存、实际发布和排队奖励，不能单凭日志推断客户端已收到掉落。R-00520 的实际 DS 输入、复制、拾取和冷重启验收仍需对应运行证据。
+玩法不读取作者时布局，也不重建底图。矿脉坐标、储量与掉落数量通过生成的持久字段保存；冷恢复使用现有 Native 方块、绑定与 ECS 实体重新建立瞬态服务。最终挖掘通过 `TryStageDigThrough` 在帧末发布空气和绑定移除，Runtime 销毁被绑定的矿脉实体；`mining_stage/pre/applied/post/reward` 日志分别记录暂存、实际发布和已在 Execute 结算的奖励，不能单凭日志推断客户端已收到掉落。同一帧同一段（Native 按段校验帧初 revision）只允许一张地形单，第二人同帧对同段矿脉的最后一击在准入第 5 步被拒、下一帧再来。R-00520 的实际 DS 输入、复制、拾取和冷重启验收仍需对应运行证据。
 
-失败边界：拒绝或过期的 Native 最后一击不扣体力、不减储量、不发奖励，但已受理的 GAS 激活序列和冷却仍消耗；该行为不等于所有能力状态不变。
+失败边界：地形单在 Execute 里没暂存成功（`StageFinal` 返回 false）就不扣体力、不减储量、不发奖励，但已受理的 GAS 激活序列仍消耗。已暂存的地形单若在第 8 相被 Native 拒绝，Sample 在下一帧 `Advance` 排干结果时抛异常——按 tick.md §3 规则 5 这只能是引擎内部故障，不存在「扣了费方块还在」的业务态。
 
 玩家准入使用 Runtime 正式控制消息，在正常 Owner Tick 创建实体；生产玩法没有同步准入或隐式推进 Tick 的辅助入口。测试宿主自行显式驱动 Tick。属性名字是声明身份，配表中的名字必须与声明对应；历史上未包含基础账的存档无法还原当时未保存的数值。
 

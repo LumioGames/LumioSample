@@ -130,30 +130,60 @@ public sealed class SampleWiringTests : IDisposable
     }
 
     [Fact]
-    public void VoxelWriteFailureOnLastHitDoesNotDeductOrDrop()
+    public void NativeRefusingAnAdmittedFinalDigIsAnEngineFaultNotABusinessOutcome()
     {
+        // tick.md §3 rule 5: once the terrain order passes phase-3 admission the hit settles at once.
+        // A dig Native later refuses at phase 8 is therefore an engine fault (the classic
+        // "stamina paid, block still there"), surfaced on the next Advance instead of swallowed.
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         long stamina = world.StaminaBase;
-        int remaining = world.Remaining;
+        long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
         VeinReserveComponent vein = world.World.Get<VeinReserveComponent>(world.Vein);
         VoxelCellQuery cell = world.Adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
-        // Commit another write first, so the final dig carries a genuinely stale revision.
+        // A foreign write to the same section commits first, so the dig carries a stale section revision.
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageWrite(
             new[] { new VoxelWriteEntry(vein.SectionKey.Value, 0, 0, cell.SectionRevision) }, "competing-write").Status);
         Assert.True(world.Mine().Succeeded);
-        Assert.Equal(stamina, world.StaminaBase);
-        Assert.Equal(remaining, world.Remaining);
+        Assert.Equal(stamina - cost, world.StaminaBase);
+        Assert.Equal(0, world.Remaining);
         world.FlushCreates();
-        Assert.Equal(stamina, world.StaminaBase);
-        Assert.Equal(remaining, world.Remaining);
-        Assert.Empty(world.World.Each<OrePileComponent>());
+        Assert.Single(world.World.Each<OrePileComponent>());
         Assert.NotEqual(0U, world.Adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value).BlockId);
-        Assert.Equal(world.Vein.ToHex(), world.Adapter.BindingGet(vein.SectionKey.Value, vein.CellOffset.Value));
-        VoxelTransactionResult refused = Assert.Single(world.Adapter.DrainResults().Results,
-            result => result.TransactionId != "competing-write");
-        Assert.Equal(VoxelTxnState.Aborted, refused.Outcome.State);
-        Assert.NotEqual(0, refused.Outcome.Status);
+        InvalidOperationException fault = Assert.Throws<InvalidOperationException>(world.FlushCreates);
+        Assert.Contains("Native refused admitted dig", fault.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SecondFinalDigInTheSameSectionWaitsForTheNextFrame()
+    {
+        // Native validates the frame-initial revision per section, so two digs in one section in
+        // one frame would refuse the second at commit. CanMine keeps that conflict out at admission.
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        VeinReserveComponent first = world.World.Get<VeinReserveComponent>(world.Vein);
+        VeinReserveComponent second = world.World.Each<VeinReserveComponent>()
+            .First(vein => vein.Entity != world.Vein && vein.SectionKey.Value == first.SectionKey.Value);
+        NetEntityId other = world.AdmitPlayer("same-section");
+        PlayerLifecycleTests.PlaceFixturePlayer(world.World, other, second.CellCenter);
+        AbilityComponent otherAbilities = world.World.Get<AbilityComponent>(other);
+        long otherStamina = world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina");
+        var otherInput = new MineAbility.Input { TargetHex = second.Entity.ToHex() };
+
+        Assert.True(world.Mine().Succeeded);
+        AbilityActivateResult blocked = SampleGameplay.ActivateMine(otherAbilities, in otherInput);
+        Assert.False(blocked.Succeeded);
+        Assert.Equal(5, blocked.RejectedStep);
+        Assert.Equal(otherStamina, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
+        Assert.Equal(1, second.Remaining.Value);
+        world.FlushCreates();
+        Assert.Single(world.World.Each<OrePileComponent>());
+
+        Assert.True(SampleGameplay.ActivateMine(otherAbilities, in otherInput).Succeeded);
+        Assert.Equal(0, second.Remaining.Value);
+        world.FlushCreates();
+        Assert.Equal(2, world.World.Each<OrePileComponent>().Count());
+        Assert.False(world.World.IsLive(second.Entity));
     }
 
     [Fact]
@@ -261,7 +291,8 @@ public sealed class SampleWiringTests : IDisposable
 
         Assert.True(world.Mine().Succeeded);
         VeinReserveComponent reserve = world.World.Get<VeinReserveComponent>(world.Vein);
-        Assert.Equal(1, reserve.Remaining.Value);
+        Assert.Equal(0, reserve.Remaining.Value);
+        Assert.Empty(world.World.Each<OrePileComponent>());
         world.Adapter.DigApplied += _ => Assert.Equal(0, reserve.Remaining.Value);
         world.FlushCreates();
         Assert.False(world.World.IsLive(world.Vein));
@@ -290,10 +321,148 @@ public sealed class SampleWiringTests : IDisposable
             drop = pile.Entity;
         Assert.True(world.World.IsLive(drop));
 
-        int fxBefore = OnFxLog.ForWorld(world.World).Count;
-        Assert.True(SampleOrePickup.TryPickup(world.World, world.Player, drop));
+        AbilityActivateResult picked = world.Pickup(drop);
+        Assert.True(picked.Succeeded, picked.FailureCode);
+        // Execute only queued the slip and the destroy; the ledger moves when phase 9 settles.
+        Assert.Equal(oreBefore, world.OreBase);
+        Assert.True(world.World.IsLive(drop));
+        world.FlushCreates();
         Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
-        Assert.Contains(OnFxLog.ForWorld(world.World).Skip(fxBefore), row => row.FxKey == PickupOreEffect.FxKeyName);
+        Assert.False(world.World.IsLive(drop));
+        Assert.Contains(OnFxLog.ForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
+    }
+
+    [Fact]
+    public void StaminaBelowMiningCostStillAdmitsMoveAndRejectsMineWithoutSideEffects()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        AbilityComponent abilities = world.World.Get<AbilityComponent>(world.Player);
+        Assert.NotNull(abilities.ActivationContextFactory);
+        world.World.Get<AttributeComponent>(world.Player).SetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name, 9);
+        Assert.True(9 < SampleConfigBinding.For(world.World).Mining.StaminaCost);
+        int remaining = world.Remaining;
+
+        AbilityActivateResult mine = world.Mine();
+        Assert.False(mine.Succeeded);
+        Assert.Equal(3, mine.RejectedStep);
+        Assert.Equal(9, world.StaminaBase);
+        Assert.Equal(remaining, world.Remaining);
+        Assert.Equal(0, abilities.Count);
+
+        System.Numerics.Vector3 origin = world.World.Get<LogicTransform>(world.Player).LocalPosition;
+        var step = new MoveAbility.Input { Dx = 1 };
+        AbilityActivateResult moved = abilities.Activate<MoveAbility, MoveAbility.Input>(in step);
+        Assert.True(moved.Succeeded, moved.FailureCode);
+        Assert.NotEqual(origin, world.World.Get<LogicTransform>(world.Player).LocalPosition);
+        Assert.Equal(9, world.StaminaBase);
+        world.FlushCreates();
+        Assert.Empty(world.World.Each<OrePileComponent>());
+    }
+
+    [Fact]
+    public void StaminaBelowMiningCostStillAdmitsPickup()
+    {
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        Assert.True(world.Mine().Succeeded);
+        world.FlushCreates();
+        NetEntityId drop = Assert.Single(world.World.Each<OrePileComponent>()).Entity;
+        world.World.Get<AttributeComponent>(world.Player).SetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name, 9);
+        long oreBefore = world.OreBase;
+
+        AbilityActivateResult picked = world.Pickup(drop);
+        Assert.True(picked.Succeeded, picked.FailureCode);
+        world.FlushCreates();
+        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
+        Assert.Equal(9, world.StaminaBase);
+        Assert.Empty(world.World.Each<OrePileComponent>());
+    }
+
+    [Fact]
+    public void TwoPlayersFinalHitOnTheSameVeinInOneFrameSettlesOnlyOnce()
+    {
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        NetEntityId rival = world.AdmitPlayer("rival-miner");
+        VeinReserveComponent vein = world.World.Get<VeinReserveComponent>(world.Vein);
+        PlayerLifecycleTests.PlaceFixturePlayer(world.World, rival, vein.CellCenter);
+        AbilityComponent rivalAbilities = world.World.Get<AbilityComponent>(rival);
+        Assert.True(MineAbility.WithinReach(rivalAbilities, world.Vein));
+        long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
+        long stamina = world.StaminaBase;
+        long rivalStamina = world.World.Get<AttributeComponent>(rival).GetBaseValue("Stamina");
+        var input = new MineAbility.Input { TargetHex = world.Vein.ToHex() };
+
+        Assert.True(world.Mine().Succeeded);
+        AbilityActivateResult second = SampleGameplay.ActivateMine(rivalAbilities, in input);
+        Assert.False(second.Succeeded);
+        Assert.Equal(5, second.RejectedStep);
+        Assert.Equal(stamina - cost, world.StaminaBase);
+        Assert.Equal(rivalStamina, world.World.Get<AttributeComponent>(rival).GetBaseValue("Stamina"));
+        Assert.Equal(0, rivalAbilities.Count);
+        Assert.Equal(0UL, rivalAbilities.GetCooldown(MineAbility.TypeId));
+        world.FlushCreates();
+        Assert.Single(world.World.Each<OrePileComponent>());
+        Assert.False(world.World.IsLive(world.Vein));
+        Assert.Equal(rivalStamina, world.World.Get<AttributeComponent>(rival).GetBaseValue("Stamina"));
+    }
+
+    [Fact]
+    public void TwoPlayersPickingTheSameDropInOneFrameCashItOnce()
+    {
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        Assert.True(world.Mine().Succeeded);
+        world.FlushCreates();
+        NetEntityId drop = Assert.Single(world.World.Each<OrePileComponent>()).Entity;
+        NetEntityId rival = world.AdmitPlayer("rival-picker");
+        PlayerLifecycleTests.PlaceFixturePlayer(world.World, rival, world.World.Get<LogicTransform>(drop).LocalPosition);
+        AbilityComponent rivalAbilities = world.World.Get<AbilityComponent>(rival);
+        string ore = SampleConfigBinding.For(world.World).Ore.Name;
+        long oreBefore = world.OreBase;
+        long rivalOreBefore = world.World.Get<AttributeComponent>(rival).GetBaseValue(ore);
+        var input = new PickupAbility.Input { TargetHex = drop.ToHex() };
+        Assert.True(PickupAbility.WithinReach(rivalAbilities, drop));
+
+        Assert.True(world.Pickup(drop).Succeeded);
+        AbilityActivateResult second = rivalAbilities.Activate<PickupAbility, PickupAbility.Input>(in input);
+        Assert.False(second.Succeeded);
+        Assert.Equal(5, second.RejectedStep);
+        Assert.Equal("pickup_target_gone", second.FailureCode);
+        world.FlushCreates();
+        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
+        Assert.Equal(rivalOreBefore, world.World.Get<AttributeComponent>(rival).GetBaseValue(ore));
+        Assert.Empty(world.World.Each<OrePileComponent>());
+        Assert.Single(OnFxLog.ForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
+    }
+
+    [Fact]
+    public void RepeatedSequenceForMineAndPickupNeverPaysTwice()
+    {
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
+        long stamina = world.StaminaBase;
+
+        Assert.True(world.Mine(sequence: 41).Succeeded);
+        AbilityActivateResult replayedMine = world.Mine(sequence: 41);
+        Assert.False(replayedMine.Succeeded);
+        Assert.Equal(0, replayedMine.RejectedStep); // duplicate, refused before admission
+        Assert.Equal(stamina - cost, world.StaminaBase);
+        world.FlushCreates();
+        NetEntityId drop = Assert.Single(world.World.Each<OrePileComponent>()).Entity;
+        Assert.Equal(stamina - cost, world.StaminaBase);
+        long oreBefore = world.OreBase;
+
+        Assert.True(world.Pickup(drop, sequence: 42).Succeeded);
+        AbilityActivateResult replayedPickup = world.Pickup(drop, sequence: 42);
+        Assert.False(replayedPickup.Succeeded);
+        Assert.Equal(0, replayedPickup.RejectedStep);
+        world.FlushCreates();
+        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
+        AbilityActivateResult afterCommit = world.Pickup(drop, sequence: 42);
+        Assert.False(afterCommit.Succeeded);
+        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
     }
 
     [Fact]
@@ -471,11 +640,18 @@ internal sealed class SampleWorldHarness : IDisposable
         return manager;
     }
 
-    public AbilityActivateResult Mine()
+    public AbilityActivateResult Mine(ulong sequence = 0)
     {
         var input = new MineAbility.Input { TargetHex = Vein.ToHex() };
         AbilityComponent abilities = World.Get<AbilityComponent>(Player);
-        return SampleGameplay.ActivateMine(abilities, in input);
+        return SampleGameplay.ActivateMine(abilities, in input, sequence);
+    }
+
+    public AbilityActivateResult Pickup(NetEntityId drop, ulong sequence = 0)
+    {
+        var input = new PickupAbility.Input { TargetHex = drop.ToHex() };
+        AbilityComponent abilities = World.Get<AbilityComponent>(Player);
+        return abilities.Activate<PickupAbility, PickupAbility.Input>(in input, sequence);
     }
 
     public void FlushCreates() => _manager.Tick();

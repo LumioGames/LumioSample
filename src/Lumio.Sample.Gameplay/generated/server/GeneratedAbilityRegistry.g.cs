@@ -7,10 +7,12 @@ public static class GeneratedAbilityRegistry
 {
     public static uint TypeIdOf(Type abilityType)
     {
+        if (abilityType == typeof(global::Lumio.Sample.Gameplay.PickupAbility)) return 3u;
         if (abilityType == typeof(global::Lumio.Sample.Gameplay.MineAbility)) return 2u;
         if (abilityType == typeof(global::Lumio.Sample.Gameplay.MoveAbility)) return 1u;
         return abilityType.Name switch
         {
+            nameof(PickupAbility) => 3,
             nameof(MineAbility) => 2,
             nameof(MoveAbility) => 1,
             _ => 0u
@@ -23,6 +25,7 @@ public static class GeneratedAbilityRegistry
     /// </summary>
     public static void RegisterAll()
     {
+        global::Lumio.GameRuntime.Ecs.AbilityTypeCatalog.Register<global::Lumio.Sample.Gameplay.PickupAbility, global::Lumio.Sample.Gameplay.PickupAbility.Input>(3u);
         global::Lumio.GameRuntime.Ecs.AbilityTypeCatalog.Register<global::Lumio.Sample.Gameplay.MineAbility, global::Lumio.Sample.Gameplay.MineAbility.Input>(2u, "Stamina");
         global::Lumio.GameRuntime.Ecs.AbilityTypeCatalog.Register<global::Lumio.Sample.Gameplay.MoveAbility, global::Lumio.Sample.Gameplay.MoveAbility.Input>(1u);
     }
