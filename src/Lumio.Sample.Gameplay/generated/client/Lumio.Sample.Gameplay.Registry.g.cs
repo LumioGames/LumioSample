@@ -8,6 +8,7 @@ using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Chat;
 using Lumio.Sample.Gameplay.Components.Fx;
 using Lumio.Sample.Gameplay.Components.Identity;
+using Lumio.Sample.Gameplay.Components.Mining;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.EntityTypes;
@@ -161,6 +162,7 @@ public sealed class GeneratedRegistry : EcsRegistry
             if (componentType == typeof(AbilityComponent)) return 4;
             if (componentType == typeof(AttributeComponent)) return 5;
             if (componentType == typeof(EffectComponent)) return 6;
+            if (componentType == typeof(PendingDigComponent)) return 7;
             return -1;
         }
         if (entityType == typeof(VeinEntity))
@@ -213,6 +215,7 @@ public sealed class GeneratedRegistry : EcsRegistry
             if (string.Equals(componentName, "AbilityComponent", StringComparison.Ordinal)) return 4;
             if (string.Equals(componentName, "AttributeComponent", StringComparison.Ordinal)) return 5;
             if (string.Equals(componentName, "EffectComponent", StringComparison.Ordinal)) return 6;
+            if (string.Equals(componentName, "PendingDigComponent", StringComparison.Ordinal)) return 7;
             return -1;
         }
         if (entityType == typeof(VeinEntity))
@@ -286,6 +289,17 @@ public sealed class GeneratedRegistry : EcsRegistry
             new FieldAttributeDeclaration("IdentityComponent.colorHue", "i32", "ephemeral", "replicated", "room-public"),
             new FieldAttributeDeclaration("IdentityComponent.name", "utf8-string", "persistent", "replicated", "room-public"),
             new FieldAttributeDeclaration("OrePileComponent.amount", "i32", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("PendingDigComponent.active", "bool", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.amount", "i32", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.cellOffset", "i32", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.cellX", "i32", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.cellY", "i32", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.cellZ", "i32", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.sectionKey", "u64", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.serial", "u64", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.staminaCost", "u64", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.transaction", "utf8-string", "persistent", "not-replicated", "server-only"),
+            new FieldAttributeDeclaration("PendingDigComponent.veinHex", "utf8-string", "persistent", "not-replicated", "server-only"),
             new FieldAttributeDeclaration("VeinReserveComponent.cellOffset", "i32", "persistent", "replicated", "room-public"),
             new FieldAttributeDeclaration("VeinReserveComponent.cellX", "i32", "persistent", "replicated", "room-public"),
             new FieldAttributeDeclaration("VeinReserveComponent.cellY", "i32", "persistent", "replicated", "room-public"),

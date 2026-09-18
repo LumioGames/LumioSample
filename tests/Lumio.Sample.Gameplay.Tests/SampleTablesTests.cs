@@ -115,6 +115,8 @@ public sealed class SampleTablesTests
         ("Abilities/MoveAbility.cs", "if (!float.IsFinite(travelFraction) || travelFraction < 0f || travelFraction > 1f) return false;") => true,
         ("Abilities/MoveAbility.cs", "if (!float.IsFinite(hit.TravelFraction) || hit.TravelFraction < 0f || hit.TravelFraction > 1f") => true,
         ("Abilities/MoveAbility.cs", "|| (!hit.Collided && hit.TravelFraction != 1f) || !IsFinite(hit.Point))") => true,
+        // A player owns one unsettled dig at a time (R-00650); that ceiling is a rule, not tuning.
+        ("Components/Mining/PendingDigComponent.cs", "public const int MaxPerPlayer = 1;") => true,
         // One activation consumes one hit; the initial reserve comes from config.
         ("Abilities/MineAbility.Server.cs", "if (reserve.Remaining.Value <= 1)") => true,
         ("Abilities/MineAbility.Server.cs", "reserve.Remaining.Value -= 1;") => true,

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Linq;
@@ -8,6 +9,7 @@ using Lumio.GameRuntime.Gas;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay;
+using Lumio.Sample.Gameplay.Components.Mining;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.Config;
@@ -216,6 +218,49 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(otherStamina - cost, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
         Assert.Equal(2, world.World.Each<OrePileComponent>().Count());
         Assert.False(world.World.IsLive(second.Entity));
+    }
+
+    [Fact]
+    public void UnsettledDigsAreBoundedPerPlayerAndPerWorld()
+    {
+        // R-00650: the record is persisted state now, so it must not be able to grow without bound.
+        // Per player the bound is the slot itself — one unsettled dig, which is the exclusion
+        // CanMine already admitted on. Per world it is a declared ceiling, and crossing it refuses
+        // the activation instead of enlarging the set.
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        Assert.Equal(1, PendingDigComponent.MaxPerPlayer);
+
+        // Per player: the second activation is refused while the first is unsettled.
+        Assert.True(world.Mine().Succeeded);
+        Assert.False(world.Mine().Succeeded);
+        world.FlushCreates();
+        world.FlushCreates();
+        Assert.Single(world.World.Each<OrePileComponent>());
+
+        // Per world: fill the ceiling with other players' records and the next activation is refused.
+        VeinReserveComponent vein = world.World.Each<VeinReserveComponent>().First(value => value.HasCell.Value);
+        NetEntityId miner = world.AdmitPlayer("bounded-miner");
+        PlayerLifecycleTests.PlaceFixturePlayer(world.World, miner, vein.CellCenter);
+        var input = new MineAbility.Input { TargetHex = vein.Entity.ToHex() };
+        AbilityComponent abilities = world.World.Get<AbilityComponent>(miner);
+        var fillers = new List<NetEntityId>();
+        for (int index = 0; index < PendingDigComponent.MaxPerWorld; index++)
+            fillers.Add(world.AdmitPlayer("filler-" + index));
+        // Marked after the last admission tick: a tick would reconcile these against a cell that still
+        // holds its block and drop them, which is the discard path rather than what this test measures.
+        var filled = new List<PendingDigComponent>();
+        foreach (NetEntityId filler in fillers)
+        {
+            PendingDigComponent record = world.World.Get<PendingDigComponent>(filler);
+            record.VeinHex.Value = filler.ToHex();
+            record.Active.Value = true;
+            filled.Add(record);
+        }
+
+        Assert.False(SampleGameplay.ActivateMine(abilities, in input).Succeeded);
+        filled[0].Active.Value = false;
+        Assert.True(SampleGameplay.ActivateMine(abilities, in input).Succeeded);
     }
 
     [Fact]

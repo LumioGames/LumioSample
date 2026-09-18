@@ -70,6 +70,83 @@
     "visibility": "room-public"
   },
   {
+    "attributeId": "PendingDigComponent.active",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "bool",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.amount",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "i32",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.cellOffset",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "i32",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.cellX",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "i32",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.cellY",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "i32",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.cellZ",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "i32",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.sectionKey",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "u64",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.serial",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "u64",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.staminaCost",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "u64",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.transaction",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "utf8-string",
+    "visibility": "server-only"
+  },
+  {
+    "attributeId": "PendingDigComponent.veinHex",
+    "persistence": "persistent",
+    "replication": "not-replicated",
+    "valueType": "utf8-string",
+    "visibility": "server-only"
+  },
+  {
     "attributeId": "VeinReserveComponent.cellOffset",
     "persistence": "persistent",
     "replication": "replicated",
