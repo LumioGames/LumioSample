@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Ecs.Annotations;
+using Lumio.GameRuntime.Primitives;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Chat;
 using Lumio.Sample.Gameplay.Components.Identity;
@@ -162,6 +163,7 @@ public sealed class GeneratedRegistry : EcsRegistry
         if (entityType == typeof(WorldEntity))
         {
             if (componentType == typeof(WorldSaveComponent)) return 0;
+            if (componentType == typeof(SampleMiningComponent)) return 1;
             return -1;
         }
         return -1;
@@ -208,6 +210,7 @@ public sealed class GeneratedRegistry : EcsRegistry
         if (entityType == typeof(WorldEntity))
         {
             if (string.Equals(componentName, "WorldSaveComponent", StringComparison.Ordinal)) return 0;
+            if (string.Equals(componentName, "SampleMiningComponent", StringComparison.Ordinal)) return 1;
             return -1;
         }
         return -1;
@@ -269,12 +272,21 @@ public sealed class GeneratedRegistry : EcsRegistry
             new FieldAttributeDeclaration("IdentityComponent.colorHue", "i32", "ephemeral", "replicated", "room-public"),
             new FieldAttributeDeclaration("IdentityComponent.name", "utf8-string", "persistent", "replicated", "room-public"),
             new FieldAttributeDeclaration("OrePileComponent.amount", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "room-public")
+            new FieldAttributeDeclaration("VeinReserveComponent.cellOffset", "i32", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("VeinReserveComponent.cellX", "i32", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("VeinReserveComponent.cellY", "i32", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("VeinReserveComponent.cellZ", "i32", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("VeinReserveComponent.hasCell", "bool", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "room-public"),
+            new FieldAttributeDeclaration("VeinReserveComponent.sectionKey", "u64", "persistent", "replicated", "room-public")
         };
     }
 
     private static IReadOnlyList<EcsSystemDescriptor> BuildSystems()
     {
-        return Array.Empty<EcsSystemDescriptor>();
+        return new EcsSystemDescriptor[]
+        {
+            new EcsSystemDescriptor("SampleMiningSystem", TickPhase.ProcessorPlan, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), () => new SampleMiningSystem())
+        };
     }
 }

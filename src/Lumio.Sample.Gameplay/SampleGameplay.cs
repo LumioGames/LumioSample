@@ -86,6 +86,13 @@ public static class SampleGameplay
             logic.SetLocalPosition(AdmittedPlayerPosition);
     }
 
+    internal static void PlaceDrop(World world, NetEntityId drop, Vector3 position)
+    {
+        LogicTransform logic = world.Get<LogicTransform>(drop);
+        TransformController controller = world.RegisterTransformController(drop, nameof(MineAbility));
+        using (logic.BeginWrite(controller)) logic.SetLocalPosition(position);
+    }
+
     /// <summary>Generic Activate. Owner for CanActivate comes from <see cref="BindPlayer"/>'s context, not this wrapper.</summary>
     [SuppressMessage("Design", "CA1510", Justification = "Keep netstandard2.1 compatibility without conditional source branches.")]
     public static AbilityActivateResult ActivateMine(AbilityComponent owner, in MineAbility.Input input, ulong sequence = 0)
