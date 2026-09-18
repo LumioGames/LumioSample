@@ -69,13 +69,10 @@ public static class SampleGameplay
     /// Capture floor is y=0 with a one-cell wall at y=1. Default LogicTransform
     /// is the origin, which SweepBox cannot answer without sealing the DS.
     /// MoveAbility is the sole writer; this is the admission pose, not a step.
-    /// Y is the open-cell height already proven by
-    /// <c>RealHostAabbWallAndOpenMovementSurviveColdRestore</c> (y=4.5).
-    /// Wave B r13 issued MoveAbility from (16.5, 1.5, 16.5) and every replica
-    /// stayed there: the configured AABB at y=1.5 overlaps unwritten y=1 interior
-    /// cells, which SweepBox reports as unresolved rather than air.
+    /// The interior cell above the floor keeps the movement AABB clear and the
+    /// floor ore within the configured three-dimensional mining reach.
     /// </summary>
-    internal static readonly Vector3 AdmittedPlayerPosition = new(16.5f, 4.5f, 16.5f);
+    internal static readonly Vector3 AdmittedPlayerPosition = new(16.5f, 1.5f, 16.5f);
 
     private static void PlaceAdmittedPlayer(World world, NetEntityId player)
     {
@@ -84,6 +81,13 @@ public static class SampleGameplay
         TransformController controller = world.RegisterTransformController(player, nameof(MoveAbility));
         using (logic.BeginWrite(controller))
             logic.SetLocalPosition(AdmittedPlayerPosition);
+    }
+
+    internal static void PlaceDrop(World world, NetEntityId drop, Vector3 position)
+    {
+        LogicTransform logic = world.Get<LogicTransform>(drop);
+        TransformController controller = world.RegisterTransformController(drop, nameof(MineAbility));
+        using (logic.BeginWrite(controller)) logic.SetLocalPosition(position);
     }
 
     /// <summary>Generic Activate. Owner for CanActivate comes from <see cref="BindPlayer"/>'s context, not this wrapper.</summary>

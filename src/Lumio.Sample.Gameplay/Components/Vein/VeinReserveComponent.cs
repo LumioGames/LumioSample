@@ -10,4 +10,13 @@ public sealed partial class VeinReserveComponent : Component
     /// <summary>Hits left before the vein is exhausted.</summary>
     [Persist]
     public Sync<int> Remaining = new(Scope.Room);
+
+    [Persist] public Sync<bool> HasCell = new(Scope.Room);
+    [Persist] public Sync<ulong> SectionKey = new(Scope.Room);
+    [Persist] public Sync<int> CellOffset = new(Scope.Room);
+    [Persist] public Sync<int> CellX = new(Scope.Room);
+    [Persist] public Sync<int> CellY = new(Scope.Room);
+    [Persist] public Sync<int> CellZ = new(Scope.Room);
+
+    public System.Numerics.Vector3 CellCenter => new(CellX.Value + 0.5f, CellY.Value + 0.5f, CellZ.Value + 0.5f);
 }

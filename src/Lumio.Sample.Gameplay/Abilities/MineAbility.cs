@@ -8,11 +8,7 @@ using Lumio.Sample.Gameplay.EntityTypes;
 
 namespace Lumio.Sample.Gameplay;
 
-/// <summary>
-/// Decrements vein reserve on the bound entity. Voxel air-write is host-injected;
-/// a missing writer is Sample consume not wired, not a missing ABI.
-/// Cost names the stamina Base ledger for admit step 3 (R-00468 G2).
-/// </summary>
+/// <summary>Authority mining of a live cell-bound vein; final effects wait for Native Applied.</summary>
 [AbilityType(2u, Prediction = PredictionKind.AuthorityOnly, Cost = "Stamina")]
 public sealed partial class MineAbility : AbilityType<MineAbility.Input>
 {
@@ -59,24 +55,22 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
         if (!world.IsLive(veinId)) return false;
         if (!world.TypeOf(veinId).Is<VeinEntity>()) return false;
         VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
-        return reserve.Remaining.Value > 0;
+        bool bound = false;
+        CheckBinding(owner, reserve, ref bound);
+        return reserve.Remaining.Value > 0 && bound;
     }
 
     /// <summary>
-    /// Melee reach is the movement step from config. Veins without LogicTransform sit at the bound cell origin.
+    /// Melee reach is the movement step from config. The target is the authored cell center.
     /// </summary>
     public static bool WithinReach(AbilityComponent owner, NetEntityId veinId)
     {
         if (owner is null) return false;
         Vector3 player = owner.Get<LogicTransform>().LocalPosition;
-        Vector3 vein = Vector3.Zero;
-        try
-        {
-            vein = owner.Get<LogicTransform>(veinId).LocalPosition;
-        }
-        catch (System.InvalidOperationException)
-        {
-        }
+        if (!owner.World.IsLive(veinId) || !owner.World.TypeOf(veinId).Is<VeinEntity>()) return false;
+        VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
+        if (!reserve.HasCell.Value) return false;
+        Vector3 vein = reserve.CellCenter;
 
         float reach = (float)SampleConfigBinding.For(owner.World).Movement.StepMeters;
         Vector3 delta = player - vein;
@@ -86,13 +80,15 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
     /// <inheritdoc />
     public override void Execute(in Input input, AbilityComponent owner) => ExecuteCore(in input, owner);
 
-    static partial void ExecuteCore(in Input input, AbilityComponent owner);
+    static partial void CheckBinding(AbilityComponent owner, VeinReserveComponent reserve, ref bool bound);
 
-    /// <summary>False when the host has not wired a writer. Callers must not deduct or drop on false.</summary>
+    /// <summary>Legacy host probe retained for compatibility; production settlement uses the Native adapter.</summary>
     public static bool TryRequestAirWrite(World world, NetEntityId veinId)
     {
         ISampleVoxelWriter? writer = SampleVoxelWriterBinding.Resolve(world.Manager);
-        if (writer is null) return false;
-        return writer.TryWriteAir(veinId);
+        return writer is not null && writer.TryWriteAir(veinId);
     }
+
+    static partial void ExecuteCore(in Input input, AbilityComponent owner);
+
 }

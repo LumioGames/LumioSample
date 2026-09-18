@@ -91,12 +91,17 @@ public sealed class SampleTablesTests
                 {
                     string pattern = @"(?<![A-Za-z0-9_.])" + Regex.Escape(token) + @"[uUlLfFdDmM]?(?![A-Za-z0-9_.])";
                     if (!Regex.IsMatch(code, pattern)) continue;
-                    Assert.True(token == "1" && IsNonConfigOne(Path.GetRelativePath(gameplay, file).Replace('\\', '/'), code),
+                    string path = Path.GetRelativePath(gameplay, file).Replace('\\', '/');
+                    Assert.True(IsWireEncoding(path, code) || token == "1" && IsNonConfigOne(path, code),
                         file + " embeds config token " + token + ": " + code);
                 }
             }
         }
     }
+
+    // Fixed voxel wire coordinates are not gameplay configuration defaults.
+    private static bool IsWireEncoding(string path, string code) =>
+        path == "SampleMiningComponent.Server.cs" && code == "ulong section = ((ulong)(x >> 4) << 36) | (uint)(z >> 4);";
 
     private static bool IsNonConfigOne(string path, string code) => (path, code) switch
     {
@@ -111,7 +116,7 @@ public sealed class SampleTablesTests
         ("Abilities/MoveAbility.cs", "if (!float.IsFinite(hit.TravelFraction) || hit.TravelFraction < 0f || hit.TravelFraction > 1f") => true,
         ("Abilities/MoveAbility.cs", "|| (!hit.Collided && hit.TravelFraction != 1f) || !IsFinite(hit.Point))") => true,
         // One activation consumes one hit; the initial reserve comes from config.
-        ("Abilities/MineAbility.Server.cs", "bool exhausts = reserve.Remaining.Value <= 1;") => true,
+        ("Abilities/MineAbility.Server.cs", "if (reserve.Remaining.Value <= 1)") => true,
         ("Abilities/MineAbility.Server.cs", "reserve.Remaining.Value -= 1;") => true,
         // Snapshot identity belongs to the loader lifecycle, not gameplay tuning.
         ("Config/SampleConfigBinding.cs", "if (!module.Stage(result.CreateSnapshot(new ConfigSnapshotId(1))).Staged || !module.ActivateAtBarrier(default).Activated)") => true,

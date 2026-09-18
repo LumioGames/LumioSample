@@ -54,6 +54,7 @@ public sealed partial class OrePileComponent : IGeneratedComponent, IGeneratedSy
     void IGeneratedComponent.CapturePersist(IPersistWriter writer)
     {
         if (writer is IPredictionFieldWriter) return;
+        writer.WriteInt32("OrePileComponent.amount", Amount.Value);
     }
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
@@ -68,6 +69,8 @@ public sealed partial class OrePileComponent : IGeneratedComponent, IGeneratedSy
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)
     {
+        if (reader.TryReadInt32("OrePileComponent.amount", out int amountRestore))
+            Amount.SetSilent(amountRestore);
     }
 
     object? IGeneratedComponent.ReadField(string fieldId)

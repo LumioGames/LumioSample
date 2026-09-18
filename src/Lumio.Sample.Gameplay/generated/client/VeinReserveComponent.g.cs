@@ -9,12 +9,30 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
 {
     partial void OnRemainingChanging(int old, int @new, ChangeReason reason);
     partial void OnRemainingChanged(int old, int @new, ChangeReason reason);
+    partial void OnHasCellChanging(bool old, bool @new, ChangeReason reason);
+    partial void OnHasCellChanged(bool old, bool @new, ChangeReason reason);
+    partial void OnSectionKeyChanging(ulong old, ulong @new, ChangeReason reason);
+    partial void OnSectionKeyChanged(ulong old, ulong @new, ChangeReason reason);
+    partial void OnCellOffsetChanging(int old, int @new, ChangeReason reason);
+    partial void OnCellOffsetChanged(int old, int @new, ChangeReason reason);
+    partial void OnCellXChanging(int old, int @new, ChangeReason reason);
+    partial void OnCellXChanged(int old, int @new, ChangeReason reason);
+    partial void OnCellYChanging(int old, int @new, ChangeReason reason);
+    partial void OnCellYChanged(int old, int @new, ChangeReason reason);
+    partial void OnCellZChanging(int old, int @new, ChangeReason reason);
+    partial void OnCellZChanged(int old, int @new, ChangeReason reason);
     partial void OnClientWrite(in SyncWrite w, ref bool accept);
 
 
     void IGeneratedComponent.BindFields(ISyncHost host)
     {
         Remaining = Remaining.Bound(host, this, 0, "VeinReserveComponent.remaining");
+        HasCell = HasCell.Bound(host, this, 1, "VeinReserveComponent.hasCell");
+        SectionKey = SectionKey.Bound(host, this, 2, "VeinReserveComponent.sectionKey");
+        CellOffset = CellOffset.Bound(host, this, 3, "VeinReserveComponent.cellOffset");
+        CellX = CellX.Bound(host, this, 4, "VeinReserveComponent.cellX");
+        CellY = CellY.Bound(host, this, 5, "VeinReserveComponent.cellY");
+        CellZ = CellZ.Bound(host, this, 6, "VeinReserveComponent.cellZ");
     }
 
     void IGeneratedComponent.InvokePostAttribute() => PostAttribute();
@@ -23,11 +41,23 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
     void IGeneratedComponent.InvokeFieldChanging(int ordinal, object? oldValue, object? newValue, ChangeReason reason)
     {
         if (ordinal == 0) OnRemainingChanging((int)oldValue!, (int)newValue!, reason);
+        if (ordinal == 1) OnHasCellChanging((bool)oldValue!, (bool)newValue!, reason);
+        if (ordinal == 2) OnSectionKeyChanging((ulong)oldValue!, (ulong)newValue!, reason);
+        if (ordinal == 3) OnCellOffsetChanging((int)oldValue!, (int)newValue!, reason);
+        if (ordinal == 4) OnCellXChanging((int)oldValue!, (int)newValue!, reason);
+        if (ordinal == 5) OnCellYChanging((int)oldValue!, (int)newValue!, reason);
+        if (ordinal == 6) OnCellZChanging((int)oldValue!, (int)newValue!, reason);
     }
 
     void IGeneratedComponent.InvokeFieldChanged(int ordinal, object? oldValue, object? newValue, ChangeReason reason)
     {
         if (ordinal == 0) OnRemainingChanged((int)oldValue!, (int)newValue!, reason);
+        if (ordinal == 1) OnHasCellChanged((bool)oldValue!, (bool)newValue!, reason);
+        if (ordinal == 2) OnSectionKeyChanged((ulong)oldValue!, (ulong)newValue!, reason);
+        if (ordinal == 3) OnCellOffsetChanged((int)oldValue!, (int)newValue!, reason);
+        if (ordinal == 4) OnCellXChanged((int)oldValue!, (int)newValue!, reason);
+        if (ordinal == 5) OnCellYChanged((int)oldValue!, (int)newValue!, reason);
+        if (ordinal == 6) OnCellZChanged((int)oldValue!, (int)newValue!, reason);
     }
 
     bool IGeneratedComponent.DispatchClientWrite(in SyncWrite write)
@@ -54,6 +84,13 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
     void IGeneratedComponent.CapturePersist(IPersistWriter writer)
     {
         if (writer is IPredictionFieldWriter) return;
+        writer.WriteInt32("VeinReserveComponent.remaining", Remaining.Value);
+        writer.WriteBoolean("VeinReserveComponent.hasCell", HasCell.Value);
+        writer.WriteUInt64("VeinReserveComponent.sectionKey", SectionKey.Value);
+        writer.WriteInt32("VeinReserveComponent.cellOffset", CellOffset.Value);
+        writer.WriteInt32("VeinReserveComponent.cellX", CellX.Value);
+        writer.WriteInt32("VeinReserveComponent.cellY", CellY.Value);
+        writer.WriteInt32("VeinReserveComponent.cellZ", CellZ.Value);
     }
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
@@ -61,18 +98,50 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
         if (writer is IPredictionFieldWriter prediction)
         {
             prediction.WritePredictionField("VeinReserveComponent.remaining", Remaining.Value);
+            prediction.WritePredictionField("VeinReserveComponent.hasCell", HasCell.Value);
+            prediction.WritePredictionField("VeinReserveComponent.sectionKey", SectionKey.Value);
+            prediction.WritePredictionField("VeinReserveComponent.cellOffset", CellOffset.Value);
+            prediction.WritePredictionField("VeinReserveComponent.cellX", CellX.Value);
+            prediction.WritePredictionField("VeinReserveComponent.cellY", CellY.Value);
+            prediction.WritePredictionField("VeinReserveComponent.cellZ", CellZ.Value);
             return;
         }
         writer.WriteInt32("VeinReserveComponent.remaining", Remaining.Value);
+        writer.WriteBoolean("VeinReserveComponent.hasCell", HasCell.Value);
+        writer.WriteUInt64("VeinReserveComponent.sectionKey", SectionKey.Value);
+        writer.WriteInt32("VeinReserveComponent.cellOffset", CellOffset.Value);
+        writer.WriteInt32("VeinReserveComponent.cellX", CellX.Value);
+        writer.WriteInt32("VeinReserveComponent.cellY", CellY.Value);
+        writer.WriteInt32("VeinReserveComponent.cellZ", CellZ.Value);
     }
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)
     {
+        if (reader.TryReadInt32("VeinReserveComponent.remaining", out int remainingRestore))
+            Remaining.SetSilent(remainingRestore);
+        if (reader.TryReadBoolean("VeinReserveComponent.hasCell", out bool hasCellRestore))
+            HasCell.SetSilent(hasCellRestore);
+        if (reader.TryReadUInt64("VeinReserveComponent.sectionKey", out ulong sectionKeyRestore))
+            SectionKey.SetSilent(sectionKeyRestore);
+        if (reader.TryReadInt32("VeinReserveComponent.cellOffset", out int cellOffsetRestore))
+            CellOffset.SetSilent(cellOffsetRestore);
+        if (reader.TryReadInt32("VeinReserveComponent.cellX", out int cellXRestore))
+            CellX.SetSilent(cellXRestore);
+        if (reader.TryReadInt32("VeinReserveComponent.cellY", out int cellYRestore))
+            CellY.SetSilent(cellYRestore);
+        if (reader.TryReadInt32("VeinReserveComponent.cellZ", out int cellZRestore))
+            CellZ.SetSilent(cellZRestore);
     }
 
     object? IGeneratedComponent.ReadField(string fieldId)
     {
         if (string.Equals(fieldId, "remaining", StringComparison.Ordinal)) return Remaining.Value;
+        if (string.Equals(fieldId, "hasCell", StringComparison.Ordinal)) return HasCell.Value;
+        if (string.Equals(fieldId, "sectionKey", StringComparison.Ordinal)) return SectionKey.Value;
+        if (string.Equals(fieldId, "cellOffset", StringComparison.Ordinal)) return CellOffset.Value;
+        if (string.Equals(fieldId, "cellX", StringComparison.Ordinal)) return CellX.Value;
+        if (string.Equals(fieldId, "cellY", StringComparison.Ordinal)) return CellY.Value;
+        if (string.Equals(fieldId, "cellZ", StringComparison.Ordinal)) return CellZ.Value;
         return null;
     }
 
@@ -84,11 +153,53 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
             else Remaining.Value = (int)value!;
             return;
         }
+        if (string.Equals(fieldId, "hasCell", StringComparison.Ordinal))
+        {
+            if (silent) HasCell.SetSilent((bool)value!);
+            else HasCell.Value = (bool)value!;
+            return;
+        }
+        if (string.Equals(fieldId, "sectionKey", StringComparison.Ordinal))
+        {
+            if (silent) SectionKey.SetSilent((ulong)value!);
+            else SectionKey.Value = (ulong)value!;
+            return;
+        }
+        if (string.Equals(fieldId, "cellOffset", StringComparison.Ordinal))
+        {
+            if (silent) CellOffset.SetSilent((int)value!);
+            else CellOffset.Value = (int)value!;
+            return;
+        }
+        if (string.Equals(fieldId, "cellX", StringComparison.Ordinal))
+        {
+            if (silent) CellX.SetSilent((int)value!);
+            else CellX.Value = (int)value!;
+            return;
+        }
+        if (string.Equals(fieldId, "cellY", StringComparison.Ordinal))
+        {
+            if (silent) CellY.SetSilent((int)value!);
+            else CellY.Value = (int)value!;
+            return;
+        }
+        if (string.Equals(fieldId, "cellZ", StringComparison.Ordinal))
+        {
+            if (silent) CellZ.SetSilent((int)value!);
+            else CellZ.Value = (int)value!;
+            return;
+        }
     }
 
     bool IGeneratedSyncMetadata.TryGetSyncField(string fieldId, out ISyncField field)
     {
         if (string.Equals(fieldId, "remaining", StringComparison.Ordinal)) { field = Remaining; return true; }
+        if (string.Equals(fieldId, "hasCell", StringComparison.Ordinal)) { field = HasCell; return true; }
+        if (string.Equals(fieldId, "sectionKey", StringComparison.Ordinal)) { field = SectionKey; return true; }
+        if (string.Equals(fieldId, "cellOffset", StringComparison.Ordinal)) { field = CellOffset; return true; }
+        if (string.Equals(fieldId, "cellX", StringComparison.Ordinal)) { field = CellX; return true; }
+        if (string.Equals(fieldId, "cellY", StringComparison.Ordinal)) { field = CellY; return true; }
+        if (string.Equals(fieldId, "cellZ", StringComparison.Ordinal)) { field = CellZ; return true; }
         field = null!;
         return false;
     }
@@ -96,5 +207,11 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
     void IGeneratedComponent.ResetToDefault()
     {
         Remaining.SetSilent(0);
+        HasCell.SetSilent(false);
+        SectionKey.SetSilent(0UL);
+        CellOffset.SetSilent(0);
+        CellX.SetSilent(0);
+        CellY.SetSilent(0);
+        CellZ.SetSilent(0);
     }
 }

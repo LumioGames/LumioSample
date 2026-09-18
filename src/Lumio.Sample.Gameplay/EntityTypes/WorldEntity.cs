@@ -6,6 +6,7 @@ namespace Lumio.Sample.Gameplay.EntityTypes;
 /// <summary>World singleton. The assembly may register exactly one world type.</summary>
 [EntityType(Mode.CS, World = true, TickRateHz = 20)]
 [Has(typeof(WorldSaveComponent))]
+[Has(typeof(SampleMiningComponent))]
 public abstract class WorldEntity
 {
 }
