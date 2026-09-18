@@ -9,11 +9,29 @@ using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.Config;
 using Lumio.Sample.Gameplay.EntityTypes;
+using Microsoft.Extensions.Logging;
 
 namespace Lumio.Sample.Gameplay;
 
 public sealed partial class SampleMiningComponent
 {
+    // Correlate short ASCII records by transaction; the Native sink caps each payload at 240 bytes.
+    private static readonly Action<ILogger, string, ulong, int, string?, Exception?> LogStage =
+        LoggerMessage.Define<string, ulong, int, string?>(LogLevel.Information, default,
+            "mining_stage txn={Txn} section={Section} cell={Cell} bound={Bound}");
+    private static readonly Action<ILogger, string, uint, ulong, Exception?> LogBefore =
+        LoggerMessage.Define<string, uint, ulong>(LogLevel.Information, default,
+            "mining_pre txn={Txn} block={Block} revision={Revision}");
+    private static readonly Action<ILogger, string, ulong, int, string, Exception?> LogApplied =
+        LoggerMessage.Define<string, ulong, int, string>(LogLevel.Information, default,
+            "mining_applied txn={Txn} section={Section} cell={Cell} vein={Vein}");
+    private static readonly Action<ILogger, string, uint, ulong, string?, Exception?> LogAfter =
+        LoggerMessage.Define<string, uint, ulong, string?>(LogLevel.Information, default,
+            "mining_post txn={Txn} block={Block} revision={Revision} bound={Bound}");
+    private static readonly Action<ILogger, string, int, Exception?> LogReward =
+        LoggerMessage.Define<string, int>(LogLevel.Information, default,
+            "mining_reward txn={Txn} amount={Amount}");
+
     private HostVoxelWorldAdapter? _adapter;
     private readonly Dictionary<string, PendingDig> _pending = new(StringComparer.Ordinal);
     private bool _initialized;
@@ -57,7 +75,13 @@ public sealed partial class SampleMiningComponent
         _pending.Add(transaction, pending);
         VoxelStageResult result = adapter.TryStageDigThrough(vein.SectionKey.Value, vein.CellOffset.Value,
             cell.SectionRevision, transaction);
-        if (result.Status == VoxelStageStatus.Staged) return true;
+        if (result.Status == VoxelStageStatus.Staged)
+        {
+            LogStage(Log, transaction, vein.SectionKey.Value, vein.CellOffset.Value,
+                adapter.BindingGet(vein.SectionKey.Value, vein.CellOffset.Value), null);
+            LogBefore(Log, transaction, cell.BlockId, cell.SectionRevision, null);
+            return true;
+        }
         _pending.Remove(transaction);
         return false;
     }
@@ -78,6 +102,11 @@ public sealed partial class SampleMiningComponent
         EntityOrder drop = World.Commands.Create<OreDropEntity>();
         drop.Get<OrePileComponent>().Amount.Value = pending.Amount;
         drop.Get<OrePileComponent>().SpawnPosition = pending.Position;
+        VoxelCellQuery published = _adapter!.Read(pending.Section, pending.Cell);
+        LogApplied(Log, applied.TxnId, pending.Section, pending.Cell, pending.Vein.ToHex(), null);
+        LogAfter(Log, applied.TxnId, published.BlockId, published.SectionRevision,
+            _adapter.BindingGet(pending.Section, pending.Cell), null);
+        LogReward(Log, applied.TxnId, pending.Amount, null);
     }
 
     private void Initialize(HostVoxelWorldAdapter adapter)
