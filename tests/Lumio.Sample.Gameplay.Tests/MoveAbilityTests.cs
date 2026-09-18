@@ -332,7 +332,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         Assert.Equal(SampleGameplay.AdmittedPlayerPosition, world.World.Get<LogicTransform>(player).LocalPosition);
         SampleGameplay.BindPlayer(world.World, player);
         Assert.Equal(SampleGameplay.AdmittedPlayerPosition, world.World.Get<LogicTransform>(player).LocalPosition);
-        Assert.Equal(4.5f, SampleGameplay.AdmittedPlayerPosition.Y);
+        Assert.Equal(1.5f, SampleGameplay.AdmittedPlayerPosition.Y);
         Assert.Equal(16.5f, SampleGameplay.AdmittedPlayerPosition.X);
         Assert.Equal(16.5f, SampleGameplay.AdmittedPlayerPosition.Z);
     }

@@ -84,8 +84,13 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
     void IGeneratedComponent.CapturePersist(IPersistWriter writer)
     {
         if (writer is IPredictionFieldWriter) return;
+        writer.WriteInt32("VeinReserveComponent.remaining", Remaining.Value);
         writer.WriteBoolean("VeinReserveComponent.hasCell", HasCell.Value);
         writer.WriteUInt64("VeinReserveComponent.sectionKey", SectionKey.Value);
+        writer.WriteInt32("VeinReserveComponent.cellOffset", CellOffset.Value);
+        writer.WriteInt32("VeinReserveComponent.cellX", CellX.Value);
+        writer.WriteInt32("VeinReserveComponent.cellY", CellY.Value);
+        writer.WriteInt32("VeinReserveComponent.cellZ", CellZ.Value);
     }
 
     void IGeneratedComponent.CaptureSync(IPersistWriter writer)
@@ -112,10 +117,20 @@ public sealed partial class VeinReserveComponent : IGeneratedComponent, IGenerat
 
     void IGeneratedComponent.RestorePersist(IPersistReader reader)
     {
+        if (reader.TryReadInt32("VeinReserveComponent.remaining", out int remainingRestore))
+            Remaining.SetSilent(remainingRestore);
         if (reader.TryReadBoolean("VeinReserveComponent.hasCell", out bool hasCellRestore))
             HasCell.SetSilent(hasCellRestore);
         if (reader.TryReadUInt64("VeinReserveComponent.sectionKey", out ulong sectionKeyRestore))
             SectionKey.SetSilent(sectionKeyRestore);
+        if (reader.TryReadInt32("VeinReserveComponent.cellOffset", out int cellOffsetRestore))
+            CellOffset.SetSilent(cellOffsetRestore);
+        if (reader.TryReadInt32("VeinReserveComponent.cellX", out int cellXRestore))
+            CellX.SetSilent(cellXRestore);
+        if (reader.TryReadInt32("VeinReserveComponent.cellY", out int cellYRestore))
+            CellY.SetSilent(cellYRestore);
+        if (reader.TryReadInt32("VeinReserveComponent.cellZ", out int cellZRestore))
+            CellZ.SetSilent(cellZRestore);
     }
 
     object? IGeneratedComponent.ReadField(string fieldId)

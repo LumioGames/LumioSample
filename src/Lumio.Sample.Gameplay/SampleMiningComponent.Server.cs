@@ -126,12 +126,8 @@ public sealed partial class SampleMiningComponent
             veins.Select(v => v.Entity).ToArray());
         if (bindings.Count != 0)
         {
-            // Runtime worker is adding the contract-declared TryStageMutation entrypoint;
-            // invoke it only when the consuming SDK exposes that exact signature.
-            var method = adapter.GetType().GetMethod("TryStageMutation");
-            if (method is null) throw new InvalidOperationException("Runtime HostVoxelWorldAdapter.TryStageMutation is required for Sample binding initialization.");
-            VoxelStageResult result = (VoxelStageResult)method.Invoke(adapter,
-                new object[] { Array.Empty<VoxelWriteEntry>(), bindings, NextTransaction("bind"), VoxelSubmissionIntent.New, null! })!;
+            VoxelStageResult result = adapter.TryStageMutation(
+                Array.Empty<VoxelWriteEntry>(), bindings, NextTransaction("bind"));
             if (result.Status != VoxelStageStatus.Staged) return;
             return; // Observe the published bindings next tick; Staged is not initialization success.
         }

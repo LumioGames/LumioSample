@@ -4,14 +4,14 @@
       "chunks": [
         {
           "id": 0,
-          "packageFingerprint": "648012ebf16fd40ca731d87306e6e3c44ae3f66739564e1489778fe296b0ca1c",
+          "packageFingerprint": "dcf03aab3b0cdcad35bde778cba6d75e6be9f899060e8f4af6c6b9efff965e12",
           "path": "voxel/attributes.json"
         }
       ],
-      "contentFingerprint": "6de68b10cbd42fc0729507bc184f9eaba2244d4605330963c9ad7edddd9d0ab7",
-      "packageFingerprint": "648012ebf16fd40ca731d87306e6e3c44ae3f66739564e1489778fe296b0ca1c",
+      "contentFingerprint": "25643aa38fc00fb137166d865a4a4c3d2df4b2e539939aae6ae86fe443d336a4",
+      "packageFingerprint": "dcf03aab3b0cdcad35bde778cba6d75e6be9f899060e8f4af6c6b9efff965e12",
       "path": "voxel/attributes.json",
-      "sourceFingerprint": "53fb0524baadd15b28181ffe06cf86c2422ecdaaa638742b67c943c1d1af9796",
+      "sourceFingerprint": "40e32fe914d73d23548e353bbd1cd3c39e6bd821b78324dd8d6b8c0082fdf179",
       "table": "attributes"
     },
     {
@@ -25,7 +25,7 @@
       "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
       "packageFingerprint": "3b3c6655b3cd2f0b687d19ec0b09e3226c5f68bcbb28f2cd51643cdc5209220e",
       "path": "voxel/drops.json",
-      "sourceFingerprint": "3ea963e5ded01171a0ed4a0b70f2154688648f3d14055ef56d478b8ba1bd0357",
+      "sourceFingerprint": "6bde665b6c29c7ad88224e472b3345f248ef5e2924ef18699b30b9725630868e",
       "table": "drops"
     },
     {
@@ -39,7 +39,7 @@
       "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
       "packageFingerprint": "ff7b75051010cda16ff599f7ff495bf86ac32d6736444b8a34005daa4b1c49d2",
       "path": "voxel/effects.json",
-      "sourceFingerprint": "c800925661133fd9cb1b6591eeb3038de7253f813c6b03bbb2c9f05f622d2bf7",
+      "sourceFingerprint": "6893ea83b4ea5f29d9252cc5ad5a4db27e96140e517f7e577019a2087bc41bcf",
       "table": "effects"
     },
     {
@@ -53,7 +53,7 @@
       "contentFingerprint": "f4d28a847985b51aaf26b9843ccc69c85112347a71a0fd15f60703f27e42e996",
       "packageFingerprint": "7ca62d72fdb0ba4813681e356b8390a5af548d012a320eb85e7970c01e463822",
       "path": "voxel/map.json",
-      "sourceFingerprint": "158fc0b32109008efc9d002578b5733b702a7a4c3ceb5a3e40034398b3b7eb33",
+      "sourceFingerprint": "9511441f0787e859eaad71ef918db1a9b37ba827afea363de11cb27f4e8ed2cf",
       "table": "map"
     },
     {
@@ -67,7 +67,7 @@
       "contentFingerprint": "97b5df7e9c2319ef3184bd9eb084aa9cf41af681d6c71799c66128afa92a19a9",
       "packageFingerprint": "13ad5ae229e843352bf6fdc14c3a4d524ecd303519a0f46b9fe6c1ee8e9d9120",
       "path": "voxel/mining.json",
-      "sourceFingerprint": "a8e61bf2677b1e08ca592e330f05e0d10c2785825584371e36ad7f5fe98982e4",
+      "sourceFingerprint": "ad0200339b9ad86d280aea0eb72107c8c14435e9c407aa2ccec018fee5cf4c1d",
       "table": "mining"
     },
     {
@@ -81,7 +81,7 @@
       "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
       "packageFingerprint": "3455e71ed4fe0057786b9086b2efc46bc566975b4b1c5e5d64728d08166ec3c0",
       "path": "voxel/movement.json",
-      "sourceFingerprint": "923ea0373d6071141748b66727a693d0e83e95e45738a266e7798350f1af32bd",
+      "sourceFingerprint": "0c48757f14695f3d5b3ce44aeca5cbf35ba61f4bd5ba9779f110fd965aa2a988",
       "table": "movement"
     },
     {
@@ -95,7 +95,7 @@
       "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
       "packageFingerprint": "eb702be1a22b52621714f4774fdfc00af1c99576f82241af472670f4f480f62d",
       "path": "voxel/skills.json",
-      "sourceFingerprint": "a10eb3b674957381a510f243e95c4a55bd6b6a22af78405329af4184acfc3325",
+      "sourceFingerprint": "fdef8b099f1f128f224c1a779974b519ffb8916fd3a23e1040252329b94f5af4",
       "table": "skills"
     }
   ],

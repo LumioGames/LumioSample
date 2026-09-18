@@ -12,10 +12,11 @@ namespace Lumio.Sample.Gameplay.EntityTypes;
 
 internal sealed class WorldEntityTemplate
 {
-    internal static readonly int ComponentCount = 1;
+    internal static readonly int ComponentCount = 2;
     internal static readonly int ObserverIndex = -1;
     internal static Component[] CreateComponents() => new Component[]
     {
-        new WorldSaveComponent()
+        new WorldSaveComponent(),
+        new SampleMiningComponent()
     };
 }

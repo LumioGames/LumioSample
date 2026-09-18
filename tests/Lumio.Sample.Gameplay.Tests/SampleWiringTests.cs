@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
+using Lumio.GameRuntime.Coordination;
+using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
@@ -134,23 +136,24 @@ public sealed class SampleWiringTests : IDisposable
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         long stamina = world.StaminaBase;
         int remaining = world.Remaining;
-        world.VoxelWriter = new FailingVoxelWriter();
-        try
-        {
-            AbilityActivateResult result = world.Mine();
-            Assert.True(result.Succeeded);
-            Assert.Equal(stamina, world.StaminaBase);
-            Assert.Equal(remaining, world.Remaining);
-            world.FlushCreates();
-            int piles = 0;
-            foreach (OrePileComponent _ in world.World.Each<OrePileComponent>())
-                piles += 1;
-            Assert.Equal(0, piles);
-        }
-        finally
-        {
-            world.VoxelWriter = new SucceedingVoxelWriter();
-        }
+        VeinReserveComponent vein = world.World.Get<VeinReserveComponent>(world.Vein);
+        VoxelCellQuery cell = world.Adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
+        // Commit another write first, so the final dig carries a genuinely stale revision.
+        Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageWrite(
+            new[] { new VoxelWriteEntry(vein.SectionKey.Value, 0, 0, cell.SectionRevision) }, "competing-write").Status);
+        Assert.True(world.Mine().Succeeded);
+        Assert.Equal(stamina, world.StaminaBase);
+        Assert.Equal(remaining, world.Remaining);
+        world.FlushCreates();
+        Assert.Equal(stamina, world.StaminaBase);
+        Assert.Equal(remaining, world.Remaining);
+        Assert.Empty(world.World.Each<OrePileComponent>());
+        Assert.NotEqual(0U, world.Adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value).BlockId);
+        Assert.Equal(world.Vein.ToHex(), world.Adapter.BindingGet(vein.SectionKey.Value, vein.CellOffset.Value));
+        VoxelTransactionResult refused = Assert.Single(world.Adapter.DrainResults().Results,
+            result => result.TransactionId != "competing-write");
+        Assert.Equal(VoxelTxnState.Aborted, refused.Outcome.State);
+        Assert.NotEqual(0, refused.Outcome.Status);
     }
 
     [Fact]
@@ -230,9 +233,12 @@ public sealed class SampleWiringTests : IDisposable
     public void InsufficientStaminaRejectsAtCostStepAndWritesNothing()
     {
         using SampleWorldHarness world = SampleWorldHarness.Boot();
+        world.World.Get<AttributeComponent>(world.Player).SetBaseValue(
+            SampleConfigBinding.For(world.World).Stamina.Name,
+            SampleConfigBinding.For(world.World).Mining.StaminaCost + 1);
         Assert.True(world.Mine().Succeeded);
         // GAS sets cooldown to Tick+1 on a successful Activate. Advance one tick so
-        // admit step 2 is clear and the leftover Base (17-13=4 < table cost) is step 3.
+        // admit step 2 is clear and the remaining single stamina fails step 3.
         world.FlushCreates();
         long stamina = world.StaminaBase;
         int remaining = world.Remaining;
@@ -254,8 +260,11 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(1, world.Remaining);
 
         Assert.True(world.Mine().Succeeded);
-        Assert.Equal(0, world.Remaining);
+        VeinReserveComponent reserve = world.World.Get<VeinReserveComponent>(world.Vein);
+        Assert.Equal(1, reserve.Remaining.Value);
+        world.Adapter.DigApplied += _ => Assert.Equal(0, reserve.Remaining.Value);
         world.FlushCreates();
+        Assert.False(world.World.IsLive(world.Vein));
 
         OrePileComponent? pile = null;
         foreach (OrePileComponent item in world.World.Each<OrePileComponent>())
@@ -388,6 +397,9 @@ internal sealed class SampleWorldHarness : IDisposable
 {
     private readonly WorldManager _manager;
     private IDisposable? _writerBinding;
+    private DedicatedServerHostBinding? _host;
+    public DedicatedServerHostBinding Host => _host!;
+    public HostVoxelWorldAdapter Adapter => VoxelGameplayBinding.Resolve(_manager)!;
 
     private SampleWorldHarness(WorldManager manager, NetEntityId player, NetEntityId vein)
     {
@@ -415,16 +427,23 @@ internal sealed class SampleWorldHarness : IDisposable
 
     public static SampleWorldHarness Boot()
     {
-        WorldManager manager = StartManager();
+        WorldManager manager = SampleGameplay.CreateWorld(11UL);
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        DedicatedServerHostBinding host = Assert.IsType<DedicatedServerHostBinding>(
+            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(),
+                File.ReadAllBytes(Path.Combine(root, "maps", "official-catalog.json")),
+                File.ReadAllBytes(Path.Combine(root, "maps", "sample.voxel"))));
+        manager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(manager);
         EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
-        EntityOrder vein = SampleVein.Queue(manager.World);
-        manager.Tick();
-        // The mining fixture's vein is at the origin; admission-pose tests use BootEmpty.
-        PlayerLifecycleTests.PlaceFixturePlayer(manager.World, player.AssignedId, System.Numerics.Vector3.Zero);
+        for (int i = 0; i < 4; i++) manager.Tick();
+        VeinReserveComponent vein = manager.World.Each<VeinReserveComponent>().First();
+        PlayerLifecycleTests.PlaceFixturePlayer(manager.World, player.AssignedId, vein.CellCenter);
         AbilityComponent abilities = manager.World.Get<AbilityComponent>(player.AssignedId);
-        Assert.True(MineAbility.WithinReach(abilities, vein.AssignedId));
+        Assert.True(MineAbility.WithinReach(abilities, vein.Entity));
+        Assert.True(MineAbility.AdmitTarget(abilities, vein.Entity));
         abilities.Physics = new RecordingAbilityPhysicsPort();
-        return new SampleWorldHarness(manager, player.AssignedId, vein.AssignedId);
+        return new SampleWorldHarness(manager, player.AssignedId, vein.Entity) { _host = host };
     }
 
     /// <summary>Started world with no player; tests explicitly drive the Owner tick.</summary>
@@ -464,6 +483,7 @@ internal sealed class SampleWorldHarness : IDisposable
     public void Dispose()
     {
         _writerBinding?.Dispose();
+        _host?.Dispose();
         _manager.Dispose();
     }
 
