@@ -14,7 +14,6 @@
     <_LumioConfigSide Condition="'$(_LumioConfigSide)' == ''">server</_LumioConfigSide>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="../../maps/sample.layout.json" LogicalName="Sample.MapLayout" />
     <Compile Remove="Compatibility/ModuleInitializerAttribute.cs" />
     <Compile Include="Compatibility/ModuleInitializerAttribute.cs" Condition="'$(TargetFramework)' == 'netstandard2.1'" />
     <!-- Keep manifest identity intact; the Runtime loader reads only the selected projection. -->

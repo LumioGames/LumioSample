@@ -77,7 +77,7 @@ public sealed class SampleTypedTables : ITypedTableSet
                 else if (string.Equals(tbl.TableId, "attributes", StringComparison.OrdinalIgnoreCase))
                     attributes.Add(new AttributesRow(UInt(cells, "id"), Text(cells, "name"), Long(cells, "initial")));
                 else if (string.Equals(tbl.TableId, "map", StringComparison.OrdinalIgnoreCase))
-                    map.Add(new MapRow(UInt(cells, "id"), Text(cells, "name"), Int(cells, "width"), Int(cells, "depth"), Double(cells, "vein_ratio")));
+                    map.Add(new MapRow(UInt(cells, "id"), Text(cells, "name"), Int(cells, "width"), Int(cells, "depth"), Double(cells, "vein_ratio"), UInt(cells, "ore_block_type")));
             }
         }
 

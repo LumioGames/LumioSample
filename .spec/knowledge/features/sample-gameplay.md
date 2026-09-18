@@ -21,12 +21,16 @@ metadata:
 | 掉落矿石 | `OreDropEntity` + `OrePileComponent` + LogicTransform |
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |
 | 跑动 | `MoveAbility`：唯一调用 `LogicTransform.SetLocalPosition` 的地方 |
-| 挖掘 | `MineAbility`：准入在 `CanActivate`（目标活、储量大于 0）；体力不足走引擎消耗步。`Execute` 扣体力 **基础账**。`TryRequestAirWrite` 在体素 ABI 未公开前恒为 false |
+| 挖掘 | `MineAbility`：准入检查存活矿脉、Native 绑定、储量和真实格心距离，体力不足走 GAS 消耗步。非最后一击扣体力基础账和储量；最后一击经 `SampleMiningComponent.StageFinal` 暂存，只有 Original Applied 回调才扣费并下掉落结构单 |
 | 四条账 | 体力 / 矿石各 Base+Current。PlayerEntity 用 DeclareAttribute 声明持久基础账，SampleConfigBinding.BindWorld 把 World.GameplayConfig 中的 IAttributeSeedProvider 绑定到 World.SeedProvider，由 Runtime PostAttribute 读取已投影的 attributes 初值。Start 绑定能力上下文；OnHydrate 仅重绑瞬态引用，基础账从存档恢复，Current 由现有属性计算器重建（R-00613） |
-| 矿脉出现 | `SampleVein.Queue` 下结构单；`VeinReserveComponent.PostAttribute` 把储量写成 `vein_hits_to_break`。稀疏引用走 `ISampleVoxelBinding`（宿主接 R-00469；端口空则返回 false，不假绑） |
+| 矿脉出现 | `SampleMiningSystem` 驱动世界单例 `SampleMiningComponent`，按 World 配置的地图宽深扫描恢复后的地板格，以 `ore_block_type` 识别矿石。`SampleVein.Queue` 下结构单，实体正常提交后才用 `HostVoxelWorldAdapter.TryStageMutation` 暂存稀疏绑定，下一帧读到已发布绑定后才开放挖掘 |
 | 拾取 | `PickupOreEffect` 由 `SampleGameplay` 模块初始化注册；`SampleOrePickup.TryPickup` 调用 `Effects.Apply` 再 `EffectSettlement.Settle` |
 
 聊天说话人用 `NetEntityId.ToHex()`，不另造名字属性。
+
+玩法不读取作者时布局，也不重建底图。矿脉坐标、储量与掉落数量通过生成的持久字段保存；冷恢复使用现有 Native 方块、绑定与 ECS 实体重新建立瞬态服务。最终挖掘通过 `TryStageDigThrough` 在帧末发布空气和绑定移除，Runtime 销毁被绑定的矿脉实体；`mining_stage/pre/applied/post/reward` 日志分别记录暂存、实际发布和排队奖励，不能单凭日志推断客户端已收到掉落。R-00520 的实际 DS 输入、复制、拾取和冷重启验收仍需对应运行证据。
+
+失败边界：拒绝或过期的 Native 最后一击不扣体力、不减储量、不发奖励，但已受理的 GAS 激活序列和冷却仍消耗；该行为不等于所有能力状态不变。
 
 玩家准入使用 Runtime 正式控制消息，在正常 Owner Tick 创建实体；生产玩法没有同步准入或隐式推进 Tick 的辅助入口。测试宿主自行显式驱动 Tick。属性名字是声明身份，配表中的名字必须与声明对应；历史上未包含基础账的存档无法还原当时未保存的数值。
 

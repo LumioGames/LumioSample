@@ -1,10 +1,11 @@
 {
-  "contentFingerprint": "f4d28a847985b51aaf26b9843ccc69c85112347a71a0fd15f60703f27e42e996",
+  "contentFingerprint": "07d95d7f31d5117d0400d070175b42887f76d97d9b0a1dc7a4e5b980a69f8053",
   "rows": [
     {
       "depth": 32,
       "id": 100001,
       "name": "default",
+      "ore_block_type": 1000,
       "vein_ratio": 0.00390625,
       "width": 32
     }
