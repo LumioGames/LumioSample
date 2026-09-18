@@ -35,15 +35,40 @@ public sealed class SourceHygieneTests
     [Fact]
     public void MiningCallbackOnlyObservesAndPickupIsAnAbility()
     {
-        // tick.md §3 rule 5: the phase-8 DigApplied callback may log and assert, never write business state.
-        string callback = File.ReadAllText(Path.Combine(GameplayRoot, "SampleMiningComponent.Server.cs"));
+        // tick.md §3 rule 5: the phase-8 DigApplied callback may log and assert, never write business
+        // state. The settlement itself lives elsewhere in the same file — in the phase-4 Settle window
+        // — so this guard reads the callback body alone instead of the whole file (R-00647).
+        string source = File.ReadAllText(Path.Combine(GameplayRoot, "SampleMiningComponent.Server.cs"));
+        string callback = MethodBody(source, "private void OnApplied(VoxelDigApplied applied)");
         Assert.DoesNotContain("SetBaseValue", callback);
-        Assert.DoesNotContain("Remaining.Value =", callback);
+        // Assignment only; the callback may still compare the reserve to assert the invariant.
+        Assert.DoesNotMatch(new Regex(@"Remaining\.Value\s*=(?!=)"), callback);
         Assert.DoesNotContain("Commands.Create", callback);
+        // It must also leave the pending record alone, or the settlement loses what it waits for.
+        Assert.DoesNotContain("_pending.Remove", callback);
+        // The settlement reads the terrain result back rather than settling when the order is placed.
+        Assert.Contains("DrainResults()", source);
         // Pickup goes through GAS admission; the static helper with its inline settlement is gone.
         Assert.False(File.Exists(Path.Combine(GameplayRoot, "SampleOrePickup.cs")));
         Assert.True(File.Exists(Path.Combine(GameplayRoot, "Abilities", "PickupAbility.cs")));
         Assert.DoesNotContain("EffectSettlement.Settle", File.ReadAllText(Path.Combine(GameplayRoot, "Abilities", "PickupAbility.Server.cs")));
+    }
+
+    /// <summary>Text of one method body, matched by its exact signature line and brace depth.</summary>
+    private static string MethodBody(string source, string signature)
+    {
+        int start = source.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start >= 0, "Signature not found, so the guard would silently pass: " + signature);
+        int open = source.IndexOf('{', start + signature.Length);
+        Assert.True(open >= 0, "No body follows " + signature);
+        int depth = 0;
+        for (int index = open; index < source.Length; index++)
+        {
+            if (source[index] == '{') depth++;
+            else if (source[index] == '}' && --depth == 0) return source[open..(index + 1)];
+        }
+
+        throw new InvalidOperationException("Unbalanced braces after " + signature);
     }
 
     [Fact]

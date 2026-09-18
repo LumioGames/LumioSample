@@ -130,35 +130,54 @@ public sealed class SampleWiringTests : IDisposable
     }
 
     [Fact]
-    public void NativeRefusingAnAdmittedFinalDigIsAnEngineFaultNotABusinessOutcome()
+    public void ForeignWriteRefusingTheFinalDigSettlesNothingAndLeavesTheWorldUsable()
     {
-        // tick.md §3 rule 5: once the terrain order passes phase-3 admission the hit settles at once.
-        // A dig Native later refuses at phase 8 is therefore an engine fault (the classic
-        // "stamina paid, block still there"), surfaced on the next Advance instead of swallowed.
+        // tick.md §3 rule 5: a dig whose section revision was taken by another writer first is
+        // refused, and that refusal is a legal business outcome, not a fault. Nothing settles, no
+        // ledger moves, the world keeps ticking and the very same vein can be mined again.
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         long stamina = world.StaminaBase;
         long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
         VeinReserveComponent vein = world.World.Get<VeinReserveComponent>(world.Vein);
-        VoxelCellQuery cell = world.Adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
+        ulong section = vein.SectionKey.Value;
+        int offset = vein.CellOffset.Value;
+        VoxelCellQuery cell = world.Adapter.Read(section, offset);
         // A foreign write to the same section commits first, so the dig carries a stale section revision.
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageWrite(
-            new[] { new VoxelWriteEntry(vein.SectionKey.Value, 0, 0, cell.SectionRevision) }, "competing-write").Status);
+            new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").Status);
+
         Assert.True(world.Mine().Succeeded);
-        Assert.Equal(stamina - cost, world.StaminaBase);
-        Assert.Equal(0, world.Remaining);
+        // The final hit only ordered the dig; nothing is owed until its result comes back.
+        Assert.Equal(stamina, world.StaminaBase);
+        Assert.Equal(1, world.Remaining);
+
+        world.FlushCreates(); // phase 8 refuses the dig
+        world.FlushCreates(); // phase 4 drains the refusal and throws the pending record away
+
+        Assert.Equal(stamina, world.StaminaBase);
+        Assert.Equal(1, world.Remaining);
+        Assert.Empty(world.World.Each<OrePileComponent>());
+        Assert.True(world.World.IsLive(world.Vein));
+        Assert.NotEqual(0U, world.Adapter.Read(section, offset).BlockId);
+
+        // Still usable: no fault latched on the manager and the next dig settles normally.
+        Assert.True(world.Mine().Succeeded);
         world.FlushCreates();
+        world.FlushCreates();
+        Assert.Equal(stamina - cost, world.StaminaBase);
         Assert.Single(world.World.Each<OrePileComponent>());
-        Assert.NotEqual(0U, world.Adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value).BlockId);
-        InvalidOperationException fault = Assert.Throws<InvalidOperationException>(world.FlushCreates);
-        Assert.Contains("Native refused admitted dig", fault.ToString(), StringComparison.Ordinal);
+        Assert.False(world.World.IsLive(world.Vein));
+        Assert.Equal(0U, world.Adapter.Read(section, offset).BlockId);
     }
 
     [Fact]
-    public void SecondFinalDigInTheSameSectionWaitsForTheNextFrame()
+    public void TwoVeinsInOneSectionAreBothAdmittedAndTheRefusedDigCostsNothing()
     {
-        // Native validates the frame-initial revision per section, so two digs in one section in
-        // one frame would refuse the second at commit. CanMine keeps that conflict out at admission.
+        // R-00647 pulls CanMine's mutual exclusion back to the vein: a second vein in the same
+        // section is no longer blocked at admission. Native still validates one frame-initial
+        // revision per section, so whichever dig loses that race is refused — and under tick.md
+        // §3 rule 5 a refusal settles nothing, so that player simply digs again next frame.
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         VeinReserveComponent first = world.World.Get<VeinReserveComponent>(world.Vein);
@@ -168,20 +187,33 @@ public sealed class SampleWiringTests : IDisposable
         PlayerLifecycleTests.PlaceFixturePlayer(world.World, other, second.CellCenter);
         AbilityComponent otherAbilities = world.World.Get<AbilityComponent>(other);
         long otherStamina = world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina");
+        long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
+        long stamina = world.StaminaBase;
         var otherInput = new MineAbility.Input { TargetHex = second.Entity.ToHex() };
 
+        // Both are admitted in the same frame; the section no longer gates the second one.
         Assert.True(world.Mine().Succeeded);
-        AbilityActivateResult blocked = SampleGameplay.ActivateMine(otherAbilities, in otherInput);
-        Assert.False(blocked.Succeeded);
-        Assert.Equal(5, blocked.RejectedStep);
+        Assert.True(SampleGameplay.ActivateMine(otherAbilities, in otherInput).Succeeded);
+        Assert.Equal(stamina, world.StaminaBase);
         Assert.Equal(otherStamina, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
         Assert.Equal(1, second.Remaining.Value);
-        world.FlushCreates();
-        Assert.Single(world.World.Each<OrePileComponent>());
 
-        Assert.True(SampleGameplay.ActivateMine(otherAbilities, in otherInput).Succeeded);
-        Assert.Equal(0, second.Remaining.Value);
         world.FlushCreates();
+        world.FlushCreates();
+
+        // The first dig staged wins the section revision; the second is refused and owes nothing.
+        Assert.Equal(stamina - cost, world.StaminaBase);
+        Assert.False(world.World.IsLive(world.Vein));
+        Assert.Single(world.World.Each<OrePileComponent>());
+        Assert.Equal(otherStamina, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
+        Assert.Equal(1, second.Remaining.Value);
+        Assert.True(world.World.IsLive(second.Entity));
+
+        // Next frame the loser digs again against the current revision and settles.
+        Assert.True(SampleGameplay.ActivateMine(otherAbilities, in otherInput).Succeeded);
+        world.FlushCreates();
+        world.FlushCreates();
+        Assert.Equal(otherStamina - cost, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
         Assert.Equal(2, world.World.Each<OrePileComponent>().Count());
         Assert.False(world.World.IsLive(second.Entity));
     }
@@ -291,9 +323,11 @@ public sealed class SampleWiringTests : IDisposable
 
         Assert.True(world.Mine().Succeeded);
         VeinReserveComponent reserve = world.World.Get<VeinReserveComponent>(world.Vein);
-        Assert.Equal(0, reserve.Remaining.Value);
+        // The order is out; the reserve is untouched until the terrain result comes back.
+        Assert.Equal(1, reserve.Remaining.Value);
         Assert.Empty(world.World.Each<OrePileComponent>());
-        world.Adapter.DigApplied += _ => Assert.Equal(0, reserve.Remaining.Value);
+        world.Adapter.DigApplied += _ => Assert.Equal(1, reserve.Remaining.Value);
+        world.FlushCreates();
         world.FlushCreates();
         Assert.False(world.World.IsLive(world.Vein));
 
@@ -315,6 +349,7 @@ public sealed class SampleWiringTests : IDisposable
         long oreBefore = world.OreBase;
         Assert.True(world.Mine().Succeeded);
         world.FlushCreates();
+        world.FlushCreates(); // the drop lands when the dig's terrain result settles
 
         NetEntityId drop = default;
         foreach (OrePileComponent pile in world.World.Each<OrePileComponent>())
@@ -366,6 +401,7 @@ public sealed class SampleWiringTests : IDisposable
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         Assert.True(world.Mine().Succeeded);
         world.FlushCreates();
+        world.FlushCreates();
         NetEntityId drop = Assert.Single(world.World.Each<OrePileComponent>()).Entity;
         world.World.Get<AttributeComponent>(world.Player).SetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name, 9);
         long oreBefore = world.OreBase;
@@ -397,11 +433,14 @@ public sealed class SampleWiringTests : IDisposable
         AbilityActivateResult second = SampleGameplay.ActivateMine(rivalAbilities, in input);
         Assert.False(second.Succeeded);
         Assert.Equal(5, second.RejectedStep);
-        Assert.Equal(stamina - cost, world.StaminaBase);
+        // The winner's own debit also waits for the terrain result; the rival never owes anything.
+        Assert.Equal(stamina, world.StaminaBase);
         Assert.Equal(rivalStamina, world.World.Get<AttributeComponent>(rival).GetBaseValue("Stamina"));
         Assert.Equal(0, rivalAbilities.Count);
         Assert.Equal(0UL, rivalAbilities.GetCooldown(MineAbility.TypeId));
         world.FlushCreates();
+        world.FlushCreates();
+        Assert.Equal(stamina - cost, world.StaminaBase);
         Assert.Single(world.World.Each<OrePileComponent>());
         Assert.False(world.World.IsLive(world.Vein));
         Assert.Equal(rivalStamina, world.World.Get<AttributeComponent>(rival).GetBaseValue("Stamina"));
@@ -413,6 +452,7 @@ public sealed class SampleWiringTests : IDisposable
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         Assert.True(world.Mine().Succeeded);
+        world.FlushCreates();
         world.FlushCreates();
         NetEntityId drop = Assert.Single(world.World.Each<OrePileComponent>()).Entity;
         NetEntityId rival = world.AdmitPlayer("rival-picker");
@@ -448,8 +488,10 @@ public sealed class SampleWiringTests : IDisposable
         AbilityActivateResult replayedMine = world.Mine(sequence: 41);
         Assert.False(replayedMine.Succeeded);
         Assert.Equal(0, replayedMine.RejectedStep); // duplicate, refused before admission
-        Assert.Equal(stamina - cost, world.StaminaBase);
+        Assert.Equal(stamina, world.StaminaBase); // the dig is ordered, not yet settled
         world.FlushCreates();
+        world.FlushCreates();
+        Assert.Equal(stamina - cost, world.StaminaBase);
         NetEntityId drop = Assert.Single(world.World.Each<OrePileComponent>()).Entity;
         Assert.Equal(stamina - cost, world.StaminaBase);
         long oreBefore = world.OreBase;
