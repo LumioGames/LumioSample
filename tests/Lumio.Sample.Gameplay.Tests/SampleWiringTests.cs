@@ -190,6 +190,27 @@ public sealed class SampleWiringTests : IDisposable
     }
 
     [Fact]
+    public void MiningALivePlayerIsRejectedWithoutSideEffects()
+    {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
+        long stamina = world.StaminaBase;
+        int remaining = world.Remaining;
+        AbilityComponent abilities = world.World.Get<AbilityComponent>(world.Player);
+        var input = new MineAbility.Input { TargetHex = world.Player.ToHex() };
+
+        AbilityActivateResult result = SampleGameplay.ActivateMine(abilities, in input);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(5, result.RejectedStep);
+        Assert.Equal(stamina, world.StaminaBase);
+        Assert.Equal(remaining, world.Remaining);
+        world.FlushCreates();
+        Assert.Empty(world.World.Each<OrePileComponent>());
+        Assert.True(world.World.IsLive(world.Player));
+        Assert.True(world.World.IsLive(world.Vein));
+    }
+
+    [Fact]
     public void MineDeductsStaminaBaseAndLeavesCurrentUntouchedUntilCopy()
     {
         using SampleWorldHarness world = SampleWorldHarness.Boot();

@@ -4,6 +4,7 @@ using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.Config;
+using Lumio.Sample.Gameplay.EntityTypes;
 
 namespace Lumio.Sample.Gameplay;
 
@@ -56,6 +57,7 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
         if (owner is null) return false;
         World world = owner.World;
         if (!world.IsLive(veinId)) return false;
+        if (!world.TypeOf(veinId).Is<VeinEntity>()) return false;
         VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
         return reserve.Remaining.Value > 0;
     }
