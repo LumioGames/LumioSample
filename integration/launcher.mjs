@@ -621,7 +621,7 @@ export async function runLauncher(options = {}) {
     record('10', 'BLOCKED_ENV', 'VeinReserveComponent decrements in-process; voxel bind is R-00469.');
     record('11', 'BLOCKED_ENV', 'MineAbility.TryRequestAirWrite is false until voxel batch write exists.');
     record('12', 'BLOCKED_ENV', 'OreDropEntity is declared; structure-commit R-00462 is an engine gap.');
-    record('13', 'BLOCKED_ENV', 'PickupOreEffect is declared; Effect settlement on DS waits R-00480.');
+    record('13', 'BLOCKED_ENV', 'PickupAbility and PickupOreEffect are in-tree (R-00636); live DS pickup is R-00600 acceptance.');
     record(
       '14',
       'BLOCKED_ENV',

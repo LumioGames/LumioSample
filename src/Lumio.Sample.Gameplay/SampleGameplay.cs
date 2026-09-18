@@ -54,7 +54,7 @@ public static class SampleGameplay
         // insufficient stamina is admit step 3 on today's engine. Execute still deducts the table cost from Base.
         // Generic Activate (AbilityComponent.Activate / catalog RPC) uses this context; readCostBase
         // publishes the owner so CanActivate can see the world without SampleGameplay.ActivateMine.
-        abilities.ActivationContext = new AbilityActivationContext(
+        var mining = new AbilityActivationContext(
             () =>
             {
                 SampleAbilityAdmission.CurrentOwner = abilities;
@@ -62,6 +62,10 @@ public static class SampleGameplay
             },
             _ => { },
             _ => attributes.SetCurrentValue(stamina, attributes.GetBaseValue(stamina)));
+        // Per-ability selection (engine/wire/ability-context-selection-v1): only MineAbility pays stamina.
+        // MoveAbility and PickupAbility return null and get the engine's built-in costless context, so a
+        // tired player can still walk to the drop and pick it up. Rebound on every Start / OnHydrate.
+        abilities.ActivationContextFactory = ability => ability == typeof(MineAbility) ? mining : null;
         PlaceAdmittedPlayer(world, player);
     }
 

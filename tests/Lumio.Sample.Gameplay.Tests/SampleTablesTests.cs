@@ -116,8 +116,8 @@ public sealed class SampleTablesTests
         ("Abilities/MoveAbility.cs", "if (!float.IsFinite(hit.TravelFraction) || hit.TravelFraction < 0f || hit.TravelFraction > 1f") => true,
         ("Abilities/MoveAbility.cs", "|| (!hit.Collided && hit.TravelFraction != 1f) || !IsFinite(hit.Point))") => true,
         // One activation consumes one hit; the initial reserve comes from config.
-        ("Abilities/MineAbility.Server.cs", "if (reserve.Remaining.Value <= 1)") => true,
-        ("Abilities/MineAbility.Server.cs", "reserve.Remaining.Value -= 1;") => true,
+        ("Abilities/MineAbility.Server.cs", "bool final = reserve.Remaining.Value <= 1;") => true,
+        ("Abilities/MineAbility.Server.cs", "reserve.Remaining.Value = final ? 0 : reserve.Remaining.Value - 1;") => true,
         // Snapshot identity belongs to the loader lifecycle, not gameplay tuning.
         ("Config/SampleConfigBinding.cs", "if (!module.Stage(result.CreateSnapshot(new ConfigSnapshotId(1))).Staged || !module.ActivateAtBarrier(default).Activated)") => true,
         _ => false,

@@ -176,7 +176,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         AttributeComponent attributes = world.World.Get<AttributeComponent>(order.AssignedId);
         Assert.Equal(SampleConfigBinding.For(world.World).Stamina.Initial, attributes.GetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name));
         Assert.Equal(SampleConfigBinding.For(world.World).Ore.Initial, attributes.GetBaseValue(SampleConfigBinding.For(world.World).Ore.Name));
-        Assert.NotNull(world.World.Get<AbilityComponent>(order.AssignedId).ActivationContext);
+        Assert.NotNull(world.World.Get<AbilityComponent>(order.AssignedId).ActivationContextFactory);
         Assert.Null(world.World.Get<AbilityComponent>(order.AssignedId).Physics);
         Assert.NotEqual(0, world.World.Get<IdentityComponent>(order.AssignedId).ColorHue.Value);
     }
@@ -201,7 +201,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(spent, next.GetCurrentValue(SampleConfigBinding.For(world.World).Stamina.Name));
         Assert.Equal(ore, next.GetBaseValue(SampleConfigBinding.For(world.World).Ore.Name));
         Assert.Equal(ore, next.GetCurrentValue(SampleConfigBinding.For(world.World).Ore.Name));
-        Assert.NotNull(restored.World.Get<AbilityComponent>(world.Player).ActivationContext);
+        Assert.NotNull(restored.World.Get<AbilityComponent>(world.Player).ActivationContextFactory);
         Assert.Null(restored.World.Get<AbilityComponent>(world.Player).Physics);
     }
 
