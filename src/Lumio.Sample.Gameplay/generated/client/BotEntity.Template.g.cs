@@ -5,6 +5,7 @@ using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Chat;
 using Lumio.Sample.Gameplay.Components.Fx;
 using Lumio.Sample.Gameplay.Components.Identity;
+using Lumio.Sample.Gameplay.Components.Mining;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.EntityTypes;

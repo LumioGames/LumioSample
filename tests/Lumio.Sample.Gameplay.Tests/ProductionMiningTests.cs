@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Threading;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
@@ -272,6 +273,167 @@ public sealed class ProductionMiningTests
         Assert.Equal(oreBefore + SampleConfigBinding.For(coldManager.World).Mining.OrePerVein,
             coldAttributes.GetBaseValue(oreName));
         Assert.Empty(coldManager.World.Each<OrePileComponent>());
+    }
+
+    [Fact]
+    public void CheckpointTakenBeforeTheDigIsOrderedRestoresWithNothingOwed()
+    {
+        // R-00650, sampling moment 1 of 3: nothing is pending, so the restored world owes nothing
+        // and the vein is still there to be mined through to settlement.
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness source = SampleWorldHarness.Boot();
+        long stamina = source.StaminaBase;
+        int remaining = source.Remaining;
+        Vector3 center = source.World.Get<VeinReserveComponent>(source.Vein).CellCenter;
+        using DedicatedServerHostBinding host = ColdRestore(source);
+        WorldManager manager = host.Manager;
+
+        Assert.Equal(stamina, Stamina(manager, source.Player));
+        Assert.True(manager.World.IsLive(source.Vein));
+        Assert.Equal(remaining, manager.World.Get<VeinReserveComponent>(source.Vein).Remaining.Value);
+        Assert.Empty(manager.World.Each<OrePileComponent>());
+
+        var input = new MineAbility.Input { TargetHex = source.Vein.ToHex() };
+        Assert.True(SampleGameplay.ActivateMine(manager.World.Get<AbilityComponent>(source.Player), in input).Succeeded);
+        manager.Tick();
+        manager.Tick();
+        Assert.Equal(stamina - SampleConfigBinding.For(manager.World).Mining.StaminaCost, Stamina(manager, source.Player));
+        Assert.Equal(center, manager.World.Get<LogicTransform>(
+            Assert.Single(manager.World.Each<OrePileComponent>()).Entity).LocalPosition);
+    }
+
+    [Fact]
+    public void CheckpointTakenInsideTheCrossFrameWindowStillSettlesAfterAColdStart()
+    {
+        // R-00650, sampling moment 2 of 3 — the one that used to lose the ore. The cut lands between
+        // "phase 8 published the cell" and "the next frame settles it": the cell is already air, the
+        // vein is already destroyed, and before this card the debt died with the process. The record
+        // now rides the same dual cut as the terrain, so the cold-started world pays it.
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness source = SampleWorldHarness.Boot();
+        long stamina = source.StaminaBase;
+        long cost = SampleConfigBinding.For(source.World).Mining.StaminaCost;
+        VeinReserveComponent vein = source.World.Get<VeinReserveComponent>(source.Vein);
+        ulong section = vein.SectionKey.Value;
+        int offset = vein.CellOffset.Value;
+        Vector3 center = vein.CellCenter;
+
+        Assert.True(source.Mine().Succeeded);
+        source.FlushCreates(); // phase 8 publishes the cell; the settlement is one frame away
+
+        // The window really is open at the cut: terrain gone, ledgers untouched.
+        Assert.Equal(0U, source.Adapter.Read(section, offset).BlockId);
+        Assert.Equal(stamina, source.StaminaBase);
+        Assert.Empty(source.World.Each<OrePileComponent>());
+
+        using DedicatedServerHostBinding host = ColdRestore(source);
+        WorldManager manager = host.Manager;
+
+        Assert.Equal(stamina - cost, Stamina(manager, source.Player));
+        OrePileComponent drop = Assert.Single(manager.World.Each<OrePileComponent>());
+        Assert.Equal(SampleConfigBinding.For(manager.World).Mining.OrePerVein, drop.Amount.Value);
+        Assert.Equal(center, manager.World.Get<LogicTransform>(drop.Entity).LocalPosition);
+        Assert.False(manager.World.IsLive(source.Vein));
+        Assert.Equal(0U, VoxelGameplayBinding.Resolve(manager)!.Read(section, offset).BlockId);
+
+        // Settled once, not once per boot: another cold start from here pays nothing further.
+        using DedicatedServerHostBinding second = ColdRestore(host);
+        Assert.Equal(stamina - cost, Stamina(second.Manager, source.Player));
+        Assert.Single(second.Manager.World.Each<OrePileComponent>());
+    }
+
+    [Fact]
+    public void CheckpointTakenAfterSettlementDoesNotPayASecondTime()
+    {
+        // R-00650, sampling moment 3 of 3: the record was consumed before the cut, so the restored
+        // world finds nothing pending and the ledgers keep exactly the one settlement they had.
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness source = SampleWorldHarness.Boot();
+        long stamina = source.StaminaBase;
+        long cost = SampleConfigBinding.For(source.World).Mining.StaminaCost;
+        Assert.True(source.Mine().Succeeded);
+        source.FlushCreates(); // phase 8 publishes
+        source.FlushCreates(); // phase 4 settles
+        Assert.Equal(stamina - cost, source.StaminaBase);
+        Assert.Single(source.World.Each<OrePileComponent>());
+
+        using DedicatedServerHostBinding host = ColdRestore(source);
+        Assert.Equal(stamina - cost, Stamina(host.Manager, source.Player));
+        Assert.Single(host.Manager.World.Each<OrePileComponent>());
+        Assert.False(host.Manager.World.IsLive(source.Vein));
+    }
+
+    [Fact]
+    public void RestoredRecordWhoseDigWasRefusedIsDiscardedWithoutTouchingAnyLedger()
+    {
+        // R-00650: the cut catches a record whose terrain order was refused — another writer took the
+        // section revision first — and whose refusal is still sitting in a result queue that dies with
+        // the process. The restored world reads the standing block, drops the record, moves no ledger,
+        // throws nothing and faults nothing; the vein is mineable again.
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness source = SampleWorldHarness.Boot();
+        long stamina = source.StaminaBase;
+        long cost = SampleConfigBinding.For(source.World).Mining.StaminaCost;
+        VeinReserveComponent vein = source.World.Get<VeinReserveComponent>(source.Vein);
+        ulong section = vein.SectionKey.Value;
+        int offset = vein.CellOffset.Value;
+        VoxelCellQuery cell = source.Adapter.Read(section, offset);
+        Assert.Equal(VoxelStageStatus.Staged, source.Adapter.TryStageWrite(
+            new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").Status);
+
+        Assert.True(source.Mine().Succeeded);
+        source.FlushCreates(); // phase 8 refuses the dig; the refusal has not been drained yet
+        Assert.NotEqual(0U, source.Adapter.Read(section, offset).BlockId);
+        Assert.Equal(stamina, source.StaminaBase);
+
+        using DedicatedServerHostBinding host = ColdRestore(source);
+        WorldManager manager = host.Manager;
+
+        Assert.Equal(stamina, Stamina(manager, source.Player));
+        Assert.Empty(manager.World.Each<OrePileComponent>());
+        Assert.True(manager.World.IsLive(source.Vein));
+        Assert.Equal(1, manager.World.Get<VeinReserveComponent>(source.Vein).Remaining.Value);
+        Assert.NotEqual(0U, VoxelGameplayBinding.Resolve(manager)!.Read(section, offset).BlockId);
+
+        // No fault latched and no slot left behind: the same vein settles normally now.
+        var input = new MineAbility.Input { TargetHex = source.Vein.ToHex() };
+        Assert.True(SampleGameplay.ActivateMine(manager.World.Get<AbilityComponent>(source.Player), in input).Succeeded);
+        manager.Tick();
+        manager.Tick();
+        Assert.Equal(stamina - cost, Stamina(manager, source.Player));
+        Assert.Single(manager.World.Each<OrePileComponent>());
+    }
+
+    private static long Stamina(WorldManager manager, NetEntityId player) =>
+        manager.World.Get<AttributeComponent>(player).GetBaseValue(SampleConfigBinding.For(manager.World).Stamina.Name);
+
+    /// <summary>Captures the dual cut, boots a new host from it and disposes the source.</summary>
+    private static DedicatedServerHostBinding ColdRestore(SampleWorldHarness source)
+    {
+        DedicatedServerHostBinding host = ColdRestore(source.Host);
+        source.Host.Dispose();
+        return host;
+    }
+
+    /// <summary>Boots a new host from <paramref name="from"/>'s dual cut and ticks it into settlement.</summary>
+    private static DedicatedServerHostBinding ColdRestore(DedicatedServerHostBinding from)
+    {
+        DualCutCaptureResult capture = from.Capture();
+        Assert.True(capture.Succeeded, capture.ErrorCode);
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        DedicatedServerRestoreResult restored = DedicatedServerHostBinding.RestoreNew(
+            capture.Checkpoint!.Value.Runtime, capture.Checkpoint.Value.Voxel, GeneratedRegistry.Instance,
+            KernelConfigurationFixture.Create(), null, from.Manager.IngressBudget,
+            File.ReadAllBytes(Path.Combine(root, "maps", "official-catalog.json")), SampleConfigBinding.Load());
+        Assert.True(restored.Succeeded, restored.ErrorCode);
+        DedicatedServerHostBinding host = restored.Binding!;
+        WorldManager manager = host.Manager;
+        manager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(manager);
+        // Tick 1 rebuilds the transient voxel services, tick 2 reconciles any restored pending record
+        // against the restored terrain, tick 3 makes the drop that reconciliation ordered live.
+        for (int tick = 0; tick < 3; tick++) manager.Tick();
+        return host;
     }
 
     [Fact]

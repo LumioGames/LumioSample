@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Ecs;
+using Lumio.Sample.Gameplay.Components.Mining;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.Config;
@@ -33,9 +34,15 @@ public sealed partial class SampleMiningComponent
     private static readonly Action<ILogger, string, string, int, Exception?> LogRefused =
         LoggerMessage.Define<string, string, int>(LogLevel.Information, default,
             "mining_refused txn={Txn} vein={Vein} status={Status}");
+    private static readonly Action<ILogger, string, string, bool, Exception?> LogRestored =
+        LoggerMessage.Define<string, string, bool>(LogLevel.Information, default,
+            "mining_restored txn={Txn} vein={Vein} settled={Settled}");
 
     private HostVoxelWorldAdapter? _adapter;
-    private readonly Dictionary<string, PendingDig> _pending = new(StringComparer.Ordinal);
+    // Which transactions this process placed and can therefore still expect a result for. The record
+    // itself lives on the player entity and survives a restart; this set is about the result queue,
+    // which does not. A record missing from it is one no queue will ever answer (Reconcile).
+    private readonly HashSet<string> _awaiting = new(StringComparer.Ordinal);
     private bool _initialized;
     private ulong _serial;
 
@@ -63,38 +70,78 @@ public sealed partial class SampleMiningComponent
     /// </summary>
     private void Settle(HostVoxelWorldAdapter adapter)
     {
-        List<(string Txn, PendingDig Dig, int Status, bool Published)>? drained = null;
+        List<(PendingDig Dig, int Status, bool Published)>? drained = null;
         foreach (VoxelTransactionResult result in adapter.DrainResults().Results)
         {
-            if (!_pending.TryGetValue(result.TransactionId, out PendingDig? dig)) continue;
-            _pending.Remove(result.TransactionId);
-            (drained ??= new()).Add((result.TransactionId, dig, result.Outcome.Status, Published(result.Outcome)));
+            PendingDigComponent? record = Find(result.TransactionId);
+            if (record is null) continue;
+            _awaiting.Remove(result.TransactionId);
+            (drained ??= new()).Add((Take(record), result.Outcome.Status, Published(result.Outcome)));
         }
-        if (drained is null) return;
-        drained.Sort(static (left, right) => left.Dig.Serial.CompareTo(right.Dig.Serial));
-        foreach ((string txn, PendingDig dig, int status, bool published) in drained)
+        if (drained is not null)
         {
-            if (!published)
+            drained.Sort(static (left, right) => left.Dig.Serial.CompareTo(right.Dig.Serial));
+            foreach ((PendingDig dig, int status, bool published) in drained)
             {
-                LogRefused(Log, txn, dig.Vein.ToHex(), status, null);
-                continue;
+                if (!published)
+                {
+                    LogRefused(Log, dig.Transaction, dig.Vein, status, null);
+                    continue;
+                }
+                Pay(dig);
             }
-            // The cell is air now, so the ore leaves the ground whatever became of the miner; only the
-            // stamina debit needs the player to still be there.
-            if (World.IsLive(dig.Player))
-            {
-                AttributeComponent attributes = World.Get<AttributeComponent>(dig.Player);
-                string stamina = SampleConfigBinding.For(World).Stamina.Name;
-                attributes.SetBaseValue(stamina, attributes.GetBaseValue(stamina) - dig.Cost);
-            }
-            // A published dig destroys the vein bound to the cell at phase 8, so this zero is only
-            // observable when something kept the entity alive. It is never written on a refusal.
-            if (World.IsLive(dig.Vein)) World.Get<VeinReserveComponent>(dig.Vein).Remaining.Value = 0;
-            EntityOrder drop = World.Commands.Create<OreDropEntity>();
-            drop.Get<OrePileComponent>().Amount.Value = dig.Amount;
-            drop.Get<OrePileComponent>().SpawnPosition = dig.Center;
-            LogReward(Log, txn, dig.Amount, null);
         }
+        if (_initialized) Reconcile(adapter);
+    }
+
+    /// <summary>
+    /// Records restored from a snapshot, whose result queue died with the process that staged them.
+    /// The terrain is the only witness left, and the dual cut guarantees it is the witness from the
+    /// same instant as the record (save-load.md ①② / M9): the cell is air with its binding cleared
+    /// exactly when the dig reached the checkpoint, in which case the settlement owed at that instant
+    /// is paid now. Anything else — the block still standing because the commit was refused, or a cell
+    /// that cannot be read at all — is a result that is not obtainable: the record is dropped, no
+    /// ledger moves, nothing throws and nothing faults.
+    /// </summary>
+    private void Reconcile(HostVoxelWorldAdapter adapter)
+    {
+        List<PendingDig>? restored = null;
+        foreach (PendingDigComponent record in World.Each<PendingDigComponent>())
+        {
+            if (!record.Active.Value || _awaiting.Contains(record.Transaction.Value)) continue;
+            (restored ??= new()).Add(Take(record));
+        }
+        if (restored is null) return;
+        restored.Sort(static (left, right) => left.Serial.CompareTo(right.Serial));
+        foreach (PendingDig dig in restored)
+        {
+            VoxelCellQuery cell = adapter.Read(dig.Section, dig.Cell);
+            bool published = cell.HasBlockId && cell.BlockId == 0
+                && adapter.BindingGet(dig.Section, dig.Cell) is null;
+            LogRestored(Log, dig.Transaction, dig.Vein, published, null);
+            if (published) Pay(dig);
+        }
+    }
+
+    /// <summary>Writes what a published dig owes: the stamina debit, the zeroed reserve and the drop.</summary>
+    private void Pay(PendingDig dig)
+    {
+        // The cell is air now, so the ore leaves the ground whatever became of the miner; only the
+        // stamina debit needs the player to still be there, and the record itself is that player's.
+        if (World.IsLive(dig.Player))
+        {
+            AttributeComponent attributes = World.Get<AttributeComponent>(dig.Player);
+            string stamina = SampleConfigBinding.For(World).Stamina.Name;
+            attributes.SetBaseValue(stamina, attributes.GetBaseValue(stamina) - dig.Cost);
+        }
+        // A published dig destroys the vein bound to the cell at phase 8, so this zero is only
+        // observable when something kept the entity alive. It is never written on a refusal.
+        if (NetEntityId.TryParse(dig.Vein, out NetEntityId vein) && World.IsLive(vein))
+            World.Get<VeinReserveComponent>(vein).Remaining.Value = 0;
+        EntityOrder drop = World.Commands.Create<OreDropEntity>();
+        drop.Get<OrePileComponent>().Amount.Value = dig.Amount;
+        drop.Get<OrePileComponent>().SpawnPosition = dig.Center;
+        LogReward(Log, dig.Transaction, dig.Amount, null);
     }
 
     /// <summary>The Runtime's own "this transaction reached the world" test, read off one drained result.</summary>
@@ -109,16 +156,28 @@ public sealed partial class SampleMiningComponent
         // "Who digs owns the cell": one unsettled dig per player and one per vein. Two players may
         // order digs on two veins of one section in one frame — Native refuses whichever loses the
         // section revision race, and under tick.md §3 rule 5 a refusal settles nothing and retries.
-        foreach (PendingDig pending in _pending.Values)
-            if (pending.Player == owner.Entity || pending.Vein == vein.Entity) return false;
+        string target = vein.Entity.ToHex();
+        int inflight = 0;
+        int owned = 0;
+        foreach (PendingDigComponent pending in World.Each<PendingDigComponent>())
+        {
+            if (!pending.Active.Value) continue;
+            inflight++;
+            if (string.Equals(pending.VeinHex.Value, target, StringComparison.Ordinal)) return false;
+            if (pending.Entity == owner.Entity) owned++;
+        }
+        // Refuse the activation rather than let unsettled work grow without bound (R-00650).
+        if (owned >= PendingDigComponent.MaxPerPlayer || inflight >= PendingDigComponent.MaxPerWorld) return false;
         VoxelCellQuery cell = adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
         return cell.HasBlockId && cell.BlockId != 0
-            && adapter.BindingGet(vein.SectionKey.Value, vein.CellOffset.Value) == vein.Entity.ToHex();
+            && adapter.BindingGet(vein.SectionKey.Value, vein.CellOffset.Value) == target;
     }
 
     /// <summary>
     /// Orders the final dig and records what settling it would owe. Nothing is paid here; the record
-    /// waits in <see cref="_pending"/> until <see cref="Settle"/> reads the terrain result.
+    /// waits on the miner's <see cref="PendingDigComponent"/> — persisted state, not a process-only
+    /// dictionary — until <see cref="Settle"/> reads the terrain result or <see cref="Reconcile"/>
+    /// reads the restored terrain.
     /// </summary>
     internal bool StageFinal(AbilityComponent owner, VeinReserveComponent vein)
     {
@@ -127,9 +186,19 @@ public sealed partial class SampleMiningComponent
         VoxelCellQuery cell = adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
         string transaction = NextTransaction("dig");
         ISampleConfig config = SampleConfigBinding.For(World);
-        var pending = new PendingDig(owner.Entity, vein.Entity, vein.SectionKey.Value, vein.CellOffset.Value,
-            config.Mining.OrePerVein, config.Mining.StaminaCost, vein.CellCenter, _serial);
-        _pending.Add(transaction, pending);
+        PendingDigComponent record = World.Get<PendingDigComponent>(owner.Entity);
+        record.Transaction.Value = transaction;
+        record.VeinHex.Value = vein.Entity.ToHex();
+        record.SectionKey.Value = vein.SectionKey.Value;
+        record.CellOffset.Value = vein.CellOffset.Value;
+        record.CellX.Value = vein.CellX.Value;
+        record.CellY.Value = vein.CellY.Value;
+        record.CellZ.Value = vein.CellZ.Value;
+        record.Amount.Value = config.Mining.OrePerVein;
+        record.StaminaCost.Value = unchecked((ulong)config.Mining.StaminaCost);
+        record.Serial.Value = _serial;
+        record.Active.Value = true;
+        _awaiting.Add(transaction);
         VoxelStageResult result = adapter.TryStageDigThrough(vein.SectionKey.Value, vein.CellOffset.Value,
             cell.SectionRevision, transaction);
         if (result.Status == VoxelStageStatus.Staged)
@@ -139,7 +208,8 @@ public sealed partial class SampleMiningComponent
             LogBefore(Log, transaction, cell.BlockId, cell.SectionRevision, null);
             return true;
         }
-        _pending.Remove(transaction);
+        Clear(record);
+        _awaiting.Remove(transaction);
         return false;
     }
 
@@ -152,16 +222,45 @@ public sealed partial class SampleMiningComponent
     private void OnApplied(VoxelDigApplied applied)
     {
         if (!ReferenceEquals(VoxelGameplayBinding.Resolve(World.Manager), _adapter)) return;
-        if (!_pending.TryGetValue(applied.TxnId, out PendingDig? pending)) return;
-        if (applied.SectionKey != pending.Section || applied.CellOffset != pending.Cell
-            || applied.BoundEntityId != pending.Vein.ToHex())
+        PendingDigComponent? pending = Find(applied.TxnId);
+        if (pending is null) return;
+        if (applied.SectionKey != pending.SectionKey.Value || applied.CellOffset != pending.CellOffset.Value
+            || !string.Equals(applied.BoundEntityId, pending.VeinHex.Value, StringComparison.Ordinal))
             throw new InvalidOperationException("Applied dig does not match its Sample owner.");
-        if (World.IsLive(pending.Vein) && World.Get<VeinReserveComponent>(pending.Vein).Remaining.Value == 0)
+        if (NetEntityId.TryParse(pending.VeinHex.Value, out NetEntityId vein) && World.IsLive(vein)
+            && World.Get<VeinReserveComponent>(vein).Remaining.Value == 0)
             throw new InvalidOperationException("Applied dig found a vein already settled before its result came back.");
-        VoxelCellQuery published = _adapter!.Read(pending.Section, pending.Cell);
-        LogApplied(Log, applied.TxnId, pending.Section, pending.Cell, pending.Vein.ToHex(), null);
+        VoxelCellQuery published = _adapter!.Read(pending.SectionKey.Value, pending.CellOffset.Value);
+        LogApplied(Log, applied.TxnId, pending.SectionKey.Value, pending.CellOffset.Value, pending.VeinHex.Value, null);
         LogAfter(Log, applied.TxnId, published.BlockId, published.SectionRevision,
-            _adapter.BindingGet(pending.Section, pending.Cell), null);
+            _adapter.BindingGet(pending.SectionKey.Value, pending.CellOffset.Value), null);
+    }
+
+    /// <summary>The live record that owes <paramref name="transaction"/>, or null when none does.</summary>
+    private PendingDigComponent? Find(string transaction)
+    {
+        foreach (PendingDigComponent record in World.Each<PendingDigComponent>())
+            if (record.Active.Value && string.Equals(record.Transaction.Value, transaction, StringComparison.Ordinal))
+                return record;
+        return null;
+    }
+
+    /// <summary>Reads a record out and frees its slot in one step, so no settlement path can pay twice.</summary>
+    private static PendingDig Take(PendingDigComponent record)
+    {
+        var dig = new PendingDig(record.Entity, record.Transaction.Value, record.VeinHex.Value,
+            record.SectionKey.Value, record.CellOffset.Value, record.Amount.Value,
+            unchecked((long)record.StaminaCost.Value), record.CellCenter, record.Serial.Value);
+        Clear(record);
+        return dig;
+    }
+
+    /// <summary>Frees a slot without settling anything: the record owes nothing after this.</summary>
+    private static void Clear(PendingDigComponent record)
+    {
+        record.Active.Value = false;
+        record.Transaction.Value = string.Empty;
+        record.VeinHex.Value = string.Empty;
     }
 
     private void Initialize(HostVoxelWorldAdapter adapter)
@@ -222,12 +321,15 @@ public sealed partial class SampleMiningComponent
     {
         if (_adapter is not null) _adapter.DigApplied -= OnApplied;
         _adapter = null;
-        _pending.Clear();
+        // Only the queue expectation is dropped. The records are world state on their players: after a
+        // world swaps its adapter no result can arrive for them either, so they reconcile off terrain.
+        _awaiting.Clear();
         _initialized = false;
     }
 
     protected override void OnDestroy() => Detach();
 
-    private sealed record PendingDig(NetEntityId Player, NetEntityId Vein, ulong Section, int Cell,
-        int Amount, long Cost, Vector3 Center, ulong Serial);
+    /// <summary>One record read out of its slot, as values, for the frame that settles it.</summary>
+    private sealed record PendingDig(NetEntityId Player, string Transaction, string Vein, ulong Section,
+        int Cell, int Amount, long Cost, Vector3 Center, ulong Serial);
 }

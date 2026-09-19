@@ -2,6 +2,7 @@
 using Lumio.GameRuntime.Ecs;
 using Lumio.Sample.Gameplay.Components.Chat;
 using Lumio.Sample.Gameplay.Components.Identity;
+using Lumio.Sample.Gameplay.Components.Mining;
 
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
@@ -10,6 +11,8 @@ namespace Lumio.Sample.Gameplay.EntityTypes;
 /// chat still names the speaker by net entity id.
 /// ADR-090 ledgers: Stamina and Ore, each Base + Current. Initials come from
 /// <c>config/attributes.json</c> via the bound typed gameplay config.
+/// The miner also carries the one dig it has ordered but not yet settled, so that record rides the
+/// same dynamic-entity snapshot as the stamina it is about to debit (R-00650).
 /// </summary>
 [EntityType(Mode.CS)]
 [DeclareAttribute("Stamina", Persist = true)]
@@ -21,6 +24,7 @@ namespace Lumio.Sample.Gameplay.EntityTypes;
 [Has(typeof(AbilityComponent))]
 [Has(typeof(AttributeComponent))]
 [Has(typeof(EffectComponent))]
+[Has(typeof(PendingDigComponent))]
 public abstract class PlayerEntity
 {
 }

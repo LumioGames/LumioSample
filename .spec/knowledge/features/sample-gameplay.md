@@ -15,13 +15,13 @@ metadata:
 | 东西 | 落点 |
 |---|---|
 | 世界单例 | `WorldEntity`（恰好一个 `World = true`，`TickRateHz = 20`） |
-| 玩家 | `PlayerEntity`：Observer + Identity + LogicTransform + Chat + Ability + Attribute + Effect。Identity 承接平台 accountId；聊天说话人仍是 `NetEntityId` hex |
+| 玩家 | `PlayerEntity`：Observer + Identity + LogicTransform + Chat + Ability + PendingDig + Attribute + Effect。Identity 承接平台 accountId；聊天说话人仍是 `NetEntityId` hex |
 | 玩家固定颜色 | `IdentityComponent.ColorHue`（int，0-359，Room/Server 权威同步）：Start/OnHydrate 按账号 FNV 定值并写入，所有端从复制快照读到同一颜色，端上不推导。旁观页以 `hsla(hue,85%,55%,0.75)` 绘制，self 1.5× 半径。int 同步字段进 create 记录依赖 Runtime 生成器的 CaptureSync int 支持 |
 | 矿脉储量 | `VeinEntity` + `VeinReserveComponent`。不挂 LogicTransform |
 | 掉落矿石 | `OreDropEntity` + `OrePileComponent` + LogicTransform |
 | 挖掘火花 | `MiningSparkEntity.Client.cs`（Local，服务器程序集按文件边排除） |
 | 跑动 | `MoveAbility`：唯一调用 `LogicTransform.SetLocalPosition` 的地方 |
-| 挖掘 | `MineAbility`：准入检查存活矿脉、Native 绑定、储量和真实格心距离，体力不足走 GAS 消耗步。前几击走 `Execute` 当场结算：扣体力基础账、储量 -1。最后一击只经 `SampleMiningComponent.StageFinal` 下地形单并记一笔待结算（玩家、矿脉、扣费额、掉落数），当场不扣体力、不归零、不下掉落单；结算在地形结果回来那一帧的第 4 相，由 `SampleMiningComponent` 经 `HostVoxelWorldAdapter.DrainResults()` 读回后按事务号有序做，被拒或数据不足即丢掉待结算记录、什么都不改（tick.md §3 规则 5）。第 8 相 `DigApplied` 回调只记日志与断言，不写业务、也不消费待结算记录 |
+| 挖掘 | `MineAbility`：准入检查存活矿脉、Native 绑定、储量和真实格心距离，体力不足走 GAS 消耗步。前几击走 `Execute` 当场结算：扣体力基础账、储量 -1。最后一击只经 `SampleMiningComponent.StageFinal` 下地形单并记一笔待结算（玩家、矿脉、扣费额、掉落数），当场不扣体力、不归零、不下掉落单；结算在地形结果回来那一帧的第 4 相，由 `SampleMiningComponent` 经 `HostVoxelWorldAdapter.DrainResults()` 读回后按事务号有序做，被拒或数据不足即丢掉待结算记录、什么都不改（tick.md §3 规则 5）。第 8 相 `DigApplied` 回调只记日志与断言，不写业务、也不消费待结算记录。待结算记录挂在**矿工自己的实体**上（`PendingDigComponent`，全部字段 `[Persist]`、`Scope.None`），不是进程内字典 |
 | 四条账 | 体力 / 矿石各 Base+Current。PlayerEntity 用 DeclareAttribute 声明持久基础账，SampleConfigBinding.BindWorld 把 World.GameplayConfig 中的 IAttributeSeedProvider 绑定到 World.SeedProvider，由 Runtime PostAttribute 读取已投影的 attributes 初值。Start 绑定能力上下文；OnHydrate 仅重绑瞬态引用，基础账从存档恢复，Current 由现有属性计算器重建（R-00613） |
 | 矿脉出现 | `SampleMiningSystem` 驱动世界单例 `SampleMiningComponent`，按 World 配置的地图宽深扫描恢复后的地板格，以 `ore_block_type` 识别矿石。`SampleVein.Queue` 下结构单，实体正常提交后才用 `HostVoxelWorldAdapter.TryStageMutation` 暂存稀疏绑定，下一帧读到已发布绑定后才开放挖掘 |
 | 拾取 | `PickupAbility`（无 cost）：准入要求掉落存活、还有矿石、在移动步长内；`Execute` 把堆清零占位、`Effects.Apply` 下 `PickupOreEffect` 单并下销毁结构单，第 9 相结算入 `Ore` 基础账。同帧两人抢同一份只兑现一次 |
@@ -29,9 +29,11 @@ metadata:
 
 聊天说话人用 `NetEntityId.ToHex()`，不另造名字属性。
 
-玩法不读取作者时布局，也不重建底图。矿脉坐标、储量与掉落数量通过生成的持久字段保存；冷恢复使用现有 Native 方块、绑定与 ECS 实体重新建立瞬态服务。最终挖掘通过 `TryStageDigThrough` 在帧末发布空气和绑定移除，Runtime 销毁被绑定的矿脉实体；`mining_stage/pre/applied/post/reward/refused` 日志分别记录暂存、实际发布、结算发出的奖励与被拒的地形单，不能单凭日志推断客户端已收到掉落。准入互斥按矿脉与按玩家各一条：同一矿脉同帧只允许一张地形单，第二人在准入第 5 步被拒；同段不同矿脉的两人同帧都可下单，Native 按段校验帧初 revision，输掉版本号的那张被正常拒绝，该玩家什么都没付、下一帧再来。R-00520 的实际 DS 输入、复制、拾取和冷重启验收仍需对应运行证据。
+玩法不读取作者时布局，也不重建底图。矿脉坐标、储量与掉落数量通过生成的持久字段保存；冷恢复使用现有 Native 方块、绑定与 ECS 实体重新建立瞬态服务。最终挖掘通过 `TryStageDigThrough` 在帧末发布空气和绑定移除，Runtime 销毁被绑定的矿脉实体；`mining_stage/pre/applied/post/reward/refused/restored` 日志分别记录暂存、实际发布、结算发出的奖励与被拒的地形单，不能单凭日志推断客户端已收到掉落。准入互斥按矿脉与按玩家各一条：同一矿脉同帧只允许一张地形单，第二人在准入第 5 步被拒；同段不同矿脉的两人同帧都可下单，Native 按段校验帧初 revision，输掉版本号的那张被正常拒绝，该玩家什么都没付、下一帧再来。单个玩家在途待结算的上限就是这一个槽（`PendingDigComponent.MaxPerPlayer`），单个世界的上限是 `PendingDigComponent.MaxPerWorld`；越界时拒绝新的挖掘激活，不排队也不扩表。R-00520 的实际 DS 输入、复制、拾取和冷重启验收仍需对应运行证据。
 
 失败边界：地形单在 Execute 里没暂存成功（`StageFinal` 返回 false）就不扣体力、不减储量、不发奖励，但已受理的 GAS 激活序列仍消耗。已暂存的地形单若在第 8 相被 Native 拒绝（最常见的是他人先往同一段写了一笔、顶掉帧初 revision），Sample 在后续帧 `Advance` 排干结果时丢掉那笔待结算，体力 / 储量 / 掉落三样账本一动不动，既不抛异常也不把世界打成 Faulted——按 tick.md §3 规则 5 被拒是合法业务结果而不是故障，同一矿脉下一次挖掘照常进行；不存在「扣了费方块还在」的业务态。
+
+**跨帧待结算属于动态实体快照的一部分**（R-00650）：下单与结算之间隔着一个帧边界，取样可能正落在中间，所以那笔待结算必须和它等待的体素改动层**同一个切点、同一个修订向量、成组原子换档**（架构仓 [`save-load.md`](../../../../LumioGameEngine/.spec/knowledge/features/save-load.md) ①② 与 M4 / M9）。落点是玩家实体上的 `PendingDigComponent`：矿工是欠这笔账的人，记录因此和它将要扣的体力账走同一份实体快照；矿脉不行——挖掘一旦发布，被绑定的矿脉实体在第 8 相就被销毁，记录会正好在需要兑现时消失。冷启动后结果队列已随进程消失，恢复出的记录改用**地形本身**判定：格子是空气且绑定已清 = 那笔提交进了快照，照常扣体力、下掉落、矿脉状态一致；方块还在（提交被拒）或格子读不到（结果不可得）= 丢弃记录，三样账本一动不动，不抛异常也不打故障。
 
 玩家准入使用 Runtime 正式控制消息，在正常 Owner Tick 创建实体；生产玩法没有同步准入或隐式推进 Tick 的辅助入口。测试宿主自行显式驱动 Tick。属性名字是声明身份，配表中的名字必须与声明对应；历史上未包含基础账的存档无法还原当时未保存的数值。
 

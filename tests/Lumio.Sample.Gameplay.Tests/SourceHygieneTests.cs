@@ -45,13 +45,35 @@ public sealed class SourceHygieneTests
         Assert.DoesNotMatch(new Regex(@"Remaining\.Value\s*=(?!=)"), callback);
         Assert.DoesNotContain("Commands.Create", callback);
         // It must also leave the pending record alone, or the settlement loses what it waits for.
-        Assert.DoesNotContain("_pending.Remove", callback);
+        // Take and Clear are the only two ways to free a slot, so neither may appear here (R-00650).
+        Assert.DoesNotContain("Take(", callback);
+        Assert.DoesNotContain("Clear(", callback);
+        Assert.DoesNotMatch(new Regex(@"Active\.Value\s*=(?!=)"), callback);
         // The settlement reads the terrain result back rather than settling when the order is placed.
         Assert.Contains("DrainResults()", source);
         // Pickup goes through GAS admission; the static helper with its inline settlement is gone.
         Assert.False(File.Exists(Path.Combine(GameplayRoot, "SampleOrePickup.cs")));
         Assert.True(File.Exists(Path.Combine(GameplayRoot, "Abilities", "PickupAbility.cs")));
         Assert.DoesNotContain("EffectSettlement.Settle", File.ReadAllText(Path.Combine(GameplayRoot, "Abilities", "PickupAbility.Server.cs")));
+    }
+
+    [Fact]
+    public void PendingDigIsPersistedEntityStateAndNotAProcessDictionary()
+    {
+        // R-00650: a settlement that waits for the next frame can be snapshotted mid-wait, so the
+        // record has to ride the entity snapshot instead of living in a field of this process.
+        string mining = File.ReadAllText(Path.Combine(GameplayRoot, "SampleMiningComponent.Server.cs"));
+        Assert.DoesNotContain("Dictionary<string, PendingDig>", mining);
+        string path = Path.Combine(GameplayRoot, "Components", "Mining", "PendingDigComponent.cs");
+        Assert.True(File.Exists(path), "The pending record must be a component on an entity: " + path);
+        string component = File.ReadAllText(path);
+        int fields = Regex.Count(component, @"public\s+Sync<");
+        Assert.True(fields > 0, "PendingDigComponent declares no state.");
+        // Every field of the record is snapshot state; an unmarked one would silently vanish on restore.
+        Assert.Equal(fields, Regex.Count(component, @"\[Persist\]\s*public\s+Sync<"));
+        // The player is the miner that owes the settlement, so the record rides that entity's snapshot.
+        Assert.Contains("[Has(typeof(PendingDigComponent))]",
+            File.ReadAllText(Path.Combine(GameplayRoot, "EntityTypes", "PlayerEntity.cs")));
     }
 
     /// <summary>Text of one method body, matched by its exact signature line and brace depth.</summary>
