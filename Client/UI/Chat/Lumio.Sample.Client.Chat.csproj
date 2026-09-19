@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <LumioEcsGenerate>false</LumioEcsGenerate>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Lumio.Sample.Gameplay/Lumio.Sample.Gameplay.csproj" />
+    <Reference Include="Lumio.Client.Replica" HintPath="$(LumioClientReplicaAssembly)" Private="true" />
+  </ItemGroup>
+  <Target Name="RequireClientReplicaArtifact" BeforeTargets="PrepareForBuild;ResolveAssemblyReferences">
+    <Error Condition="'$(LumioClientReplicaAssembly)' == '' or !Exists('$(LumioClientReplicaAssembly)')"
+           Text="SAMPLE_CHAT_REPLICA_MISSING: set LumioClientReplicaAssembly to the exact prebuilt netstandard2.1 Lumio.Client.Replica.dll." />
+  </Target>
+  <!-- NuGet restore does not propagate ProjectReference.AdditionalProperties.
+       Require global selection so restore and compilation use the same client graph. -->
+  <Target Name="RequireSampleClientProjection" BeforeTargets="CollectPackageReferences;PrepareForBuild">
+    <Error Condition="'$(LumioEcsSide)' != 'client' or '$(LumioBrowserReplica)' != 'true'"
+           Text="SAMPLE_CHAT_CLIENT_REQUIRED: pass -p:LumioEcsSide=client -p:LumioBrowserReplica=true for restore and build." />
+  </Target>
+</Project>
