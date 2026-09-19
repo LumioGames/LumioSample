@@ -174,12 +174,8 @@ public sealed class SampleWiringTests : IDisposable
     }
 
     [Fact]
-    public void TwoVeinsInOneSectionAreBothAdmittedAndTheRefusedDigCostsNothing()
+    public void TwoVeinsInOneSectionBothPublishBeforeEitherSettles()
     {
-        // R-00647 pulls CanMine's mutual exclusion back to the vein: a second vein in the same
-        // section is no longer blocked at admission. Native still validates one frame-initial
-        // revision per section, so whichever dig loses that race is refused — and under tick.md
-        // §3 rule 5 a refusal settles nothing, so that player simply digs again next frame.
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         VeinReserveComponent first = world.World.Get<VeinReserveComponent>(world.Vein);
@@ -201,23 +197,16 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(1, second.Remaining.Value);
 
         world.FlushCreates();
-        world.FlushCreates();
-
-        // The first dig staged wins the section revision; the second is refused and owes nothing.
-        Assert.Equal(stamina - cost, world.StaminaBase);
         Assert.False(world.World.IsLive(world.Vein));
-        Assert.Single(world.World.Each<OrePileComponent>());
+        Assert.False(world.World.IsLive(second.Entity));
+        Assert.Equal(stamina, world.StaminaBase);
         Assert.Equal(otherStamina, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
-        Assert.Equal(1, second.Remaining.Value);
-        Assert.True(world.World.IsLive(second.Entity));
-
-        // Next frame the loser digs again against the current revision and settles.
-        Assert.True(SampleGameplay.ActivateMine(otherAbilities, in otherInput).Succeeded);
+        Assert.Empty(world.World.Each<OrePileComponent>());
+        Assert.Equal(2, world.Adapter.CaptureResultCheckpoint().Results.Length);
         world.FlushCreates();
-        world.FlushCreates();
+        Assert.Equal(stamina - cost, world.StaminaBase);
         Assert.Equal(otherStamina - cost, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
         Assert.Equal(2, world.World.Each<OrePileComponent>().Count());
-        Assert.False(world.World.IsLive(second.Entity));
     }
 
     [Fact]
