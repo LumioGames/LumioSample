@@ -56,6 +56,7 @@ public sealed class ProductionMiningTests
             Assert.True(SampleGameplay.ActivateMine(owner, in mine).Succeeded);
             manager.Tick();
         }
+        manager.Tick(); // the final dig's terrain result settles one frame after it commits
         Assert.Single(manager.World.Each<OrePileComponent>());
     }
 
@@ -125,27 +126,32 @@ public sealed class ProductionMiningTests
         {
             applied = value;
             notifications++;
-            Assert.Equal(0, vein.Remaining.Value);
+            // Phase 8 observes only: the reserve is still unsettled while the cell is published.
+            Assert.Equal(1, vein.Remaining.Value);
         };
         Assert.True(world.Mine().Succeeded);
-        // The last hit settles at Execute: stamina and reserve are already final, the drop is an order.
-        Assert.Equal(0, world.StaminaBase);
-        Assert.Equal(0, world.Remaining);
+        // The last hit only orders the dig; stamina, reserve and the drop all wait for its result.
+        Assert.Equal(cost, world.StaminaBase);
+        Assert.Equal(1, world.Remaining);
         Assert.Empty(world.World.Each<OrePileComponent>());
         Assert.False(world.Mine().Succeeded);
-        world.FlushCreates();
+
+        world.FlushCreates(); // phase 8 publishes the cell
+        Assert.Equal(1, notifications);
+        Assert.Equal(cost, world.StaminaBase);
+        Assert.Equal(0U, world.Adapter.Read(section, offset).BlockId);
+        Assert.Empty(world.World.Each<OrePileComponent>());
+
+        world.FlushCreates(); // phase 4 reads the result back and settles the hit
         Assert.Equal(0, world.StaminaBase);
         Assert.False(world.World.IsLive(world.Vein));
-        Assert.Equal(0U, world.Adapter.Read(section, offset).BlockId);
         Assert.Null(world.Adapter.BindingGet(section, offset));
         Assert.Equal(SampleConfigBinding.For(world.World).Mining.OrePerVein,
             Assert.Single(world.World.Each<OrePileComponent>()).Amount.Value);
-        Assert.Equal(1, notifications);
+
+        // Sample owns the result queue now, so the settled transaction is already drained. Replaying
+        // it reports a duplicate and, with no pending record left, pays nothing a second time.
         string transaction = applied!.Value.TxnId;
-        VoxelMutationOutcome original = Assert.Single(world.Adapter.DrainResults().Results).Outcome;
-        Assert.Equal(VoxelTxnState.Applied, original.State);
-        Assert.Equal(VoxelCommitDisposition.Original, original.Disposition);
-        Assert.True(original.TokenConsumed);
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageDigThrough(
             section, offset, revision, transaction, VoxelSubmissionIntent.Replay).Status);
         world.FlushCreates();
@@ -184,11 +190,13 @@ public sealed class ProductionMiningTests
         Assert.NotSame(first.Adapter, second.Adapter);
         Assert.True(first.Mine().Succeeded);
         first.FlushCreates();
+        first.FlushCreates();
         Assert.Single(first.World.Each<OrePileComponent>());
         Assert.Empty(second.World.Each<OrePileComponent>());
         Assert.Equal(1, second.Remaining);
         first.Host.Dispose();
         Assert.True(second.Mine().Succeeded);
+        second.FlushCreates();
         second.FlushCreates();
         Assert.Single(second.World.Each<OrePileComponent>());
     }
@@ -231,6 +239,7 @@ public sealed class ProductionMiningTests
             Assert.True(SampleGameplay.ActivateMine(manager.World.Get<AbilityComponent>(source.Player), in input).Succeeded);
             manager.Tick();
         }
+        manager.Tick(); // the final dig's terrain result settles one frame after it commits
         OrePileComponent drop = Assert.Single(manager.World.Each<OrePileComponent>());
         Assert.Equal(center, manager.World.Get<LogicTransform>(drop.Entity).LocalPosition);
         DualCutCaptureResult depleted = host.Capture();
@@ -275,6 +284,7 @@ public sealed class ProductionMiningTests
         string oreName = SampleConfigBinding.For(source.World).Ore.Name;
         int veinsBefore = source.World.Each<VeinReserveComponent>().Count();
         Assert.True(source.Mine().Succeeded);
+        source.FlushCreates();
         source.FlushCreates();
         NetEntityId drop = Assert.Single(source.World.Each<OrePileComponent>()).Entity;
         long oreBefore = source.OreBase;

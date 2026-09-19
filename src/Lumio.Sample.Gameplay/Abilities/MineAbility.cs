@@ -8,7 +8,7 @@ using Lumio.Sample.Gameplay.EntityTypes;
 
 namespace Lumio.Sample.Gameplay;
 
-/// <summary>Authority mining of a live cell-bound vein; final effects wait for Native Applied.</summary>
+/// <summary>Authority mining of a live cell-bound vein; the final hit settles when its terrain result returns.</summary>
 [AbilityType(2u, Prediction = PredictionKind.AuthorityOnly, Cost = "Stamina")]
 public sealed partial class MineAbility : AbilityType<MineAbility.Input>
 {

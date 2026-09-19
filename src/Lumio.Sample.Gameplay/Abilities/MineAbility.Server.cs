@@ -1,19 +1,18 @@
 using System;
 using Lumio.GameRuntime.Ecs;
-using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.Config;
-using Lumio.Sample.Gameplay.EntityTypes;
 
 namespace Lumio.Sample.Gameplay;
 
 public sealed partial class MineAbility
 {
     /// <summary>
-    /// All six hits settle here, on the business phase (tick.md §3 rule 5). The final hit
-    /// first stages its terrain order; once that order passes this phase's admission it is
-    /// treated as "will be published", so stamina, reserve and the drop order are written
-    /// right away instead of waiting for the phase-8 Native callback (that callback only observes).
+    /// The hits that touch no terrain settle here, on the business phase (tick.md §3 rule 5):
+    /// nothing has to succeed elsewhere for the stamina and the reserve to move. The final hit only
+    /// orders the dig and records what settling it would owe; the stamina, the zeroed reserve and the
+    /// drop order are written by <see cref="SampleMiningComponent"/> on the frame that order's result
+    /// comes back, and not at all when it is refused. The phase-8 callback only observes.
     /// </summary>
     static partial void ExecuteCore(in Input input, AbilityComponent owner)
     {
@@ -30,19 +29,17 @@ public sealed partial class MineAbility
         long cost = config.Mining.StaminaCost;
         if (attributes.GetBaseValue(stamina) < cost) return;
 
-        // The last hit digs the cell. Staging is the terrain admission; a refusal here means
-        // nothing was written and nothing is settled (the activation still consumed its sequence).
-        bool final = reserve.Remaining.Value <= 1;
-        if (final && !owner.World.Single<SampleMiningComponent>().StageFinal(owner, reserve)) return;
-
-        attributes.SetBaseValue(stamina, attributes.GetBaseValue(stamina) - cost);
-        reserve.Remaining.Value = final ? 0 : reserve.Remaining.Value - 1;
-        if (final)
+        // The last hit digs the cell. Staging only places the order and the pending settlement; a
+        // staging refusal means nothing was ordered and nothing is owed (the activation still
+        // consumed its sequence). Everything the dig pays for waits for its terrain result.
+        if (reserve.Remaining.Value <= 1)
         {
-            // Structure order: the drop entity appears at phase 9, the same tick the cell turns to air at phase 8.
-            EntityOrder drop = owner.World.Commands.Create<OreDropEntity>();
-            drop.Get<OrePileComponent>().Amount.Value = config.Mining.OrePerVein;
-            drop.Get<OrePileComponent>().SpawnPosition = reserve.CellCenter;
+            if (!owner.World.Single<SampleMiningComponent>().StageFinal(owner, reserve)) return;
+        }
+        else
+        {
+            attributes.SetBaseValue(stamina, attributes.GetBaseValue(stamina) - cost);
+            reserve.Remaining.Value -= 1;
         }
         owner.SetCooldown(TypeId, checked(owner.World.Tick + config.Mining.CooldownTicks));
     }
