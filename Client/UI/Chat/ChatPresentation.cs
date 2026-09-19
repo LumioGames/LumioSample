@@ -6,6 +6,7 @@ namespace Lumio.Sample.Client.Chat
     /// <summary>A copied, immutable view that remains valid after reset or disposal.</summary>
     public sealed class ChatPresentation
     {
+        public static ChatPresentation Empty { get; } = new ChatPresentation(Array.Empty<ChatLine>(), 0, 0, null);
         internal ChatPresentation(ChatLine[] lines, ulong message, ulong sequence, string? error)
         {
             Lines = Array.AsReadOnly(lines);
