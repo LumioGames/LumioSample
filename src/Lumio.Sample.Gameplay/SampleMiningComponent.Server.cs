@@ -40,8 +40,8 @@ public sealed partial class SampleMiningComponent
 
     private HostVoxelWorldAdapter? _adapter;
     // Which transactions this process placed and can therefore still expect a result for. The record
-    // itself lives on the player entity and survives a restart; this set is about the result queue,
-    // which does not. A record missing from it is one no queue will ever answer (Reconcile).
+    // itself lives on the player entity. Restored delivery facts are drained before checking
+    // records whose result is unavailable; this set only tracks work staged by this process.
     private readonly HashSet<string> _awaiting = new(StringComparer.Ordinal);
     private bool _initialized;
     private ulong _serial;
@@ -91,19 +91,15 @@ public sealed partial class SampleMiningComponent
                 Pay(dig);
             }
         }
-        if (_initialized) Reconcile(adapter);
+        Reconcile();
     }
 
     /// <summary>
-    /// Records restored from a snapshot, whose result queue died with the process that staged them.
-    /// The terrain is the only witness left, and the dual cut guarantees it is the witness from the
-    /// same instant as the record (save-load.md ①② / M9): the cell is air with its binding cleared
-    /// exactly when the dig reached the checkpoint, in which case the settlement owed at that instant
-    /// is paid now. Anything else — the block still standing because the commit was refused, or a cell
-    /// that cannot be read at all — is a result that is not obtainable: the record is dropped, no
-    /// ledger moves, nothing throws and nothing faults.
+    /// Any restored result was already consumed by Settle. Remaining restored records have no
+    /// obtainable outcome (including legacy saves) and are discarded without changing a ledger.
+    /// Air or a cleared binding cannot identify which transaction changed that cell.
     /// </summary>
-    private void Reconcile(HostVoxelWorldAdapter adapter)
+    private void Reconcile()
     {
         List<PendingDig>? restored = null;
         foreach (PendingDigComponent record in World.Each<PendingDigComponent>())
@@ -115,11 +111,7 @@ public sealed partial class SampleMiningComponent
         restored.Sort(static (left, right) => left.Serial.CompareTo(right.Serial));
         foreach (PendingDig dig in restored)
         {
-            VoxelCellQuery cell = adapter.Read(dig.Section, dig.Cell);
-            bool published = cell.HasBlockId && cell.BlockId == 0
-                && adapter.BindingGet(dig.Section, dig.Cell) is null;
-            LogRestored(Log, dig.Transaction, dig.Vein, published, null);
-            if (published) Pay(dig);
+            LogRestored(Log, dig.Transaction, dig.Vein, false, null);
         }
     }
 
@@ -322,7 +314,7 @@ public sealed partial class SampleMiningComponent
         if (_adapter is not null) _adapter.DigApplied -= OnApplied;
         _adapter = null;
         // Only the queue expectation is dropped. The records are world state on their players: after a
-        // world swaps its adapter no result can arrive for them either, so they reconcile off terrain.
+        // a fresh restored adapter supplies its durable results before unavailable records are cleared.
         _awaiting.Clear();
         _initialized = false;
     }

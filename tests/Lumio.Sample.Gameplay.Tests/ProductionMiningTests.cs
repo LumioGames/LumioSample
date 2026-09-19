@@ -404,6 +404,73 @@ public sealed class ProductionMiningTests
         Assert.Single(manager.World.Each<OrePileComponent>());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RefusedDigDoesNotPayAfterColdRestoreWhenAnotherTransactionDugTheSameCell(bool coldRestore)
+    {
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness source = SampleWorldHarness.Boot();
+        long stamina = source.StaminaBase;
+        VeinReserveComponent vein = source.World.Get<VeinReserveComponent>(source.Vein);
+        ulong section = vein.SectionKey.Value;
+        int offset = vein.CellOffset.Value;
+        VoxelCellQuery cell = source.Adapter.Read(section, offset);
+        Assert.Equal(VoxelStageStatus.Staged, source.Adapter.TryStageDigThrough(
+            section, offset, cell.SectionRevision, "foreign-dig-before-player").Status);
+        Assert.True(source.Mine().Succeeded);
+        source.FlushCreates();
+        Assert.Equal(0U, source.Adapter.Read(section, offset).BlockId);
+        Assert.Null(source.Adapter.BindingGet(section, offset));
+        Assert.Equal(stamina, source.StaminaBase);
+        Assert.Empty(source.World.Each<OrePileComponent>());
+        if (!coldRestore)
+        {
+            source.FlushCreates();
+            Assert.Equal(stamina, source.StaminaBase);
+            Assert.Empty(source.World.Each<OrePileComponent>());
+            return;
+        }
+        using DedicatedServerHostBinding host = ColdRestore(source);
+        Assert.Equal(stamina, Stamina(host.Manager, source.Player));
+        Assert.Empty(host.Manager.World.Each<OrePileComponent>());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RestoredSuccessSettlesOnFirstBusinessFrameAndLegacyUnknownNeverPays(bool legacy)
+    {
+        using TempConfig config = TempConfig.WithHits(1);
+        using SampleWorldHarness source = SampleWorldHarness.Boot();
+        long stamina = source.StaminaBase;
+        long cost = SampleConfigBinding.For(source.World).Mining.StaminaCost;
+        Assert.True(source.Mine().Succeeded);
+        source.FlushCreates();
+        DualCutCheckpointPayload cut = source.Host.Capture().Checkpoint!.Value;
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        DedicatedServerRestoreResult restored = DedicatedServerHostBinding.RestoreNew(
+            legacy ? source.World.Manager.CaptureSnapshot() : cut.Runtime, cut.Voxel, GeneratedRegistry.Instance,
+            KernelConfigurationFixture.Create(), null, source.World.Manager.IngressBudget,
+            File.ReadAllBytes(Path.Combine(root, "maps", "official-catalog.json")), SampleConfigBinding.Load());
+        Assert.True(restored.Succeeded, restored.ErrorCode);
+        using DedicatedServerHostBinding host = restored.Binding!;
+        using WorldManager manager = host.Manager;
+        Assert.Equal(stamina, Stamina(manager, source.Player));
+        Assert.Empty(manager.World.Each<OrePileComponent>());
+        manager.Start(Thread.CurrentThread);
+        WorldTickBinding.Bind(manager);
+        manager.Tick();
+        Assert.Equal(legacy ? stamina : stamina - cost, Stamina(manager, source.Player));
+        Assert.Equal(legacy ? 0 : 1, manager.World.Each<OrePileComponent>().Count());
+        Assert.DoesNotContain(manager.World.Each<Lumio.Sample.Gameplay.Components.Mining.PendingDigComponent>(), row => row.Active.Value);
+        manager.Tick();
+        manager.Tick();
+        Assert.Equal(legacy ? stamina : stamina - cost, Stamina(manager, source.Player));
+        Assert.Equal(legacy ? 0 : 1, manager.World.Each<OrePileComponent>().Count());
+        Assert.DoesNotContain(manager.World.Each<Lumio.Sample.Gameplay.Components.Mining.PendingDigComponent>(), row => row.Active.Value);
+    }
+
     private static long Stamina(WorldManager manager, NetEntityId player) =>
         manager.World.Get<AttributeComponent>(player).GetBaseValue(SampleConfigBinding.For(manager.World).Stamina.Name);
 
@@ -430,8 +497,7 @@ public sealed class ProductionMiningTests
         WorldManager manager = host.Manager;
         manager.Start(Thread.CurrentThread);
         WorldTickBinding.Bind(manager);
-        // Tick 1 rebuilds the transient voxel services, tick 2 reconciles any restored pending record
-        // against the restored terrain, tick 3 makes the drop that reconciliation ordered live.
+        // The first business frame consumes restored results; later ticks also exercise non-repetition.
         for (int tick = 0; tick < 3; tick++) manager.Tick();
         return host;
     }
