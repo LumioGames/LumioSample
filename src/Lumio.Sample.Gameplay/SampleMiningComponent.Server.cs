@@ -146,8 +146,8 @@ public sealed partial class SampleMiningComponent
         HostVoxelWorldAdapter? adapter = VoxelGameplayBinding.Resolve(World.Manager);
         if (adapter is null || !vein.HasCell.Value || !_initialized) return false;
         // "Who digs owns the cell": one unsettled dig per player and one per vein. Two players may
-        // order digs on two veins of one section in one frame — Native refuses whichever loses the
-        // section revision race, and under tick.md §3 rule 5 a refusal settles nothing and retries.
+        // order digs on two veins of one section in one frame through one physical batch.
+        // Each logical result settles its own miner; a refusal pays nothing.
         string target = vein.Entity.ToHex();
         int inflight = 0;
         int owned = 0;
