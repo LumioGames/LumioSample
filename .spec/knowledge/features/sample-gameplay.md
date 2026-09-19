@@ -29,9 +29,11 @@ metadata:
 
 聊天说话人用 `NetEntityId.ToHex()`，不另造名字属性。
 
-玩法不读取作者时布局，也不重建底图。矿脉坐标、储量与掉落数量通过生成的持久字段保存；冷恢复使用现有 Native 方块、绑定与 ECS 实体重新建立瞬态服务。最终挖掘通过 `TryStageDigThrough` 在帧末发布空气和绑定移除，Runtime 销毁被绑定的矿脉实体；`mining_stage/pre/applied/post/reward/refused/restored` 日志分别记录暂存、实际发布、结算发出的奖励与被拒的地形单，不能单凭日志推断客户端已收到掉落。准入互斥按矿脉与按玩家各一条：同一矿脉同帧只允许一张地形单，第二人在准入第 5 步被拒；同段不同矿脉的两人同帧都可下单，Native 按段校验帧初 revision，输掉版本号的那张被正常拒绝，该玩家什么都没付、下一帧再来。单个玩家在途待结算的上限就是这一个槽（`PendingDigComponent.MaxPerPlayer`），单个世界的上限是 `PendingDigComponent.MaxPerWorld`；越界时拒绝新的挖掘激活，不排队也不扩表。R-00520 的实际 DS 输入、复制、拾取和冷重启验收仍需对应运行证据。
+玩法不读取作者时布局，也不重建底图。矿脉坐标、储量与掉落数量通过生成的持久字段保存；冷恢复使用现有 Native 方块、绑定与 ECS 实体重新建立瞬态服务。最终挖掘通过 `TryStageCoalescibleDigThrough` 在帧末发布空气和绑定移除，Runtime 销毁被绑定的矿脉实体；`mining_stage/pre/applied/post/reward/refused/restored` 日志分别记录暂存、实际发布、结算发出的奖励与被拒的地形单，不能单凭日志推断客户端已收到掉落。准入互斥按矿脉与按玩家各一条：同一矿脉同帧只允许一张地形单，第二人在准入第 5 步被拒；同段不同矿脉的两人同帧保留各自逻辑请求与输入归属，由 Runtime 合成一次物理 Native 提交，两处地形均在该帧发布；每位玩家仅在下一结果消费帧结算自己的真实成功。单个玩家在途待结算的上限就是这一个槽（`PendingDigComponent.MaxPerPlayer`），单个世界的上限是 `PendingDigComponent.MaxPerWorld`；越界时拒绝新的挖掘激活，不排队也不扩表。R-00520 的实际 DS 输入、复制、拾取和冷重启验收仍需对应运行证据。
 
-失败边界：地形单在 Execute 里没暂存成功（`StageFinal` 返回 false）就不扣体力、不减储量、不发奖励，但已受理的 GAS 激活序列仍消耗。已暂存的地形单若在第 8 相被 Native 拒绝（最常见的是他人先往同一段写了一笔、顶掉帧初 revision），Sample 在后续帧 `Advance` 排干结果时丢掉那笔待结算，体力 / 储量 / 掉落三样账本一动不动，既不抛异常也不把世界打成 Faulted——按 tick.md §3 规则 5 被拒是合法业务结果而不是故障，同一矿脉下一次挖掘照常进行；不存在「扣了费方块还在」的业务态。
+失败边界：地形单在 Execute 里没暂存成功（`StageFinal` 返回 false）就不扣体力、不减储量、不发奖励，并向当前 RPC operation 显式报告 BusinessReject，避免 GAS Completed 掩盖暂存失败；已受理的 GAS 激活序列仍消耗。已暂存的地形单若在第 8 相被 Native 拒绝（最常见的是他人先往同一段写了一笔、顶掉帧初 revision），Sample 在后续帧 `Advance` 排干结果时丢掉那笔待结算，体力 / 储量 / 掉落三样账本一动不动，既不抛异常也不把世界打成 Faulted——按 tick.md §3 规则 5 被拒是合法业务结果而不是故障，同一矿脉下一次挖掘照常进行；不存在「扣了费方块还在」的业务态。
+
+逻辑挖掘 ID 使用 `logical-dig:{world:x16}:{tick:x16}:{serial:x16}`，同 tick 的 serial 单调递增且单次使用，旧 Native Replay 入口不能重放它。Runtime 结果逐条保留逻辑 ID、原输入 operation、物理 `BatchTransactionId` 与原始 Native 回执；共享物理回执不合并玩家的待结算记录。结果被消费后查询为 Unknown，不授权再次执行（R-00647）。
 
 **跨帧待结算属于动态实体快照的一部分**（R-00650）：玩家实体上的 `PendingDigComponent` 与体素改动层、Runtime 未消费的真实事务结果在**同一个切点成组原子换档**（架构仓 [`save-load.md`](../../../../LumioGameEngine/.spec/knowledge/features/save-load.md) ①② 与 M4 / M9）。记录挂在矿工身上，因为成功挖掘会销毁矿脉实体。新 Host 在第一业务帧前恢复有界结果队列，Sample 在第 4 相按原 `TransactionId` 消费：成功才扣原记录的体力、生成掉落，被拒则清记录且不动账本；消费后的快照再次恢复不会重复结算。旧存档没有保存结果时，剩余记录按结果不可得丢弃，不抛异常、不打故障。空气或已清除的绑定不能证明是哪张事务成功，玩法不据此付款；Native 历史回执查询仍可返回 Unknown，不能替代这个同切点的未消费结果队列。
 

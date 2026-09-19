@@ -150,13 +150,12 @@ public sealed class ProductionMiningTests
         Assert.Equal(SampleConfigBinding.For(world.World).Mining.OrePerVein,
             Assert.Single(world.World.Each<OrePileComponent>()).Amount.Value);
 
-        // Sample owns the result queue now, so the settled transaction is already drained. Replaying
-        // it reports a duplicate and, with no pending record left, pays nothing a second time.
+        // A drained logical request is unavailable history, never a Native replay identity.
         string transaction = applied!.Value.TxnId;
-        Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageDigThrough(
+        Assert.Equal(VoxelStageStatus.OutcomeUnknown, world.Adapter.TryStageDigThrough(
             section, offset, revision, transaction, VoxelSubmissionIntent.Replay).Status);
         world.FlushCreates();
-        Assert.Equal(VoxelCommitDisposition.Duplicate, world.Adapter.DrainResults().Results.Single().Outcome.Disposition);
+        Assert.Empty(world.Adapter.DrainResults().Results);
         Assert.Equal(1, notifications);
         Assert.Single(world.World.Each<OrePileComponent>());
         Assert.Equal(0, world.StaminaBase);
