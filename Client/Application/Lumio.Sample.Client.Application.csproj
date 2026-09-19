@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <LumioEcsGenerate>false</LumioEcsGenerate>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Lumio.Client.Application" HintPath="$(LumioClientApplicationAssembly)" Private="true" />
+    <Reference Include="Lumio.Client.Session" HintPath="$(LumioClientSessionAssembly)" Private="true" />
+    <Reference Include="Lumio.Client.Replica" HintPath="$(LumioClientReplicaAssembly)" Private="true" />
+    <Reference Include="Lumio.Client.Input" HintPath="$(LumioClientApplicationDirectory)/Lumio.Client.Input.dll" Private="true" />
+    <Reference Include="Lumio.Client.Network.Connection" HintPath="$(LumioClientApplicationDirectory)/Lumio.Client.Network.Connection.dll" Private="true" />
+    <Reference Include="Lumio.Client.Network.Handshake" HintPath="$(LumioClientApplicationDirectory)/Lumio.Client.Network.Handshake.dll" Private="true" />
+    <ProjectReference Include="../UI/Chat/Lumio.Sample.Client.Chat.csproj" />
+  </ItemGroup>
+  <Target Name="RequireClientApplicationArtifacts" BeforeTargets="PrepareForBuild;ResolveAssemblyReferences">
+    <Error Condition="'$(LumioClientApplicationDirectory)' == '' or !Exists('$(LumioClientApplicationDirectory)/Lumio.Client.Input.dll')"
+           Text="SAMPLE_APPLICATION_CLIENT_GRAPH_MISSING: set LumioClientApplicationDirectory to the prebuilt Application output directory." />
+    <Error Condition="'$(LumioClientApplicationAssembly)' == '' or !Exists('$(LumioClientApplicationAssembly)')"
+           Text="SAMPLE_APPLICATION_CLIENT_MISSING: set LumioClientApplicationAssembly to the exact prebuilt Lumio.Client.Application.dll." />
+    <Error Condition="'$(LumioClientSessionAssembly)' == '' or !Exists('$(LumioClientSessionAssembly)')"
+           Text="SAMPLE_APPLICATION_SESSION_MISSING: set LumioClientSessionAssembly to the exact prebuilt Lumio.Client.Session.dll." />
+  </Target>
+</Project>
