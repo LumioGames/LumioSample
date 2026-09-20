@@ -146,8 +146,8 @@ public sealed partial class SampleMiningComponent
         HostVoxelWorldAdapter? adapter = VoxelGameplayBinding.Resolve(World.Manager);
         if (adapter is null || !vein.HasCell.Value || !_initialized) return false;
         // "Who digs owns the cell": one unsettled dig per player and one per vein. Two players may
-        // order digs on two veins of one section in one frame — Native refuses whichever loses the
-        // section revision race, and under tick.md §3 rule 5 a refusal settles nothing and retries.
+        // order digs on two veins of one section in one frame through one physical batch.
+        // Each logical result settles its own miner; a refusal pays nothing.
         string target = vein.Entity.ToHex();
         int inflight = 0;
         int owned = 0;
@@ -169,14 +169,14 @@ public sealed partial class SampleMiningComponent
     /// Orders the final dig and records what settling it would owe. Nothing is paid here; the record
     /// waits on the miner's <see cref="PendingDigComponent"/> — persisted state, not a process-only
     /// dictionary — until <see cref="Settle"/> reads the terrain result or <see cref="Reconcile"/>
-    /// reads the restored terrain.
+    /// reads the restored authentic result delivery.
     /// </summary>
     internal bool StageFinal(AbilityComponent owner, VeinReserveComponent vein)
     {
         if (!CanMine(owner, vein)) return false;
         HostVoxelWorldAdapter adapter = VoxelGameplayBinding.Resolve(World.Manager)!;
         VoxelCellQuery cell = adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
-        string transaction = NextTransaction("dig");
+        string transaction = $"{HostVoxelWorldAdapter.LogicalDigPrefix}{World.InstanceId:x16}:{World.Tick:x16}:{++_serial:x16}";
         ISampleConfig config = SampleConfigBinding.For(World);
         PendingDigComponent record = World.Get<PendingDigComponent>(owner.Entity);
         record.Transaction.Value = transaction;
@@ -191,7 +191,7 @@ public sealed partial class SampleMiningComponent
         record.Serial.Value = _serial;
         record.Active.Value = true;
         _awaiting.Add(transaction);
-        VoxelStageResult result = adapter.TryStageDigThrough(vein.SectionKey.Value, vein.CellOffset.Value,
+        VoxelStageResult result = adapter.TryStageCoalescibleDigThrough(vein.SectionKey.Value, vein.CellOffset.Value,
             cell.SectionRevision, transaction);
         if (result.Status == VoxelStageStatus.Staged)
         {
@@ -202,6 +202,9 @@ public sealed partial class SampleMiningComponent
         }
         Clear(record);
         _awaiting.Remove(transaction);
+        if (World.Manager.CurrentOperation is not null)
+            World.Manager.ReportCurrentOperationOutcome(new(OperationOutcomeKind.BusinessReject,
+                OperationCommitFact.NotApplied, result.Code ?? "voxel_mutation_rejected"));
         return false;
     }
 
