@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Lumio.GameRuntime.Ecs;
@@ -8,8 +9,18 @@ using Lumio.Sample.Gameplay.EntityTypes;
 
 namespace Lumio.Sample.Gameplay;
 
-/// <summary>Authority mining of a live cell-bound vein; the final hit settles when its terrain result returns.</summary>
-[AbilityType(2u, Prediction = PredictionKind.AuthorityOnly, Cost = "Stamina")]
+/// <summary>
+/// Mining of a live cell-bound vein. The final hit orders a terrain change and settles when that
+/// order's result returns (tick.md §3 rule 5).
+/// <para>
+/// Prediction is <see cref="PredictionKind.LogicPredict"/>: ADR-106 §1 requires the client's dig to
+/// change real terrain and collision at once, so the same <see cref="Execute"/> runs on both sides and
+/// the side-specific step is only <em>where the dig is ordered</em> — the authority stages it on the world's
+/// commit path, the client stages it into the GAS prediction session. Nothing here writes an Undo:
+/// GAS owns recording, correcting and replaying the unconfirmed window (ADR-106 §1/§3).
+/// </para>
+/// </summary>
+[AbilityType(2u, Prediction = PredictionKind.LogicPredict, Cost = "Stamina")]
 public sealed partial class MineAbility : AbilityType<MineAbility.Input>
 {
     /// <summary>Stable ability type id. Must stay <c>2</c>.</summary>
@@ -77,10 +88,92 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
         return delta.LengthSquared() <= reach * reach;
     }
 
-    /// <inheritdoc />
-    public override void Execute(in Input input, AbilityComponent owner) => ExecuteCore(in input, owner);
+    /// <summary>
+    /// One hit, written once for both sides. The hits that touch no terrain settle here, on the
+    /// business phase (tick.md §3 rule 5): nothing has to succeed elsewhere for the stamina and the
+    /// reserve to move. The final hit only <em>orders</em> the dig — <see cref="OrderFinalDig"/> — and what
+    /// settling it would owe is written by the side that owns the settlement, on the frame that
+    /// order's result comes back, and not at all when it is refused.
+    /// <para>
+    /// A refused order means nothing was ordered and nothing is owed, so no cooldown is charged
+    /// either; the activation still consumed its sequence.
+    /// </para>
+    /// </summary>
+    public override void Execute(in Input input, AbilityComponent owner)
+    {
+        if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId))
+            throw new InvalidOperationException("MineAbility.Execute requires a parsed target.");
+        if (!AdmitTarget(owner, veinId))
+            throw new InvalidOperationException("MineAbility.Execute requires a passed CanActivate.");
+
+        VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
+        if (!WithinReach(owner, veinId)) return;
+        ISampleConfig config = SampleConfigBinding.For(owner.World);
+        AttributeComponent attributes = owner.Get<AttributeComponent>();
+        string stamina = config.Stamina.Name;
+        long cost = config.Mining.StaminaCost;
+        if (attributes.GetBaseValue(stamina) < cost) return;
+
+        if (reserve.Remaining.Value <= 1)
+        {
+            bool ordered = false;
+            OrderFinalDig(owner, reserve, ref ordered);
+            if (!ordered) return;
+        }
+        else
+        {
+            attributes.SetBaseValue(stamina, attributes.GetBaseValue(stamina) - cost);
+            reserve.Remaining.Value -= 1;
+        }
+        owner.SetCooldown(TypeId, checked(owner.World.Tick + config.Mining.CooldownTicks));
+    }
+
+    /// <summary>What a side may do with the cell its predicted or authoritative view reports.</summary>
+    public enum PredictedDigVerdict
+    {
+        /// <summary>The cell is loaded, still holds a block and is still bound to this vein: dig it.</summary>
+        Order,
+
+        /// <summary>
+        /// The region is not loaded or its publication is pending. ADR-106 §8: unknown is never air and
+        /// no terrain is invented for a prediction — admit the input so the authority answers, and change
+        /// nothing locally.
+        /// </summary>
+        AwaitAuthority,
+
+        /// <summary>The view already knows the cell is gone, or that it is not this vein's cell.</summary>
+        Refuse,
+    }
+
+    /// <summary>
+    /// The whole "may I dig this cell now" rule, as a pure function of what one side's voxel view
+    /// reports, so both the client's local admission and its predicted order read the same rule and a
+    /// test can read it without a voxel world at all.
+    /// </summary>
+    /// <param name="hasCell">Whether the vein is bound to an authored cell at all.</param>
+    /// <param name="hasBlockId">Whether the view could answer with a block id for that cell.</param>
+    /// <param name="blockId">The block the view reports; <c>0</c> is air.</param>
+    /// <param name="boundEntityHex">The sparse binding the view reports for that cell, or null.</param>
+    /// <param name="veinHex">The vein this hit claims.</param>
+    public static PredictedDigVerdict ClassifyPredictedDig(bool hasCell, bool hasBlockId, uint blockId,
+        string? boundEntityHex, string veinHex)
+    {
+        if (!hasCell) return PredictedDigVerdict.Refuse;
+        if (!hasBlockId) return PredictedDigVerdict.AwaitAuthority;
+        if (blockId == 0) return PredictedDigVerdict.Refuse;
+        return string.Equals(boundEntityHex, veinHex, StringComparison.Ordinal)
+            ? PredictedDigVerdict.Order
+            : PredictedDigVerdict.Refuse;
+    }
 
     static partial void CheckBinding(AbilityComponent owner, VeinReserveComponent reserve, ref bool bound);
+
+    /// <summary>
+    /// Orders the cell dug. The authority stages it on the world's commit path; the client stages it
+    /// into the GAS prediction session so the hole and its collision exist at once (ADR-106 §1).
+    /// <paramref name="ordered"/> stays false when nothing was ordered.
+    /// </summary>
+    static partial void OrderFinalDig(AbilityComponent owner, VeinReserveComponent reserve, ref bool ordered);
 
     /// <summary>Legacy host probe retained for compatibility; production settlement uses the Native adapter.</summary>
     public static bool TryRequestAirWrite(World world, NetEntityId veinId)
@@ -88,7 +181,4 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
         ISampleVoxelWriter? writer = SampleVoxelWriterBinding.Resolve(world.Manager);
         return writer is not null && writer.TryWriteAir(veinId);
     }
-
-    static partial void ExecuteCore(in Input input, AbilityComponent owner);
-
 }

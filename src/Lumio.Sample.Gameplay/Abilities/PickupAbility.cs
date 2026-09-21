@@ -13,6 +13,15 @@ namespace Lumio.Sample.Gameplay;
 /// stamina is below the mining cost. Admission checks the drop is alive and within melee reach;
 /// Execute claims the pile and queues <see cref="PickupOreEffect"/>, which phase 9 settles on the
 /// picker's Ore base ledger (sample.md §2: pickup is a GAS instant Effect).
+/// <para>
+/// Stays <see cref="PredictionKind.AuthorityOnly"/> on purpose. ADR-106 puts digging and placing in the
+/// prediction domain because the player must see real terrain and real collision change under their own
+/// hand; pickup touches neither — no block, no binding, no sweep. What it does touch is exactly the part
+/// the same ADR keeps out of the client: claiming a pile and settling a reward Effect on a ledger, which
+/// gas.md M7 also declines to extend Effect prediction to in this round. Predicting it would buy a
+/// counter that ticks a round trip early and cost a second settlement path, so the reserve, the claim and
+/// the ledger stay where the vein's ore already is: on the authority.
+/// </para>
 /// </summary>
 [AbilityType(3u, Prediction = PredictionKind.AuthorityOnly)]
 public sealed partial class PickupAbility : AbilityType<PickupAbility.Input>
