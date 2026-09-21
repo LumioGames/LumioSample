@@ -107,6 +107,7 @@ public sealed class SourceHygieneTests
         Assert.DoesNotContain("power-loss", text);
         Assert.Contains("\"base_map_id\": \"sample\"", text);
         Assert.Contains("\"base_map_version\": \"0.1.0\"", text);
+        Assert.Contains("\"base_map_path\": \"maps/sample.voxel\"", text);
         Assert.DoesNotContain("0.1.0-placeholder", text);
         Assert.Matches(new Regex("\"base_map_content_sha256\": \"[0-9a-f]{64}\""), text);
         Assert.Contains("\"config_dir\": \"config\"", text);

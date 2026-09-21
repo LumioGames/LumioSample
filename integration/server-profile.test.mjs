@@ -30,6 +30,7 @@ test('committed server.json is runtime+voxel snapshot_only with required base_ma
   assert.equal(config.transport.voxel_quota_bytes, 65536);
   const map = inspectBaseMap();
   assert.equal(config.base_map_content_sha256, map.sha256);
+  assert.equal(config.base_map_path, map.path);
 });
 
 test('committed maps/sample.voxel is a restoreable VoxelEngine capture', () => {
@@ -54,6 +55,7 @@ test('sha mismatch and retired durability are refused before treating bytes as a
     durability: 'snapshot_only',
     base_map_id: 'sample',
     base_map_version: '0.1.0',
+    base_map_path: 'maps/sample.voxel',
     base_map_content_sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     clr: {
       entry_type: FROZEN_ENTRY_TYPE,
