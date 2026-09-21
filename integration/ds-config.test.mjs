@@ -71,6 +71,26 @@ test('missing required values are loud MISSING_VALUE errors, not BLOCKED_ENV', (
 });
 
 
+test('server.sample.json carries every key server.json needs so a copy is refused on values, not schema', () => {
+  // The template is only useful if a copied-unfilled file reaches the loud
+  // fill-me complaint. A key the sample is missing outright makes `lumio-ds
+  // --check-config` refuse it on serde grounds first, about a block the
+  // operator was never told to fill. Required-key parity with the runnable
+  // config is what keeps the rejection about the `replace-*` values.
+  assert.deepEqual(Object.keys(sample).sort(), Object.keys(committed).sort());
+  assert.deepEqual(Object.keys(sample.clr).sort(), Object.keys(committed.clr).sort());
+  // Kernel limits are local resource bounds, not Platform tickets: the sample
+  // states them explicitly (no hidden defaults) rather than tokenising them,
+  // so the generated per-run copy resolves from the template as-copied.
+  assert.deepEqual(sample.clr.kernel_config, committed.clr.kernel_config);
+  const dir = mkdtempSync(join(tmpdir(), 'sample-kernel-config-parity-'));
+  const input = join(dir, 'server.json');
+  const output = join(dir, 'kernel-config.json');
+  writeFileSync(input, `${JSON.stringify(sample)}\n`);
+  assert.doesNotThrow(() => writeKernelConfigForRun(input, output));
+  assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), committed.clr.kernel_config);
+});
+
 test('missing explicit KernelConfig is rejected instead of receiving hidden limits', () => {
   const path = new URL('../server.json', import.meta.url);
   const copy = JSON.parse(readFileSync(path, 'utf8'));
