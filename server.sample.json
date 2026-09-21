@@ -18,7 +18,16 @@
     "entry_method": "LumioHostEntry",
     "replication_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Replication.dll",
     "ecs_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Ecs.dll",
-    "registry_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll"
+    "registry_assembly": "src/Lumio.Sample.Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll",
+    "kernel_config": {
+      "maxContexts": 64,
+      "maxHandles": 4096,
+      "maxNativeBytes": 67108864,
+      "maxJobsQueued": 256,
+      "maxJobsRunning": 4,
+      "maxCompletionItems": 1024,
+      "logMailboxCapacity": 8192
+    }
   },
   "store_path": "state/room",
   "config_dir": "config",
