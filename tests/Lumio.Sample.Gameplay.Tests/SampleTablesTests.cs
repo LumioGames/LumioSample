@@ -118,8 +118,8 @@ public sealed class SampleTablesTests
         // A player owns one unsettled dig at a time (R-00650); that ceiling is a rule, not tuning.
         ("Components/Mining/PendingDigComponent.cs", "public const int MaxPerPlayer = 1;") => true,
         // One activation consumes one hit; the initial reserve comes from config.
-        ("Abilities/MineAbility.Server.cs", "if (reserve.Remaining.Value <= 1)") => true,
-        ("Abilities/MineAbility.Server.cs", "reserve.Remaining.Value -= 1;") => true,
+        ("Abilities/MineAbility.cs", "if (reserve.Remaining.Value <= 1)") => true,
+        ("Abilities/MineAbility.cs", "reserve.Remaining.Value -= 1;") => true,
         // Snapshot identity belongs to the loader lifecycle, not gameplay tuning.
         ("Config/SampleConfigBinding.cs", "if (!module.Stage(result.CreateSnapshot(new ConfigSnapshotId(1))).Staged || !module.ActivateAtBarrier(default).Activated)") => true,
         _ => false,
