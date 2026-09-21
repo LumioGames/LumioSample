@@ -36,6 +36,7 @@
   "durability": "snapshot_only",
   "base_map_id": "sample",
   "base_map_version": "0.1.0",
+  "base_map_path": "maps/sample.voxel",
   "base_map_content_sha256": "26c8115efd044496ad3132fa98c0608c02a1b0edbf5e32049b2bb9f116414df2",
   "checkpoint_seconds": 30,
   "checkpoint_max_bytes": 67108864,

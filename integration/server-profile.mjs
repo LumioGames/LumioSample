@@ -79,7 +79,7 @@ export function assertFrozenServerProfile(config, repoRoot = ROOT) {
   if (config.durability === 'process-crash' || config.durability === 'power-loss') {
     throw new Error('server.json must not use retired durability process-crash / power-loss.');
   }
-  for (const key of ['base_map_id', 'base_map_version', 'base_map_content_sha256']) {
+  for (const key of ['base_map_id', 'base_map_version', 'base_map_path', 'base_map_content_sha256']) {
     if (typeof config[key] !== 'string' || config[key].trim() === '') {
       throw new Error(`server.json ${key} is required`);
     }
@@ -99,6 +99,9 @@ export function assertFrozenServerProfile(config, repoRoot = ROOT) {
   }
   if (config.base_map_version !== FROZEN_BASE_MAP_VERSION) {
     throw new Error(`server.json base_map_version must be ${FROZEN_BASE_MAP_VERSION}`);
+  }
+  if (config.base_map_path !== map.path) {
+    throw new Error(`server.json base_map_path must name ${map.path}, not ${config.base_map_path}`);
   }
   if (!map.sha256 || config.base_map_content_sha256 !== map.sha256) {
     throw new Error('server.json base_map_content_sha256 must match maps/sample.voxel bytes');
