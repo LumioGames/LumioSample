@@ -10,7 +10,8 @@ namespace Lumio.Sample.Gameplay.EntityTypes;
 /// Admitted player. Identity binds platform accountId and display name;
 /// chat still names the speaker by net entity id.
 /// ADR-090 ledgers: Stamina and Ore, each Base + Current. Initials come from
-/// <c>config/attributes.json</c> via the bound typed gameplay config.
+/// the <c>attributes</c> table of the LumioConfig export (<c>config/server/attributes.json</c>)
+/// via the bound typed gameplay config.
 /// The miner also carries the one dig it has ordered but not yet settled, so that record rides the
 /// same dynamic-entity snapshot as the stamina it is about to debit (R-00650).
 /// </summary>
