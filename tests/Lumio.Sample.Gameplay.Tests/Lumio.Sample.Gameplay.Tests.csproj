@@ -10,6 +10,12 @@
     <LumioEcsGenerate>false</LumioEcsGenerate>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The bot scenario's decision procedure. Client/Bots is outside the solution because it
+         needs a prebuilt LumioClient artifact; its pure half has no such dependency, so it is
+         compiled in here and tested by the same `dotnet test LumioSample.slnx` as gameplay. -->
+    <Compile Include="../../Client/Bots/SampleMiningPlan.cs" Link="Bots/SampleMiningPlan.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/Lumio.Sample.Gameplay/Lumio.Sample.Gameplay.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Testing.Platform" />

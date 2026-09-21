@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <AssemblyName>Lumio.Sample.Bots</AssemblyName>
+    <RootNamespace>Lumio.Sample.Bots</RootNamespace>
+    <Description>Sample Bot.Host scenarios (--scenario assembly)</Description>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- This assembly declares no entities; it only drives the ones the gameplay assembly does. -->
+    <LumioEcsGenerate>false</LumioEcsGenerate>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Everything is Private="false" on purpose. Bot.Host loads this assembly as a plugin next to
+      the gameplay assembly it already loaded, and its resolver probes the scenario directory:
+      a copy of Lumio.Sample.Gameplay or Lumio.Client.Bot sitting here would shadow the host's
+      own copy with a second identity. Compile against them, ship none of them.
+    -->
+    <ProjectReference Include="../../src/Lumio.Sample.Gameplay/Lumio.Sample.Gameplay.csproj" Private="false" />
+    <Reference Include="Lumio.Client.Bot" HintPath="$(LumioClientBotAssembly)" Private="false" />
+    <Reference Include="Lumio.Client.Input" HintPath="$(LumioClientBotDirectory)/Lumio.Client.Input.dll" Private="false" />
+  </ItemGroup>
+  <!--
+    Private="false" only covers the two direct references; the Runtime graph still arrives
+    transitively through the gameplay reference. The host already owns every one of those
+    assemblies, so the plugin output is emptied of them here and ships as a single file.
+  -->
+  <Target Name="SampleBotsShipWithoutTheHostGraph" AfterTargets="ResolveReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" />
+    </ItemGroup>
+  </Target>
+  <!--
+    Same contract the other Client/ projects use: the prebuilt client artifact is named
+    explicitly, never discovered. This project is deliberately outside LumioSample.slnx for that
+    reason - `dotnet build LumioSample.slnx` must not need a LumioClient checkout.
+  -->
+  <Target Name="RequireClientBotArtifacts" BeforeTargets="PrepareForBuild;ResolveAssemblyReferences">
+    <Error Condition="'$(LumioClientBotAssembly)' == '' or !Exists('$(LumioClientBotAssembly)')"
+           Text="SAMPLE_BOTS_CLIENT_BOT_MISSING: set LumioClientBotAssembly to the exact prebuilt Lumio.Client.Bot.dll." />
+    <Error Condition="'$(LumioClientBotDirectory)' == '' or !Exists('$(LumioClientBotDirectory)/Lumio.Client.Input.dll')"
+           Text="SAMPLE_BOTS_CLIENT_GRAPH_MISSING: set LumioClientBotDirectory to the prebuilt Bot module output directory." />
+  </Target>
+</Project>

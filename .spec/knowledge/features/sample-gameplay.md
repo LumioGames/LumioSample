@@ -62,7 +62,7 @@ metadata:
 R-00654 要量「同 Section 内他人写入让幸存预测记录连带失效」的真实频率，需要一份稳定产生这个形态的负载：一个矿工在 Section S 里持一条未结算的地形单，另一个矿工在**同一 S 的另一格**落下权威写入把 revision 顶到 r+1，其余若干人只发 `MoveAbility`。
 
 - **可跑的那一半**：`tests/Lumio.Sample.Gameplay.Tests/MineContentionScenarioTests.cs` 用真 DS 装配（`DedicatedServerHostBinding.TryAttach` + `maps/sample.voxel` + 真 Native）跑这三个角色：两矿工同帧下单 → 同一批发布 → revision +1 → 各自只结算一次；随后一笔仍期望 r 的写入被合法拒绝、格子不变、世界照常跑（这正是连带失效的机制）；抢同一格的人拿到合法拒绝，不扣费、不重复奖励、格子不闪回成石头；只跑动的人一次都没动过 revision。它是被测客户端形态的**权威侧孪生**——服务器没有预测记录，但「谁在 r 上校验、谁把 S 顶到 r+1」是同一件事。
-- **还跑不了的那一半（Bot Host 直播）**：`--gameplay <玩法 dll> --scenario <场景 dll> --scenario-name <类型>` 是既定入口（`FoundationHostCommand`），本仓不改 `integration/launcher.mjs`（归 R-00520）。但场景类今天写不出来：`BotWorldView` 只给 Self / 计数 / 聊天窗，没有任何按类型枚举可见实体并读出 `NetEntityId` 的入口，而 `MineAbility.Input` 要的是矿脉 hex——机器人无从得知该挖谁；并且 Client 生产代码没有一处构造 `GasJointPrediction`，`HostVoxelWorldAdapter.Prediction` 始终为空，客户端挖格因此走 `AwaitAuthority`。这两条都在 Client，不在本仓补替代品。
+- **Bot Host 直播的那一半**：入口是 `--gameplay <玩法 dll> --scenario <场景 dll> --scenario-name Lumio.Sample.Bots.SampleMiningScenario`（`FoundationHostCommand`），本仓不改 `integration/launcher.mjs`（归 R-00520）。场景类已落在 `Client/Bots/`：`SampleMiningPlan` 是纯决策（随 slnx 编译与测试），`SampleMiningScenario` 只做适配。目标解析已通（Client `BotWorldView.VisibleEntities` 按 wire 名枚举并给出 `NetEntityId`，正是 `MineAbility.Input` 要的矿脉 hex）。**仍缺两条**：一是 `BotWorldView` 只给身份不给坐标，机器人无法朝矿脉导航，只能按确定性方形螺旋盲扫，进到近战距离才打得中；二是 Client 生产代码没有一处构造 `GasJointPrediction`，`HostVoxelWorldAdapter.Prediction` 始终为空，客户端挖格因此走 `AwaitAuthority`。这两条都在 Client，不在本仓补替代品。
 
 ## 待解决
 
