@@ -177,6 +177,8 @@ export function requiredLivePaths(env = process.env) {
     gameplay: env.LUMIO_GAMEPLAY,
     engineNative: env.LUMIO_ENGINE_NATIVE,
     engineNativePath: env.LUMIO_ENGINE_NATIVE_PATH,
+    // Same variable the launcher reads (#50): one name for the bot voxel budget across Tools/.
+    voxelConfig: env.LUMIO_BOT_VOXEL_CONFIG,
     configDir: env.LUMIO_CONFIG_DIR,
     chrome: env.LUMIO_CHROME || env.CHROME_PATH,
     spectatorOrigin: env.LUMIO_SPECTATOR_ORIGIN,

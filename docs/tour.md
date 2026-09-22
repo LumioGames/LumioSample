@@ -83,7 +83,7 @@ node Tools/launcher.mjs --bots 2 --stagger-ms 250
 
 按 ADR-101，这份文件**每个字段都得写满**，`prediction` 的九个限制一个都不能省——零是"显式关掉这项 Native 资源"的意思，和"没填"必须能区分，所以缺字段是拒绝而不是取默认值。数值依据见 [`Server/Assets/Maps/bot-voxel-budget.json` 的说明](#bot-体素预算的数值依据)。
 
-启动器默认就带上它。要回到 entity-only 形态（旁观者、纯移动压测 Bot 这类本来就不该拥有体素世界的跑法）用 `--voxel-config off`（也认 `none` / `false` / `0` / 空值），或 `LUMIO_BOT_VOXEL_CONFIG=off`。**entity-only 只对不发 Section 的房间成立**；对着本仓这份 `Server/Config/Startup/server.json` 用它，Bot 一定 fault。指了一个不存在的路径则是启动器当场报错，不会悄悄退回 entity-only。
+启动器默认就带上它。要回到 entity-only 形态（旁观者、纯移动压测 Bot 这类本来就不该拥有体素世界的跑法）用 `--voxel-config off`（也认 `none` / `false` / `0` / 空值），或 `LUMIO_BOT_VOXEL_CONFIG=off`。**entity-only 只对不发 Section 的房间成立**；DS 配置的 `world_profile` 含 voxel 时（本仓这份 `Server/Config/Startup/server.json` 就是）启动器不放 entity-only 的 Bot 出去——第 04 步直接 `BLOCKED_ENV`、一个 Bot 都不起，否则每个 Bot 都会在第一帧 SectionFrame 上 fault。指了一个不存在的路径则是启动器当场报错，不会悄悄退回 entity-only。
 
 **今天能跑**
 
