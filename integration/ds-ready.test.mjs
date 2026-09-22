@@ -89,3 +89,26 @@ test('SDK-backed Bot refuses a missing or blank typed-config export', () => {
     assert.throws(() => buildBotArgs({ kernelConfig: 'kernel.json', gameplay: 'Game.dll', configDir }), /--config-dir/);
   }
 });
+
+test('Bot.Host carries --voxel-config when a budget is given and omits it for the entity-only bot', () => {
+  const base = {
+    botDll: 'Lumio.Client.Bot.Host.dll',
+    endpoint: 'ws://127.0.0.1:9110/',
+    admissionTicket: 'ticket_123',
+    engineNative: 'lumio.dll',
+    kernelConfig: 'run/kernel-config.json',
+    logDir: 'logs/bot',
+    accountFrom: 'Bot1',
+    gameplay: 'Lumio.Sample.Gameplay.dll',
+    configDir: 'exports/sample',
+  };
+  const withVoxel = buildBotArgs({ ...base, voxelConfig: 'maps/bot-voxel-budget.json' });
+  assert.equal(withVoxel[withVoxel.indexOf('--voxel-config') + 1], 'maps/bot-voxel-budget.json');
+
+  // Absent is the stated entity-only bot (ADR-101): no flag at all, not an empty value that
+  // Bot.Host would have to interpret. Unlike --kernel-config / --gameplay / --config-dir this
+  // one does not throw, because owning no voxel world is a configuration, not an omission.
+  for (const voxelConfig of [undefined, null, '', '   ']) {
+    assert.ok(!buildBotArgs({ ...base, voxelConfig }).includes('--voxel-config'));
+  }
+});

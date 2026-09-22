@@ -11,6 +11,7 @@ import {
   parseBotAdmit,
   parseLaunchArgs,
   planLaunchLogins,
+  resolveBotVoxelConfig,
   resolveSpectatorPageUrl,
   runLauncher,
 } from './launcher.mjs';
@@ -111,9 +112,19 @@ function runnableDsConfig() {
   };
 }
 
+/** The committed budget plus its catalog, copied so an isolated root resolves them the same way. */
+function voxelBudgetFiles(isolated) {
+  const maps = join(isolated, 'maps');
+  mkdirSync(maps, { recursive: true });
+  writeFileSync(join(maps, 'official-catalog.json'), readFileSync(join(HERE, '..', 'maps', 'official-catalog.json')));
+  writeFileSync(join(maps, 'bot-voxel-budget.json'), readFileSync(join(HERE, '..', 'maps', 'bot-voxel-budget.json')));
+  return join(maps, 'bot-voxel-budget.json');
+}
+
 function launchFiles(isolated) {
   const dsConfig = join(isolated, 'server.json');
   writeFileSync(dsConfig, `${JSON.stringify(runnableDsConfig())}\n`);
+  voxelBudgetFiles(isolated);
   return {
     dsExe: touch(isolated, 'lumio-ds'),
     dsConfig,
@@ -763,4 +774,87 @@ test('unfilled sample tokens on the DS config are a loud missing-value FAIL, not
   assert.equal(report.steps.find((step) => step.id === '03').status, 'FAIL');
   assert.match(report.steps.find((step) => step.id === '03').detail, /missing required value/);
   assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /BLOCKED_ENV/);
+});
+
+test('the committed Bot voxel budget states every field BotVoxelConfig has no default for', () => {
+  const budget = JSON.parse(readFileSync(new URL('../maps/bot-voxel-budget.json', import.meta.url), 'utf8'));
+  assert.deepEqual(
+    Object.keys(budget).sort(),
+    ['catalogPath', 'prediction', 'receiptRetentionEntries', 'residentSectionBudget'],
+  );
+  // catalogPath resolves against the budget file's OWN directory, not the process cwd.
+  assert.ok(existsSync(resolve(HERE, '..', 'maps', budget.catalogPath)));
+  // Native refuses receiptRetentionEntries=0 (sdk-native voxel.rs NativeVoxelProvider::create),
+  // so a zero here would pass the loader and then be rejected at world creation.
+  assert.ok(budget.receiptRetentionEntries >= 1);
+  // The sample map is 32x32x16 = 4 Sections (server.json voxel_baseline_region 0,0,0..1,0,1).
+  assert.ok(budget.residentSectionBudget >= 4);
+  assert.deepEqual(Object.keys(budget.prediction).sort(), [
+    'bindingTextSlotBytes', 'maxBindingJournal', 'maxBindingTextEntries', 'maxBlockJournal',
+    'maxOverlaySlots', 'maxRecords', 'maxValidationCellsPerSection', 'maxValidationSections',
+    'totalRetainedPayloadCeiling',
+  ]);
+  const p = budget.prediction;
+  // required_retained_bytes() refuses max_records=0 or a zero ceiling outright, then refuses the
+  // session when the summed array layout exceeds the ceiling. The measured floor for these nine
+  // values is 13424 bytes (lumio-voxel-world prediction::required_retained_bytes).
+  assert.ok(p.maxRecords > 0);
+  assert.ok(p.totalRetainedPayloadCeiling >= 13_424);
+  // Overlay keys are one per distinct (cell, binding) pair across both journals; a smaller
+  // budget would refuse a journal the other two limits allow.
+  assert.ok(p.maxOverlaySlots >= p.maxBlockJournal + p.maxBindingJournal);
+  // One text slot per retained binding write, and NetEntityId.ToHex() is 32 UTF-8 bytes.
+  assert.ok(p.maxBindingTextEntries >= p.maxBindingJournal);
+  assert.ok(p.bindingTextSlotBytes >= 32);
+});
+
+test('bots carry the committed voxel budget by default and --voxel-config off keeps entity-only', () => {
+  assert.equal(parseLaunchArgs([], {}).voxelConfig, undefined);
+  assert.equal(parseLaunchArgs([], { LUMIO_BOT_VOXEL_CONFIG: 'off' }).voxelConfig, 'off');
+  assert.equal(
+    parseLaunchArgs(['--voxel-config', 'off'], { LUMIO_BOT_VOXEL_CONFIG: 'maps/x.json' }).voxelConfig,
+    'off',
+  );
+
+  const sampleRoot = resolve(HERE, '..');
+  assert.equal(resolveBotVoxelConfig(undefined, sampleRoot), join(sampleRoot, 'maps', 'bot-voxel-budget.json'));
+  for (const off of ['off', 'OFF', 'none', 'false', '0', '', '  ']) {
+    assert.equal(resolveBotVoxelConfig(off, sampleRoot), null, `${JSON.stringify(off)} must be entity-only`);
+  }
+  // A budget the operator named but that is not there is a loud launcher refusal, never a silent
+  // fall back to the entity-only bot that then faults on its first SectionFrame.
+  assert.throws(() => resolveBotVoxelConfig('maps/not-here.json', sampleRoot), /--voxel-config/);
+});
+
+test('started bots receive --voxel-config, and off starts them without it', async () => {
+  for (const [voxelConfig, expected] of [[undefined, true], ['off', false]]) {
+    const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-voxel-'));
+    const evidenceDir = join(isolated, 'evidence');
+    const tools = processTools({ evidenceDir, botLogs: [admitLine('Bot1')] });
+    const report = await runLauncher({
+      root: isolated,
+      env: {},
+      bots: 1,
+      staggerMs: 0,
+      durationMs: 0,
+      timeoutMs: 5_000,
+      voxelConfig,
+      sessions: [session('Bot1', 'ticket-one')],
+      ...launchFiles(isolated),
+      processTools: tools,
+      log() {},
+      evidenceDir,
+    });
+    const botStart = tools.events.find((event) => event.kind === 'start' && event.args.includes('--gameplay'));
+    assert.equal(botStart.args.includes('--voxel-config'), expected);
+    if (expected) {
+      assert.equal(
+        botStart.args[botStart.args.indexOf('--voxel-config') + 1],
+        join(isolated, 'maps', 'bot-voxel-budget.json'),
+      );
+      assert.equal(report.botVoxelConfig, join(isolated, 'maps', 'bot-voxel-budget.json'));
+    } else {
+      assert.equal(report.botVoxelConfig, null);
+    }
+  }
 });

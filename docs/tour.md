@@ -73,6 +73,18 @@ node integration/launcher.mjs --bots 2 --stagger-ms 250
 
 启动器按 `--bots N` 规划 `Bot1`…`BotN`，错峰 `--stagger-ms`，每名 Bot 一张 [`loginAndLaunch`](../integration/account-client.mjs#L313) 票。[`collectLaunchTickets`](../integration/launcher.mjs#L93) 拒绝复用。票交给 Client `Bot.Host`（`LUMIO_BOT_DLL`），并带 `--gameplay`（`LUMIO_GAMEPLAY` 或本仓 `Lumio.Sample.Gameplay.dll`）。本仓不写场景类去顶替宿主接口。
 
+### Bot 要进体素世界，必须带 `--voxel-config`
+
+这个房间的 [`server.json`](../server.json) 冻在 `world_profile=runtime+voxel`，DS 会向每名 Bot 推 SectionFrame。**没带 `--voxel-config` 的 Bot 收到第一帧就 `session_faulted`**：`ClientSession.HandleSectionFrame` 里 `ResolveVoxelSink()` 为 null 就直接 `FailSession`。
+
+**这是 ADR-112 修订 2 ⑨ 要的 fail-closed 行为，不是缺陷。** 没有体素预算的 Bot 拿不到 Section sink、关不了权威组、挂不上 GAS 联合预测；让它"忽略 SectionFrame 继续跑"就是 ADR-106 决策 1 明令禁止的静默降级——表面在动，实际什么都没预测。所以引擎选择响亮地停，而不是安静地假装。修复之前帧根本到不了 Bot，所以这条在 2026-09-22 端到端验证打通下行链之后才第一次被触发。
+
+预算落在 [`maps/bot-voxel-budget.json`](../maps/bot-voxel-budget.json)，和它的 `catalogPath` 目标 [`maps/official-catalog.json`](../maps/official-catalog.json)（DS 用的同一份目录表）同目录——`BotVoxelConfig` 是**按预算文件自己所在目录**解析 `catalogPath` 的，不是按进程 cwd，所以两份文件一起搬也不会断。它不放 `config/`：那整棵树是 LumioConfig 的编译产物，`sync-config-export.mjs --check` 逐字节比对，手写文件进去会污染 `outputHash`。
+
+按 ADR-101，这份文件**每个字段都得写满**，`prediction` 的九个限制一个都不能省——零是"显式关掉这项 Native 资源"的意思，和"没填"必须能区分，所以缺字段是拒绝而不是取默认值。数值依据见 [`maps/bot-voxel-budget.json` 的说明](#bot-体素预算的数值依据)。
+
+启动器默认就带上它。要回到 entity-only 形态（旁观者、纯移动压测 Bot 这类本来就不该拥有体素世界的跑法）用 `--voxel-config off`（也认 `none` / `false` / `0` / 空值），或 `LUMIO_BOT_VOXEL_CONFIG=off`。**entity-only 只对不发 Section 的房间成立**；对着本仓这份 `server.json` 用它，Bot 一定 fault。指了一个不存在的路径则是启动器当场报错，不会悄悄退回 entity-only。
+
 **今天能跑**
 
 ```bash
@@ -165,3 +177,24 @@ node integration/launcher.mjs --bots 2 --stagger-ms 250
 ## 100 人压测门
 
 `node integration/stress-move.mjs` 写出 `verification.json` 的五条判据骨架。帧时钟必须是 NativeCore `clock_now`，Stopwatch 不算。未对着真 100 Bot / 5 分钟跑过之前，不得声称五条已过（R-00588 / ADR-084）。
+
+`stress-move.mjs` 与 `spectator-100.mjs` 今天仍按 entity-only 形态起 Bot，没接 `--voxel-config`。对着本仓这份 `runtime+voxel` 的 `server.json`，它们同样会在第一帧 Section 上 fault；接线归各自的卡，不在本节的十四步启动器里。
+
+## Bot 体素预算的数值依据
+
+[`maps/bot-voxel-budget.json`](../maps/bot-voxel-budget.json) 是 JSON，装不下注释，而 `BotVoxelConfig` 又**拒绝任何未知字段**，所以依据记在这里。地图事实：`sample.layout.json` 是 32×32×16，Section 是 16³，`server.json` 的 `voxel_baseline_region` 是 `0,0,0..1,0,1`——**全图 4 个 Section**（`s:0:0:0` / `s:0:0:1` / `s:1:0:0` / `s:1:0:1`）。玩法事实：`config/source/tables/mining.txt` 的 `cooldown_ticks=1`，即 20 Hz 下每帧都可能压进一次挖掘预测。
+
+| 字段 | 值 | 依据 |
+|---|---|---|
+| `catalogPath` | `official-catalog.json` | 与 `server.json` 的 `voxel_catalog` 同一份目录表。`BotVoxelConfig` 按**预算文件自己所在目录**解析相对路径，所以同目录的裸文件名最稳，不用 `..` 穿越 |
+| `residentSectionBudget` | 8 | 全图 4 个 Section 是下限；取 2× 留余量。它进 Native 的 `PinBudget::new(8, 8)`，同时 `max_pinned_revisions = 64.max(8) = 64`，与 DS 侧同一档发布深度 |
+| `receiptRetentionEntries` | 64 | 进 `WorldLimits.max_receipts`。**不能是 0**：`NativeVoxelProvider::create` 对 0 直接 `InvalidArgument`（ABI 口径是 1..u32::MAX，active 与 terminal 各 N、合计至多 2N）。终态回执按最旧优先回收，窗口只需覆盖在途 + 近期历史；64 在 20 Hz 最坏情况下约 3 秒 |
+| `prediction.totalRetainedPayloadCeiling` | 65536 | **实测**下限。`lumio-voxel-world` 的 `required_retained_bytes()` 对下面这八项数值算出 **13424 字节**（本机跑真函数所得，非手算）；低于它 `OpenPrediction` 直接 `CapacityExceeded`。取 64 KiB ≈ 4.9× 余量。它只是开会话时的一次性分配闸门，不按上限预留内存，所以余量不花运行时代价 |
+| `prediction.maxRecords` | 32 | 未确认输入的记录条数。`cooldown_ticks=1` 意味着每帧一条，32 条 ≈ 20 Hz 下 1.6 秒的未确认窗口；超了驱动挂起而不是崩。单测夹具里的 8 是测试下限，不是生产窗口 |
+| `prediction.maxBlockJournal` | 64 | = `maxRecords × 2`。一次挥镐写 1 格；2× 覆盖"同一条记录里既清矿石又写空气"的两格形态 |
+| `prediction.maxBindingJournal` | 32 | = `maxRecords × 1`。示例里唯一会被预测的 binding 是矿脉储量那条稀疏引用（挖穿时解绑），每条记录至多一次 |
+| `prediction.maxOverlaySlots` | 96 | = `maxBlockJournal + maxBindingJournal`。overlay key 是"每个不同的 (格, 是否 binding) 一个"，最坏情况每次写都落在不同格；取小于这个和的值，会去拒绝另外两条限制本来允许的日志 |
+| `prediction.maxValidationSections` | 4 | 每次 stage 前清零，只数**这一次** stage 摸到的 Section。全图就 4 个，再大也够不着 |
+| `prediction.maxValidationCellsPerSection` | 64 | 同样是每次 stage 的量。一次挖掘 stage 只有 1–2 格，64 远超任何真实单次 stage，又远小于一个 Section 的 4096 格 |
+| `prediction.maxBindingTextEntries` | 32 | = `maxBindingJournal`。每条"设置 binding"的写占一个文本槽；取等值，装满 binding 日志时不会反过来卡在文本槽上 |
+| `prediction.bindingTextSlotBytes` | 64 | 示例写进 binding 的身份是 `NetEntityId.ToHex()`，**定长 32 个 ASCII 字符 = 32 字节**（`NetEntityId.cs`）。取 2× 留给将来换身份编码；超长文本会被 `CapacityExceeded` 拒掉 |
