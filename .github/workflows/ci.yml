@@ -265,7 +265,7 @@ jobs:
   # HostEntry built in *this* run, which is what the cases demand.
   server-hostentry:
     name: Build Lumio.Server.HostEntry for the moved admit/spawn cases
-    if: true  # TEMP(R-00702): 本单取证用,合入前必须改回 github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -379,7 +379,7 @@ jobs:
 
   server-host:
     name: Engine admit/spawn cases on the Sample registry (ADR-115 §3)
-    if: true  # TEMP(R-00702): 本单取证用,合入前必须改回 github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request'
     needs: server-hostentry
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -443,8 +443,6 @@ jobs:
         with:
           name: server-hostentry-linux-x64
           path: ${{ runner.temp }}/hostentry
-      - name: TEMP(R-00702) mutation proof; delete the HostEntry artifact on purpose
-        run: rm -v "$RUNNER_TEMP/hostentry/Lumio.Server.HostEntry.dll"
       - name: Download the packed SDK that produced it
         uses: actions/download-artifact@v7
         with:
