@@ -32,6 +32,32 @@ const DEFAULT_SPECTATOR_PATH = '/modules/web/spectator/';
 const DEFAULT_SPECTATOR_ORIGIN = 'http://127.0.0.1';
 const BOOLEAN_FLAGS = new Set(['spectator']);
 
+/**
+ * The committed Bot voxel budget (ADR-101 explicit host configuration). It is ON by default
+ * because `server.json` freezes this room at `world_profile=runtime+voxel`: the DS pushes
+ * SectionFrames at every bot, and a bot with no voxel sink faults on the first one
+ * (`ClientSession.HandleSectionFrame` → `FailSession`, ADR-112 修订 2 ⑨ fail-closed). A
+ * default of "off" would ship a fourteen-step launcher that is known to fault at step 04.
+ *
+ * `--voxel-config off` (or `none` / an empty value) keeps the entity-only bot, which is a
+ * stated shape, not a downgrade: a spectator or a pure-movement stress bot owns no voxel world
+ * and has no business paying for a prediction session. Its sections then never arrive, so it
+ * must only be used against a room that sends none.
+ */
+const DEFAULT_BOT_VOXEL_CONFIG = 'maps/bot-voxel-budget.json';
+const VOXEL_CONFIG_OFF = new Set(['off', 'none', 'false', '0', '']);
+
+/**
+ * Returns the resolved budget path, or null for the stated entity-only bot. The default lives
+ * here and nowhere else, so every entry point — CLI, environment, direct `runLauncher` call —
+ * gets the same answer and `off` is the only road to entity-only.
+ */
+export function resolveBotVoxelConfig(value, root = ROOT) {
+  const text = String(value ?? DEFAULT_BOT_VOXEL_CONFIG).trim();
+  if (VOXEL_CONFIG_OFF.has(text.toLowerCase())) return null;
+  return requiredFile(resolve(root, text), '--voxel-config');
+}
+
 export class UsageError extends Error {
   constructor(message) {
     super(message);
@@ -71,6 +97,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     botDll: environment.LUMIO_BOT_DLL,
     gameplay: environment.LUMIO_GAMEPLAY,
     configDir: environment.LUMIO_CONFIG_DIR,
+    voxelConfig: environment.LUMIO_BOT_VOXEL_CONFIG,
     engineNative: environment.LUMIO_ENGINE_NATIVE,
     endpoint: environment.LUMIO_DS_ENDPOINT,
     dotnet: environment.LUMIO_DOTNET || 'dotnet',
@@ -94,6 +121,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     'bot-dll': 'botDll',
     gameplay: 'gameplay',
     'config-dir': 'configDir',
+    'voxel-config': 'voxelConfig',
     'engine-native': 'engineNative',
     endpoint: 'endpoint',
     dotnet: 'dotnet',
@@ -382,8 +410,11 @@ function printStep(log, id, status, detail) {
 function usage() {
   return [
     'Usage: node integration/launcher.mjs --bots N [--stagger-ms 250] [--origin url]',
-    '  [--spectator] [--spectator-url url] [--duration-ms ms]',
+    '  [--spectator] [--spectator-url url] [--duration-ms ms] [--voxel-config path|off]',
     'Internal-only first stage: Platform image is built from a private compose file.',
+    `Bots carry ${DEFAULT_BOT_VOXEL_CONFIG} by default; this room is world_profile=runtime+voxel,`,
+    '  and a bot with no voxel budget faults on its first SectionFrame (ADR-112 修订 2 ⑨, by design).',
+    '  --voxel-config off keeps the entity-only bot for a room that sends no Sections.',
     'Required for a live run: LUMIO_PLATFORM_ORIGIN, LUMIO_DS_EXE, LUMIO_BOT_DLL,',
     '  LUMIO_GAMEPLAY, LUMIO_ENGINE_NATIVE, LUMIO_BOT_TOOL_CREDENTIAL, sibling process-tools.mjs.',
     'Spectator page origin defaults to LUMIO_SPECTATOR_ORIGIN or http://127.0.0.1/modules/web/spectator/.',
@@ -555,6 +586,13 @@ export async function runLauncher(options = {}) {
     const configDir = options.configDir == null
       ? resolve(dirname(dsConfig), requiredValue(JSON.parse(readFileSync(dsConfig, 'utf8')).config_dir, 'DS config_dir'))
       : resolve(root, requiredValue(options.configDir, '--config-dir'));
+    // Resolved once, before any bot starts: a budget file the operator named but that is not
+    // there is a launcher error, not N bots each faulting on their first SectionFrame.
+    const voxelConfig = resolveBotVoxelConfig(options.voxelConfig, root);
+    report.botVoxelConfig = voxelConfig;
+    log(voxelConfig
+      ? `bot voxel budget: ${voxelConfig}`
+      : 'bot voxel budget: entity-only (--voxel-config off); this bot faults if the room sends Sections.');
     const botSessions = spectatorMode ? sessions.slice(0, botCount) : sessions;
     const botChildren = [];
     for (const [index, session] of botSessions.entries()) {
@@ -572,6 +610,7 @@ export async function runLauncher(options = {}) {
         accountFrom: session.login.loginName,
         accountTo: session.login.loginName,
         gameplay,
+        voxelConfig,
       });
       log(`$ ${JSON.stringify([dotnet, ...redactArgs(args, session.launch.admissionCredential)])}`);
       const bot = tools.startLogged(dotnet, args, {

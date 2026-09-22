@@ -50,13 +50,22 @@ export function buildServerArgs(configPath) {
   return ['--config', configPath];
 }
 
-export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, kernelConfig, configDir, logDir, accountFrom, accountTo, gameplay }) {
+/**
+ * `voxelConfig` is the one optional path here, and deliberately so. Bot.Host reads it as
+ * ADR-101 explicit host configuration: absent means the entity-only bot, which owns no voxel
+ * world and is a stated shape rather than a degraded one. A bot that joins a
+ * `world_profile=runtime+voxel` room WITHOUT it faults on the first SectionFrame it receives —
+ * `ClientSession.HandleSectionFrame` calls `FailSession` when `ResolveVoxelSink()` is null,
+ * which is ADR-112 修订 2 ⑨'s fail-closed refusal of a silent downgrade, not a defect. So the
+ * caller decides; this function only refuses to invent a budget of its own.
+ */
+export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, kernelConfig, configDir, logDir, accountFrom, accountTo, gameplay, voxelConfig }) {
   if (kernelConfig == null || String(kernelConfig).trim() === '') throw new TypeError('kernel config path is required (--kernel-config).');
   if (gameplay == null || String(gameplay).trim() === '') {
     throw new TypeError('gameplay assembly path is required (--gameplay).');
   }
   if (configDir == null || String(configDir).trim() === '') throw new TypeError('typed config export directory is required (--config-dir).');
-  return [
+  const args = [
     botDll,
     '--server', endpoint,
     '--admission-ticket', admissionTicket,
@@ -68,6 +77,10 @@ export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, 
     '--gameplay', gameplay,
     '--config-dir', configDir,
   ];
+  if (voxelConfig != null && String(voxelConfig).trim() !== '') {
+    args.push('--voxel-config', String(voxelConfig).trim());
+  }
+  return args;
 }
 
 export function redactArgs(args, secret) {

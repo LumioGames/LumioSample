@@ -43,7 +43,7 @@
 - 用它当模板建新仓。
 - 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。`server.json` 是可运行的 DS 模板（runtime+voxel + snapshot_only）；allocation / 准入公钥是本机句法 stand-in。填我用的 `replace-*` 留在 `server.sample.json`，未填时报响亮缺值，不是占位 `BLOCKED_ENV`。
 - 玩法声明已在 `src/Lumio.Sample.Gameplay/`：世界 / 玩家 / 聊天 / 跑动技能 / 矿脉储量 / 掉落 / 拾取 Effect。数值在 `config/*.json`。
-- 一条命令的启动器是 `node integration/launcher.mjs --bots N`。没有 Platform / `lumio-ds` / Bot.Host 时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，不会假绿。
+- 一条命令的启动器是 `node integration/launcher.mjs --bots N`。没有 Platform / `lumio-ds` / Bot.Host 时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，不会假绿。它默认给每名 Bot 带上 `--voxel-config maps/bot-voxel-budget.json`：这个房间是 `world_profile=runtime+voxel`，**不带体素预算的 Bot 收到第一帧 SectionFrame 就 `session_faulted`**，那是 ADR-112 修订 2 ⑨ 的 fail-closed 设计行为不是缺陷（详见 [`docs/tour.md` 第 4 步](docs/tour.md)）。旁观者、纯移动压测这类本就不该拥有体素世界的跑法用 `--voxel-config off` 回到 entity-only 形态，但那只对不发 Section 的房间成立。
 
 **还没有的**：对着真 Platform + DS + C# Bot 跑通十四步；100 人移动压测的五条实测证据；存档冷恢复（R-00498 / R-00507）；体素写（R-00469）。`maps/sample.voxel` 已是 Engine capture CLI 产出的可 restore Cube 平面快照（DS 开机只 restore，不重算地形）。`server.json` 已冻成 `world_profile=runtime+voxel`、`durability=snapshot_only`（persistence-container-v1 词表），并要求 `base_map_id` / `base_map_version` / `base_map_content_sha256`。本机覆盖在 gitignored 的 [`.run/server.local.json`](.run/server.local.json)，须抄这份公共词表，不要再写 `runtime-only` / `process-crash`。旧的程序化地图生成器已删除。
 
