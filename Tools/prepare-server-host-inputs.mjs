@@ -16,6 +16,13 @@
  *     --gameplay-bin <Gameplay/bin/Release/net10.0> \
  *     --output <scratch dir for the voxel fixture>
  *
+ * `--gameplay-bin` must be a build against the *same* `Lumio.Engine.SDK`
+ * release HostEntry was compiled against. HostEntry checks that at boot and
+ * answers `sdk_version_mismatch` otherwise (ADR-102) — a sibling-mode gameplay
+ * build carries Runtime 1.0.0 assemblies and a packaged HostEntry wants 0.1.0.
+ * The three-path Runtime is read out of that same directory for the same
+ * reason, so one matched set covers host, runtime and gameplay.
+ *
  * The voxel fixture is *made here, from this run's native image*, never read
  * from a committed directory. `LumioGameRuntime/modules/coordination/tests/
  * fixtures/voxel-native` is authored against a different native build; the
@@ -160,16 +167,16 @@ export function buildVoxelFixture({ engineRoot, native, output, execute = spawnS
  */
 export function resolveInputs({ hostEntryDirectory, gameplayBin, configDir, fixtureDirectory } = {}) {
   const gameplay = requireDirectory(gameplayBin, 'LUMIO_SAMPLE_GAMEPLAY_DLL',
-    'the server-side Gameplay build output of this run (dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -c Release)');
+    'the server-side Gameplay build output of this run, built against the same SDK release as HostEntry (ADR-102)');
   const values = {
     LUMIO_SERVER_HOSTENTRY_DLL: requireFile(
       hostEntryDirectory ? join(resolve(hostEntryDirectory), 'Lumio.Server.HostEntry.dll') : undefined,
       'LUMIO_SERVER_HOSTENTRY_DLL',
       'this run\'s Lumio.Server.HostEntry.dll, from the server-hostentry job artifact'),
     LUMIO_RUNTIME_REPLICATION_DLL: requireFile(join(gameplay, 'Lumio.GameRuntime.Replication.dll'),
-      'LUMIO_RUNTIME_REPLICATION_DLL', 'the named three-path Runtime, beside the Gameplay build'),
+      'LUMIO_RUNTIME_REPLICATION_DLL', 'the named three-path Runtime, from the same SDK release, beside the Gameplay build'),
     LUMIO_RUNTIME_ECS_DLL: requireFile(join(gameplay, 'Lumio.GameRuntime.Ecs.dll'),
-      'LUMIO_RUNTIME_ECS_DLL', 'the named three-path Runtime, beside the Gameplay build'),
+      'LUMIO_RUNTIME_ECS_DLL', 'the named three-path Runtime, from the same SDK release, beside the Gameplay build'),
     LUMIO_SAMPLE_GAMEPLAY_DLL: requireFile(join(gameplay, 'Lumio.Sample.Gameplay.dll'),
       'LUMIO_SAMPLE_GAMEPLAY_DLL', 'this run\'s server-side Sample gameplay assembly'),
     LUMIO_CONFIG_DIR: requireDirectory(configDir ?? join(ROOT, 'Server/Config/Tables'),

@@ -343,6 +343,27 @@ jobs:
           path: LumioServer/Application/HostEntry/src/Lumio.Server.HostEntry/bin/Release/net10.0/**
           if-no-files-found: error
           retention-days: 7
+      # ADR-102: HostEntry refuses Runtime assemblies that are not its matched
+      # SDK release — the first CI run of this job failed with
+      # `sdk_version_mismatch: compiled against Lumio.Engine.NativeLoader.Hfsm
+      # 0.1.0 but ... is release 1.0.0`, because the Sample gameplay had been
+      # built in sibling mode against Runtime source. The package that produced
+      # this HostEntry therefore travels with it, and the test job builds the
+      # gameplay against that same package rather than against a checkout.
+      - name: Stage the packed SDK for the test job
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sdk-feed"
+          cp "$LumioLocalFeed"/*.nupkg "$RUNNER_TEMP/sdk-feed/"
+          cp "$SERVER_SDK_EVIDENCE/engine-identity.json" "$RUNNER_TEMP/sdk-feed/identity.json"
+          ls -l "$RUNNER_TEMP/sdk-feed"
+      - name: Publish the packed SDK for the test job
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-hostentry-sdk-feed
+          path: ${{ runner.temp }}/sdk-feed/**
+          if-no-files-found: error
+          retention-days: 7
       - name: Retain the SDK selection evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -363,7 +384,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
+      # Deliberately no LumioRuntimeRoot: the gameplay in this job is built
+      # against the packed SDK (ADR-102 matched release), not against the
+      # Runtime checkout. That checkout is here only so
+      # provision-engine-native.sh can run.
       LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
       LUMIO_NATIVE_CORE_ROOT: ${{ github.workspace }}/native-core-src
       LUMIO_VOXEL_ROOT: ${{ github.workspace }}/voxel-engine-src
@@ -419,9 +443,27 @@ jobs:
         with:
           name: server-hostentry-linux-x64
           path: ${{ runner.temp }}/hostentry
-      - name: Build the server-side Sample gameplay assembly
+      - name: Download the packed SDK that produced it
+        uses: actions/download-artifact@v7
+        with:
+          name: server-hostentry-sdk-feed
+          path: ${{ runner.temp }}/sdk-feed
+      # `-p:LumioSdkMode=nuget` is a global property, so it wins over the
+      # sibling probe in Directory.Build.targets even with the Runtime checkout
+      # present. The package's lib/net10.0 assemblies land in this bin/ next to
+      # Lumio.Sample.Gameplay.dll, which is where the named three-path is read
+      # from — one matched set, the same one HostEntry was compiled against.
+      - name: Build the server-side Sample gameplay against that SDK
         working-directory: sample-source
-        run: dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -c Release -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine
+        run: |
+          set -euo pipefail
+          FEED="$RUNNER_TEMP/sdk-feed"
+          VERSION="$(node -p "require('$RUNNER_TEMP/sdk-feed/identity.json').version")"
+          echo "matched SDK release: $VERSION"
+          test -f "$FEED/Lumio.Engine.SDK.$VERSION.nupkg"
+          dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -c Release \
+            -p:LumioSdkMode=nuget -p:LumioSdkVersion="$VERSION" -p:LumioLocalFeed="$FEED" \
+            -p:RestorePackagesPath="$RUNNER_TEMP/nuget-packages"
       # Authors the catalog world against *this run's* native image and refuses
       # a fixture whose evidence names a different one. The committed
       # LumioGameRuntime voxel-native fixtures are authored against another
