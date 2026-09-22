@@ -1,4 +1,20 @@
-# integration - verification and production launcher
+# Tools - verification, production launcher and test projects
+
+ADR-115 把原 `integration/` 归到仓根 `Tools/`（跨端启动器与联测编排）。本目录另外
+收着两个测试工程的 `.csproj`——它们的用例源码在各端 `Tests/` 下，工程文件放这里
+是因为游戏侧 `Server/` 只放数据、不得含 `.csproj`：
+
+| 工程 | 用例源码 | 怎么跑 |
+|---|---|---|
+| `Lumio.Sample.Gameplay.Tests` | `Server/Tests/Gameplay/` | `dotnet test LumioSample.slnx` |
+| `Lumio.Sample.Server.HostTests` | `Server/Tests/Host/` | `node Tools/test-server-host.mjs <results-dir>` |
+
+## 从 LumioServer 移来的准入用例（R-00692）
+
+`test-server-host.mjs` 逐条独立进程跑 `AdmitOnSampleRegistryRuntimeOnly` 与
+`AdmitOnSampleRegistryWithVoxel`——`Lumio.Server.HostEntry` 是进程级单例托管上下文。
+所需环境变量、守的八项引擎级断言与不入 `LumioSample.slnx` 的理由见
+[`Server/Tests/README.md`](../Server/Tests/README.md)。
 
 ## Platform account client (S-4)
 

@@ -669,7 +669,7 @@ test('launcher source does not green local-paint', () => {
 
 test('root README names the launcher and does not keep formal-ds-smoke', () => {
   const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
-  assert.match(readme, /integration\/launcher\.mjs/);
+  assert.match(readme, /Tools\/launcher\.mjs/);
   assert.doesNotMatch(readme, /formal-ds-smoke\.mjs/);
   assert.doesNotMatch(readme, /端到端启动器还没有/);
 });

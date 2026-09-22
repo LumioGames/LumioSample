@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <AssemblyName>Lumio.Sample.Server.HostTests</AssemblyName>
+    <RootNamespace>Lumio.Sample.Server.HostTests</RootNamespace>
+    <LumioEcsGenerate>false</LumioEcsGenerate>
+    <!-- ADR-115: Server/ holds data only, so the cases' sources live under
+         Server/Tests/Host and only this project file sits outside it. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- This project is deliberately NOT in LumioSample.slnx. It drives a built
+         Lumio.Server.HostEntry from another repository, the same way Client/Bots
+         needs a prebuilt LumioClient artifact. `dotnet test LumioSample.slnx`
+         must not change its shape because of it; run it through
+         Tools/test-server-host.mjs, which gives each case its own process. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../../Server/Tests/Host/**/*.cs" Link="Host/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.Testing.Platform" />
+  </ItemGroup>
+</Project>
