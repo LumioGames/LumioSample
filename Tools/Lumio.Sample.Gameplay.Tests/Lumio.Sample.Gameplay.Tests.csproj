@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <!-- Packed SDK enables generate by default; this assembly is not gameplay. -->
+    <LumioEcsGenerate>false</LumioEcsGenerate>
+    <!-- ADR-115: Server/ holds data only, so no .csproj may live there. The cases
+         are server-side gameplay tests, so their sources stay under Server/Tests/
+         and only this project file sits outside it. Depth from the repo root is
+         unchanged (two levels), which is what the tests' AppContext.BaseDirectory
+         walk relies on. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../../Server/Tests/Gameplay/**/*.cs" Link="Gameplay/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- The bot scenario's decision procedure. Client/Bots is outside the solution because it
+         needs a prebuilt LumioClient artifact; its pure half has no such dependency, so it is
+         compiled in here and tested by the same `dotnet test LumioSample.slnx` as gameplay. -->
+    <Compile Include="$(MSBuildThisFileDirectory)../../Client/Bots/SampleMiningPlan.cs" Link="Bots/SampleMiningPlan.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Gameplay/Lumio.Sample.Gameplay.csproj" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.Testing.Platform" />
+    <!-- WorldManager.Create needs this at runtime; sibling ProjectReference does not copy Ecs NuGet deps. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="10.0.11" />
+  </ItemGroup>
+</Project>

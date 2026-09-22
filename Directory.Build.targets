@@ -65,9 +65,12 @@
     <WarningsNotAsErrors>$(WarningsNotAsErrors);CS1591</WarningsNotAsErrors>
   </PropertyGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay'">
-    <!-- Default SDK globs may already contain both projections before generator props load. -->
+    <!-- ADR-115: the typed Readers live under each end's Config/Generated. They are
+         compiled into this assembly's matching side; the gameplay tree has no
+         generated/config/ any more, so only the selected end's Readers can enter. -->
     <Compile Remove="generated/config/**/*.cs" />
-    <Compile Include="generated/config/$(_LumioConfigSide)/*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Client/Config/Generated/*.cs" Link="config/generated/%(Filename)%(Extension)" Condition="'$(_LumioConfigSide)' == 'client'" />
+    <Compile Include="$(MSBuildThisFileDirectory)Server/Config/Generated/*.cs" Link="config/generated/%(Filename)%(Extension)" Condition="'$(_LumioConfigSide)' != 'client'" />
   </ItemGroup>
 
   <!-- Same analyzer exemptions the SDK pack props apply when the generator is on.

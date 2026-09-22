@@ -57,7 +57,7 @@ description: 浠婃棩鍒囩墖鈥斺€旀祻瑙堝櫒鐪嬭 100 涓?Bot 鏉
 - 浼犺緭锛歚LumioServer/eng/connect-ds.mjs` 鐨?`connectDs(launch, { allowLoopback: true })`銆傚瓙鍗忚 `lumio.mvp.v0`锛屽嚟璇佽蛋鎻℃墜锛?*涓嶈繘 URL / localStorage / 椤甸潰鏂囨**銆?- 瑙勫垯浠ｇ爜锛歊untime 瀹㈡埛绔▼搴忛泦 + Sample **client** 鐜╂硶绋嬪簭闆嗭紝缁?.NET browser-wasm锛圓DR-067锛夈€侸S 鍙仛锛歐ebSocket 鎼瓧鑺傘€丆anvas 鐢荤偣銆佽緭鍏ワ紙鏃佽椤典粖鏃ユ棤杈撳叆锛夈€?- 璇佹嵁锛歚window.__lumioSpectator = { status, botCount, positions: [{id,x,z}], updatedAtMs }`銆侰hrome 鎺у埗鍙拌兘璇诲埌 `botCount >= 100` 涓斿潗鏍囬殢鏃堕棿鍙樸€?- 鍚姩锛氶潤鎬佹枃浠舵湇鍔″嵆鍙€傚惎鍔ㄥ櫒鎵撳嵃 URL锛屼笉寮哄埗鑷姩 `start chrome`銆?
 ### 3.6 鍚姩鍣紙A6 鍙帴绾匡紝涓嶆敼鍗佸洓姝ヨ瘹瀹炵己鍙ｏ級
 
-- 鐜版湁锛歚LumioSample/integration/launcher.mjs`銆俉ave A **涓嶅緱**鎶?step 05鈥?4 鐨?`BLOCKED_ENV` 鏀规垚 PASS銆?- A6 鍙姞锛歚--spectator`锛堟墦鍗版梺瑙?URL + 绗?101 寮犵エ锛夈€佹妸 Bot 寰幆鍒囧埌 MoveAbility锛堜緷璧?A1 鍚堝叆鍚庣殑 Bot.Host 鍙傛暟锛岄粯璁よ涓烘敼涓?Activate锛夈€乣--bots 100` 鏃?hold 绐楀彛鐩村埌鏃佽椤佃繛涓婃垨 `--duration-ms`銆?- 鎬昏皟鑴氭湰锛堜粎 Wave B 鍐欙級锛歚LumioSample/integration/spectator-100.mjs`锛堟垨 launcher 鐨?`--mode spectator-100`锛夈€俉ave A 鍚勬矙鐩?**涓嶅啓** 杩欎釜鏂囦欢銆?
+- 鐜版湁锛歚LumioSample/Tools/launcher.mjs`銆俉ave A **涓嶅緱**鎶?step 05鈥?4 鐨?`BLOCKED_ENV` 鏀规垚 PASS銆?- A6 鍙姞锛歚--spectator`锛堟墦鍗版梺瑙?URL + 绗?101 寮犵エ锛夈€佹妸 Bot 寰幆鍒囧埌 MoveAbility锛堜緷璧?A1 鍚堝叆鍚庣殑 Bot.Host 鍙傛暟锛岄粯璁よ涓烘敼涓?Activate锛夈€乣--bots 100` 鏃?hold 绐楀彛鐩村埌鏃佽椤佃繛涓婃垨 `--duration-ms`銆?- 鎬昏皟鑴氭湰锛堜粎 Wave B 鍐欙級锛歚LumioSample/Tools/spectator-100.mjs`锛堟垨 launcher 鐨?`--mode spectator-100`锛夈€俉ave A 鍚勬矙鐩?**涓嶅啓** 杩欎釜鏂囦欢銆?
 ---
 
 ## 4. 鍏釜娌欑洅锛堝悓鏃跺紑宸ワ級
@@ -81,10 +81,10 @@ description: 浠婃棩鍒囩墖鈥斺€旀祻瑙堝櫒鐪嬭 100 涓?Bot 鏉
 
 **鏀硅繖浜涳細**
 
-- `src/Lumio.Sample.Gameplay/SampleGameplay.cs` 鈥?`BindPlayer` 鏈熬锛歚abilities.Physics = new RecordingAbilityPhysicsPort();`锛坲sing `Lumio.GameRuntime.Gas`锛夈€?- 鏂板鐜╂硶渚?Admit hook锛堝悕绉拌嚜瀹氫絾蹇呴』琚?Server A4 鐢ㄥ弽灏勬垨宸茬煡闈欐€佹柟娉曟壘鍒帮級锛屽缓璁細
+- `Gameplay/SampleGameplay.cs` 鈥?`BindPlayer` 鏈熬锛歚abilities.Physics = new RecordingAbilityPhysicsPort();`锛坲sing `Lumio.GameRuntime.Gas`锛夈€?- 鏂板鐜╂硶渚?Admit hook锛堝悕绉拌嚜瀹氫絾蹇呴』琚?Server A4 鐢ㄥ弽灏勬垨宸茬煡闈欐€佹柟娉曟壘鍒帮級锛屽缓璁細
   `public static NetEntityId AdmitPlayer(World world, string accountId)`  
   鍐呴儴锛歚Create<PlayerEntity>()` 鈫?鎻愪氦鍚?`BindPlayer` 鈫?鍐?Identity 鑻ュ凡鏈夊瓧娈?鈫?杩斿洖 id銆?- `generated/` 鑻ュ洜澹版槑鍙樺姩闇€瑕侀噸璺?`gen-declarations`锛屾湰娌欑洅璺戯紝鎻愪氦鐢熸垚鐗┿€?- 娴嬭瘯锛氳繘绋嬪唴 World锛宍AdmitPlayer` 鍚?`Activate<MoveAbility>` 浣嶇疆蹇呴』鏀瑰彉锛堟湁绔彛锛夛紱涓嶆寕绔彛鍒欎綅缃笉鍙橈紙閿?fail-closed锛夈€?
-**绂佹锛?* `integration/launcher.mjs`銆乣integration/stress-move.mjs`銆乣integration/spectator-100.mjs`锛堜笉瀛樺湪灏卞埆寤猴級銆乣maps/`銆佹妸 `BLOCKED_ENV` 鏀?PASS銆佹寲鐭块摼璺€?
+**绂佹锛?* `Tools/launcher.mjs`銆乣Tools/stress-move.mjs`銆乣Tools/spectator-100.mjs`锛堜笉瀛樺湪灏卞埆寤猴級銆乣maps/`銆佹妸 `BLOCKED_ENV` 鏀?PASS銆佹寲鐭块摼璺€?
 ### A3 路 LumioGameRuntime 路 鐢熶骇璺緞鑳芥寕绌哄湴绔彛 + Activate 鏃犳秷鑰楁妧鑳戒笉鎷?
 **浠擄細** `C:\Work\LumioGames\LumioGameRuntime`  
 **鍒嗘敮锛?* `feat/spectator-100-open-space-port`  
@@ -122,9 +122,9 @@ description: 浠婃棩鍒囩墖鈥斺€旀祻瑙堝櫒鐪嬭 100 涓?Bot 鏉
 
 **鏀硅繖浜涳細**
 
-- `integration/launcher.mjs`锛氫繚鐣?step 05鈥?4 鐨?`BLOCKED_ENV`銆傛柊澧炲弬鏁?`--spectator-url` / 鎵撳嵃鏃佽椤靛湴鍧€锛堥粯璁?`http://127.0.0.1:<static>/modules/web/spectator/` 鐢?env `LUMIO_SPECTATOR_ORIGIN` 缁欙級銆傜 101 娆?`loginAndLaunch` 浣滀负鏃佽绁紝**涓?*璧风 101 涓?Bot.Host銆?- `integration/launcher.test.mjs`锛氭柇瑷€ 100 Bot + 1 spectator ticket 璁″垝锛涙柇瑷€ step 05鈥?4 浠嶅彲涓?BLOCKED_ENV锛涙柇瑷€涓嶄細鎶婃湰鍦版秱鍧愭爣鍐欐垚 PASS銆?- **涓嶈**鍦?Wave A 鍐?`spectator-100.mjs`銆傛€昏皟鑴氭湰鐣欑粰 Wave B 涓讳細璇濄€?
-**绂佹锛?* `src/Lumio.Sample.Gameplay/**`锛圓2 鐨勬枃浠讹級銆乣maps/sample.voxel` 褰撳彲 restore 搴曞浘銆佹妸鍗佸洓姝ユ敼缁裤€?
-**涓?A2 鍐茬獊锛?* A6 鍙 `integration/`锛孉2 鍙 `src/` + `tests/`銆俙Directory.Build.*` / `LumioSample.slnx` 璋侀兘涓嶆敼锛岄櫎闈?A2 蹇呴』鍔犳祴璇曞伐绋嬧€斺€旈偅鏃跺彧鏈?A2 鏀广€?
+- `Tools/launcher.mjs`锛氫繚鐣?step 05鈥?4 鐨?`BLOCKED_ENV`銆傛柊澧炲弬鏁?`--spectator-url` / 鎵撳嵃鏃佽椤靛湴鍧€锛堥粯璁?`http://127.0.0.1:<static>/modules/web/spectator/` 鐢?env `LUMIO_SPECTATOR_ORIGIN` 缁欙級銆傜 101 娆?`loginAndLaunch` 浣滀负鏃佽绁紝**涓?*璧风 101 涓?Bot.Host銆?- `Tools/launcher.test.mjs`锛氭柇瑷€ 100 Bot + 1 spectator ticket 璁″垝锛涙柇瑷€ step 05鈥?4 浠嶅彲涓?BLOCKED_ENV锛涙柇瑷€涓嶄細鎶婃湰鍦版秱鍧愭爣鍐欐垚 PASS銆?- **涓嶈**鍦?Wave A 鍐?`spectator-100.mjs`銆傛€昏皟鑴氭湰鐣欑粰 Wave B 涓讳細璇濄€?
+**绂佹锛?* `Gameplay/**`锛圓2 鐨勬枃浠讹級銆乣Server/Assets/Maps/sample.voxel` 褰撳彲 restore 搴曞浘銆佹妸鍗佸洓姝ユ敼缁裤€?
+**涓?A2 鍐茬獊锛?* A6 鍙 `Tools/`锛孉2 鍙 `src/` + `tests/`銆俙Directory.Build.*` / `LumioSample.slnx` 璋侀兘涓嶆敼锛岄櫎闈?A2 蹇呴』鍔犳祴璇曞伐绋嬧€斺€旈偅鏃跺彧鏈?A2 鏀广€?
 ---
 
 ## 5. Wave B 路 鎬昏皟锛堝叚涓?PR 閮借繘鍚勪粨 main 涔嬪悗锛屼富浼氳瘽鑷繁鍋氾級
@@ -133,10 +133,10 @@ description: 浠婃棩鍒囩墖鈥斺€旀祻瑙堝櫒鐪嬭 100 涓?Bot 鏉
 **鎬昏皟鏈哄櫒锛?* 鏄ㄥぉ閭ｅ彴 Windows 娴嬭瘯鏈恒€傜嫭鍗犫€斺€擶ave B 鏈熼棿绂佹鍏跺畠 agent 缂栬瘧鎶?CPU锛堟椂闂寸被瑙傛祴浼氳櫄楂橈級銆?
 **姝ラ锛堟寜椤哄簭锛屽け璐ュ氨鍋滃湪璇ユ锛屼笉瑕佽烦杩囩敾娴忚鍣級锛?*
 
-1. `git pull --ff-only`锛歋ample / Client / Runtime / Server / Platform / Engine銆傛妸鍗佷粨 SHA 鍐欏叆鍗冲皢鐢熸垚鐨?`verification.json`.shas銆?2. 璧?Platform锛堝凡鏈?compose / 鏈満杩涚▼ `:8080`锛夈€俙node LumioPlatform/eng/stress-tickets.mjs --count 101 --origin http://127.0.0.1:8080 --game sample --out .run/spectator-101.json`銆傝 101 寮犱簰寮傜エ锛?00 Bot + 1 鏃佽锛夈€?3. 璧?`lumio-ds`锛岄厤缃敤娴嬭瘯鏈哄凡鑳?`DS_READY` 鐨勯偅浠斤紙浠撳唴 `server.json` 浠嶅彲鑳芥槸鍗犱綅锛涙湰鏈?overlay `.run/server.local.json`锛?*涓嶈**鎶婂瘑閽ユ彁浜よ繘 git锛夈€?4. 璧?100 涓?`Bot.Host`锛宍--gameplay` 鎸囧悜 Sample **client/server 鎸夊涓昏姹?* 鐨勭帺娉?dll锛屽弬鏁拌蛋 A1 涔嬪悗鐨?Activate 寰幆銆傞敊宄?`--stagger-ms`銆?5. **鍏堢敤绗?101 涓?C# Bot 鍙敹鍖呫€佹墦 100 涓?`LogicTransform`**锛堣嫢 A1 鏉ヤ笉鍙婂仛鍙鎺㈤拡锛岀敤涓€灏忔 `dotnet` 涓€娆℃€х▼搴忥紝浠嶈蛋 Bot.Host + `--gameplay`锛屼笉鍙?Activate锛夈€傛帶鍒跺彴蹇呴』鍑虹幇 鈮?00 涓?id锛屼笖 5 绉掑唴鍧愭爣鍙樺寲鐨勫疄浣撴暟 鈮?90銆傝繖涓€姝ヤ笉杩囷紝**涓嶅噯鎵撳紑娴忚鍣?*鈥斺€斿惁鍒欎綘鍙堜細鎶娿€岄〉寮€浜嗐€嶅綋鎴愩€屼汉鍦ㄨ蛋銆嶃€?6. 闈欐€佹墭绠?A5 鏃佽椤碉紱娴忚鍣ㄧ粡 launch 绁?`connectDs`銆侰hrome 閲?100 涓偣鍦ㄥ姩锛沗window.__lumioSpectator.botCount >= 100`銆?7. 褰?20 绉掑睆鎴栦繚瀛?`__lumioSpectator` JSON 蹇収涓や唤锛坱=0 涓?t=5s锛夛紝鏀?gitignored `LumioSample/integration/logs/spectator-100/`锛屾妸 SHA 涓庡懡浠よ緭鍑哄啓杩涙湰娆′細璇濅氦鍥烇紝**涓嶈**鎶婄エ鍐欒繘浠撱€?
+1. `git pull --ff-only`锛歋ample / Client / Runtime / Server / Platform / Engine銆傛妸鍗佷粨 SHA 鍐欏叆鍗冲皢鐢熸垚鐨?`verification.json`.shas銆?2. 璧?Platform锛堝凡鏈?compose / 鏈満杩涚▼ `:8080`锛夈€俙node LumioPlatform/eng/stress-tickets.mjs --count 101 --origin http://127.0.0.1:8080 --game sample --out .run/spectator-101.json`銆傝 101 寮犱簰寮傜エ锛?00 Bot + 1 鏃佽锛夈€?3. 璧?`lumio-ds`锛岄厤缃敤娴嬭瘯鏈哄凡鑳?`DS_READY` 鐨勯偅浠斤紙浠撳唴 `Server/Config/Startup/server.json` 浠嶅彲鑳芥槸鍗犱綅锛涙湰鏈?overlay `.run/server.local.json`锛?*涓嶈**鎶婂瘑閽ユ彁浜よ繘 git锛夈€?4. 璧?100 涓?`Bot.Host`锛宍--gameplay` 鎸囧悜 Sample **client/server 鎸夊涓昏姹?* 鐨勭帺娉?dll锛屽弬鏁拌蛋 A1 涔嬪悗鐨?Activate 寰幆銆傞敊宄?`--stagger-ms`銆?5. **鍏堢敤绗?101 涓?C# Bot 鍙敹鍖呫€佹墦 100 涓?`LogicTransform`**锛堣嫢 A1 鏉ヤ笉鍙婂仛鍙鎺㈤拡锛岀敤涓€灏忔 `dotnet` 涓€娆℃€х▼搴忥紝浠嶈蛋 Bot.Host + `--gameplay`锛屼笉鍙?Activate锛夈€傛帶鍒跺彴蹇呴』鍑虹幇 鈮?00 涓?id锛屼笖 5 绉掑唴鍧愭爣鍙樺寲鐨勫疄浣撴暟 鈮?90銆傝繖涓€姝ヤ笉杩囷紝**涓嶅噯鎵撳紑娴忚鍣?*鈥斺€斿惁鍒欎綘鍙堜細鎶娿€岄〉寮€浜嗐€嶅綋鎴愩€屼汉鍦ㄨ蛋銆嶃€?6. 闈欐€佹墭绠?A5 鏃佽椤碉紱娴忚鍣ㄧ粡 launch 绁?`connectDs`銆侰hrome 閲?100 涓偣鍦ㄥ姩锛沗window.__lumioSpectator.botCount >= 100`銆?7. 褰?20 绉掑睆鎴栦繚瀛?`__lumioSpectator` JSON 蹇収涓や唤锛坱=0 涓?t=5s锛夛紝鏀?gitignored `LumioSample/Tools/logs/spectator-100/`锛屾妸 SHA 涓庡懡浠よ緭鍑哄啓杩涙湰娆′細璇濅氦鍥烇紝**涓嶈**鎶婄エ鍐欒繘浠撱€?
 **Wave B 鍏佽涓讳細璇濆啓鐨勫敮浜屼釜鏂版枃浠讹細**
 
-- `LumioSample/integration/spectator-100.mjs`锛堢紪鎺?1鈥?锛?- `LumioSample/integration/spectator-100.test.mjs`锛坔ermetic锛氱己 env 鏃?`BLOCKED_ENV`锛屼笉璁稿亣缁匡級
+- `LumioSample/Tools/spectator-100.mjs`锛堢紪鎺?1鈥?锛?- `LumioSample/Tools/spectator-100.test.mjs`锛坔ermetic锛氱己 env 鏃?`BLOCKED_ENV`锛屼笉璁稿亣缁匡級
 
 ---
 
@@ -181,4 +181,4 @@ T=鍚堝叆鍚? 涓讳細璇?Wave B锛岀姝㈠啀寮€鍐欎唬鐮佹矙鐩
 
 ## 10. 鑳屾櫙閿氱偣锛堝彧璇伙紝涓嶅湪鏈垏鐗囦慨鏀癸級
 
-- 鐩爣鍒囩墖瀹氫箟锛氭灦鏋勪粨 `.spec/knowledge/features/sample.md` 鍒ゆ嵁 2 绗竴闃舵鏃佽锛涗粖鏃ユ瘮瀹冩洿绐勶紙鍙鐪嬭璧帮級銆?- 娴忚鍣ㄨ鍒欎唬鐮侊細ADR-067銆備綋绱犵綉鏍硷細ADR-078锛堜粖鏃ヤ笉鍋氾級銆?- 鍚姩鍣ㄦ梺瑙傚彞锛欰DR-077 鍐崇瓥 5锛沗LumioServer/eng/connect-ds.mjs`銆?- 鏄ㄥぉ璇鐨勬湰鍦版秱鍧愭爣锛歚LumioClient/modules/bot/host/BotHostResidentLoop.cs` 绾?183鈥?96 琛屻€?- 绌哄湴绔彛锛歚LumioGameRuntime/modules/gas/src/Lumio.GameRuntime.Gas/Ability/IAbilityPhysicsPort.cs` 鐨?`RecordingAbilityPhysicsPort`銆?- MoveAbility fail-closed锛歚LumioSample/src/Lumio.Sample.Gameplay/Abilities/MoveAbility.cs`銆?- 鍑虹エ鐜板満锛歚LumioPlatform/.spec/reviews/2026-09-10-r-00586-r-00421-live-evidence.md`銆?
+- 鐩爣鍒囩墖瀹氫箟锛氭灦鏋勪粨 `.spec/knowledge/features/sample.md` 鍒ゆ嵁 2 绗竴闃舵鏃佽锛涗粖鏃ユ瘮瀹冩洿绐勶紙鍙鐪嬭璧帮級銆?- 娴忚鍣ㄨ鍒欎唬鐮侊細ADR-067銆備綋绱犵綉鏍硷細ADR-078锛堜粖鏃ヤ笉鍋氾級銆?- 鍚姩鍣ㄦ梺瑙傚彞锛欰DR-077 鍐崇瓥 5锛沗LumioServer/eng/connect-ds.mjs`銆?- 鏄ㄥぉ璇鐨勬湰鍦版秱鍧愭爣锛歚LumioClient/modules/bot/host/BotHostResidentLoop.cs` 绾?183鈥?96 琛屻€?- 绌哄湴绔彛锛歚LumioGameRuntime/modules/gas/src/Lumio.GameRuntime.Gas/Ability/IAbilityPhysicsPort.cs` 鐨?`RecordingAbilityPhysicsPort`銆?- MoveAbility fail-closed锛歚LumioSample/Gameplay/Abilities/MoveAbility.cs`銆?- 鍑虹エ鐜板満锛歚LumioPlatform/.spec/reviews/2026-09-10-r-00586-r-00421-live-evidence.md`銆?

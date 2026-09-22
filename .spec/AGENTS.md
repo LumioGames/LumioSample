@@ -19,10 +19,10 @@ dotnet build LumioSample.slnx
 dotnet test  LumioSample.slnx
 ```
 
-碰 `integration/` 再加：
+碰 `Tools/` 再加：
 
 ```bash
-node --test integration/verify-evidence.mjs
+node --test Tools/verify-evidence.mjs
 ```
 
 **「运行了零个测试」不算通过**——显式指定测试文件确保至少执行 1 个测试；CI 亦显式指定目标。

@@ -17,7 +17,7 @@
       a copy of Lumio.Sample.Gameplay or Lumio.Client.Bot sitting here would shadow the host's
       own copy with a second identity. Compile against them, ship none of them.
     -->
-    <ProjectReference Include="../../src/Lumio.Sample.Gameplay/Lumio.Sample.Gameplay.csproj" Private="false" />
+    <ProjectReference Include="../../Gameplay/Lumio.Sample.Gameplay.csproj" Private="false" />
     <Reference Include="Lumio.Client.Bot" HintPath="$(LumioClientBotAssembly)" Private="false" />
     <Reference Include="Lumio.Client.Input" HintPath="$(LumioClientBotDirectory)/Lumio.Client.Input.dll" Private="false" />
   </ItemGroup>

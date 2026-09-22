@@ -9,7 +9,7 @@
 
 ## 决策
 
-本仓 `config/` 是一份 LumioConfig export 根（`manifest.json` + 三端投影）。`SampleTables` 经 Runtime M9 `LumioConfigLoader` 装载，查询 Config 生成的 typed Reader。不扫父目录、不自造第二套 schema。`server.json` 的 `config_dir` 指向该目录；覆盖用 `LUMIO_CONFIG_DIR`。根上的平面 `*.json` 只保留数字契约对照，不再被读取。
+本仓按端各有一份 LumioConfig export 根：`Client/Config/Tables`（`C`）与 `Server/Config/Tables`（`S`+`V`），各自带 `manifest.json`（`split-export/1`，ADR-115）。`SampleTables` 经 Runtime M9 `LumioConfigLoader` 装载，查询 Config 生成的 typed Reader。不扫父目录、不自造第二套 schema。`Server/Config/Startup/server.json` 的 `config_dir` 指向该目录；覆盖用 `LUMIO_CONFIG_DIR`。根上的平面 `*.json` 只保留数字契约对照，不再被读取。
 
 ## 后果
 

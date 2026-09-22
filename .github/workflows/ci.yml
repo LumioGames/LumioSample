@@ -94,7 +94,7 @@ jobs:
           path: voxel-engine-src
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
-      # S2 zero-diff: integration/sync-config-readers.test.mjs re-runs
+      # S2 zero-diff: Tools/sync-config-readers.test.mjs re-runs
       # LumioConfig `export --csharp-out` against the six committed Readers.
       - name: Checkout LumioConfig
         uses: actions/checkout@v7
@@ -117,17 +117,17 @@ jobs:
       - name: Provide committed Native scene fixtures
         run: echo "LUMIO_RT_FIXTURES=${{ github.workspace }}/LumioGameRuntime/modules/coordination/tests/fixtures/voxel-native" >> "$GITHUB_ENV"
       - run: dotnet test LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine -- --minimum-expected-tests 1
-      - run: node --test integration/verify-evidence.mjs
-      - run: node --test integration/build-local-sdk.test.mjs
-      - run: node --test integration/account-client.test.mjs
-      - run: node --test integration/ds-ready.test.mjs
-      - run: node --test integration/launcher.test.mjs
-      - run: node --test integration/stress-move.test.mjs
-      - run: node --test integration/world-assert.test.mjs
-      - run: node --test integration/capture-basemap.test.mjs
-      - run: node --test integration/server-profile.test.mjs
-      - run: node --test integration/ds-config.test.mjs
-      - run: node --test integration/sync-config-readers.test.mjs
+      - run: node --test Tools/verify-evidence.mjs
+      - run: node --test Tools/build-local-sdk.test.mjs
+      - run: node --test Tools/account-client.test.mjs
+      - run: node --test Tools/ds-ready.test.mjs
+      - run: node --test Tools/launcher.test.mjs
+      - run: node --test Tools/stress-move.test.mjs
+      - run: node --test Tools/world-assert.test.mjs
+      - run: node --test Tools/capture-basemap.test.mjs
+      - run: node --test Tools/server-profile.test.mjs
+      - run: node --test Tools/ds-config.test.mjs
+      - run: node --test Tools/sync-config-readers.test.mjs
 
   external-clone:
     runs-on: ubuntu-latest
@@ -233,4 +233,4 @@ jobs:
 
       - name: Build the cloned sample against the locally packed SDK
         working-directory: /tmp/external
-        run: node integration/build-local-sdk.mjs /tmp/lumio-sdk-identity.json
+        run: node Tools/build-local-sdk.mjs /tmp/lumio-sdk-identity.json

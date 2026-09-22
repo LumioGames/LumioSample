@@ -41,28 +41,28 @@ metadata:
 
 ## 配表
 
-源表在 `config/source/`，导出按端位于 `config/server/*.json`、`config/client/*.json`。`SampleConfigBinding` 经 Runtime M9 `LumioConfigLoader` 装载 typed Reader，并将 `ISampleConfig` 投影绑定到 `World.GameplayConfig`；Boot 与 Restore 均要求此绑定。玩法统一通过 `SampleConfigBinding.For(world)` 读取该世界的数值，`SampleTables` 仅解析目录，不再持有缓存或读表入口。八份 Reader（`AttributesTable` / `MiningTable` / `MovementTable` / `MapTable` × server+client）来自上游 LumioConfig `export --csharp-out`，本仓用 `node integration/sync-config-readers.mjs` 同步，`--check` 要求这八份与导出逐字节一致。生成物不得手改。
+源表在 `Gameplay/Tables/`，导出按端位于 `Server/Config/Tables/server/*.json`、`Client/Config/Tables/client/*.json`。`SampleConfigBinding` 经 Runtime M9 `LumioConfigLoader` 装载 typed Reader，并将 `ISampleConfig` 投影绑定到 `World.GameplayConfig`；Boot 与 Restore 均要求此绑定。玩法统一通过 `SampleConfigBinding.For(world)` 读取该世界的数值，`SampleTables` 仅解析目录，不再持有缓存或读表入口。八份 Reader（`AttributesTable` / `MiningTable` / `MovementTable` / `MapTable` × server+client）来自上游 LumioConfig `export --csharp-out`，本仓用 `node Tools/sync-config-readers.mjs` 同步，`--check` 要求这八份与导出逐字节一致。生成物不得手改。
 
-导出使用 `node integration/sync-config-export.mjs`：在两个全新临时目录编译，逐字节比较全部输出（含根 manifest），再同步回仓库；`--check` 只验证。禁止直接向含源表的 `config/` 导出，因为编译器会把已有文件计入 outputHash。完整命令见 [`config/README.md`](../../../config/README.md)。储量、冷却、体力消耗、掉落数、地图宽深及矿脉比例均来自表；源码检查对数值碰撞逐行分类，不能把输入索引或单次扣除的 `1` 当作冷却默认值。地图尺寸与比例供作者时 `capture-basemap.mjs` 消费 `server/map.json`，修改后须重新 Capture；DS 只恢复底图，不运行时重建地图。
+导出使用 `node Tools/sync-config-export.mjs`：在两个全新临时目录编译，逐字节比较两端全部输出（含各端根 manifest），再按端同步回 `Client/Config/Tables` 与 `Server/Config/Tables`；`--check` 只验证。禁止直接向含源表的 `Gameplay/Tables/` 导出，因为编译器会把已有文件计入 outputHash。完整命令见 [`Gameplay/Tables/README.md`](../../../Gameplay/Tables/README.md)。储量、冷却、体力消耗、掉落数、地图宽深及矿脉比例均来自表；源码检查对数值碰撞逐行分类，不能把输入索引或单次扣除的 `1` 当作冷却默认值。地图尺寸与比例供作者时 `capture-basemap.mjs` 消费 `server/map.json`，修改后须重新 Capture；DS 只恢复底图，不运行时重建地图。
 
 `MoveAbility` 在 GAS 第五步通过 owner 查询一次 `SweepBox`，将 `sweep_radius_meters` 明确用于 AABB 三轴半尺寸。`Execute` 只消费同实例、同 owner、同输入和同 Tick 的准备位置一次。缺端口返回 `physics_unavailable`；已分类查询拒绝在扣费、冷却和执行条目前返回失败，损坏结果和未知异常保留故障诊断。Start/OnHydrate 只重绑既有账本上下文，不安装物理替身；正式物理来自 Runtime Host 的 Manager 绑定，纯托管测试由 harness 显式注入端口。
 
 ## 启动器
 
-`integration/launcher.mjs` 是判据 2 的内部启动器：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。进程管理只 import 架构仓 `eng/process-tools.mjs`（`LUMIO_ENGINE_ROOT` 或同级 `LumioGameEngine`）。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`docs/tour.md`](../../../docs/tour.md)。
+`Tools/launcher.mjs` 是判据 2 的内部启动器：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。进程管理只 import 架构仓 `eng/process-tools.mjs`（`LUMIO_ENGINE_ROOT` 或同级 `LumioGameEngine`）。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`docs/tour.md`](../../../docs/tour.md)。
 
-缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。未填的 `replace-*` / `REPLACE_WITH_…` 是 `MISSING_VALUE`（第 03 步 FAIL），不是占位 `BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`maps/sample.voxel` 是作者时 Engine capture CLI 写入的可 restore 快照（Cube 平面；尺寸与矿脉在 `maps/sample.layout.json`）；DS 开机只 restore。`capture-basemap.mjs` 只给作者时用，玩法程序集不得引用。启动器第 05 步对可 restore 底图标 READY，第 07–14 步仍诚实 `BLOCKED_ENV`（直播 Activate / 挖掘 / 冷恢复未过）。Sibling 玩法输出会带上 net10 Simulation，HostEntry 才能反射 `DedicatedServerHostBinding`；nuget 路径不造 Simulation 替身，缺类型由玩法 bin 探测测试失败。
+缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。未填的 `replace-*` / `REPLACE_WITH_…` 是 `MISSING_VALUE`（第 03 步 FAIL），不是占位 `BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`Server/Config/Startup/server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`Server/Assets/Maps/sample.voxel` 是作者时 Engine capture CLI 写入的可 restore 快照（Cube 平面；尺寸与矿脉在 `Server/Assets/Maps/sample.layout.json`）；DS 开机只 restore。`capture-basemap.mjs` 只给作者时用，玩法程序集不得引用。启动器第 05 步对可 restore 底图标 READY，第 07–14 步仍诚实 `BLOCKED_ENV`（直播 Activate / 挖掘 / 冷恢复未过）。Sibling 玩法输出会带上 net10 Simulation，HostEntry 才能反射 `DedicatedServerHostBinding`；nuget 路径不造 Simulation 替身，缺类型由玩法 bin 探测测试失败。
 
 ## 压测门
 
-`integration/stress-move.mjs` 写 100 人 / 5 分钟证据 schema。帧时钟字段必须是 `native-core-clock_now`。五条 ADR-084 判据未对着真 DS 跑过之前，文档与脚本都不得声称 PASS。
+`Tools/stress-move.mjs` 写 100 人 / 5 分钟证据 schema。帧时钟字段必须是 `native-core-clock_now`。五条 ADR-084 判据未对着真 DS 跑过之前，文档与脚本都不得声称 PASS。
 
 ## 同 Section 争用负载（R-00654 / R-00661）
 
 R-00654 要量「同 Section 内他人写入让幸存预测记录连带失效」的真实频率，需要一份稳定产生这个形态的负载：一个矿工在 Section S 里持一条未结算的地形单，另一个矿工在**同一 S 的另一格**落下权威写入把 revision 顶到 r+1，其余若干人只发 `MoveAbility`。
 
-- **可跑的那一半**：`tests/Lumio.Sample.Gameplay.Tests/MineContentionScenarioTests.cs` 用真 DS 装配（`DedicatedServerHostBinding.TryAttach` + `maps/sample.voxel` + 真 Native）跑这三个角色：两矿工同帧下单 → 同一批发布 → revision +1 → 各自只结算一次；随后一笔仍期望 r 的写入被合法拒绝、格子不变、世界照常跑（这正是连带失效的机制）；抢同一格的人拿到合法拒绝，不扣费、不重复奖励、格子不闪回成石头；只跑动的人一次都没动过 revision。它是被测客户端形态的**权威侧孪生**——服务器没有预测记录，但「谁在 r 上校验、谁把 S 顶到 r+1」是同一件事。
-- **Bot Host 直播的那一半**：入口是 `--gameplay <玩法 dll> --scenario <场景 dll> --scenario-name Lumio.Sample.Bots.SampleMiningScenario`（`FoundationHostCommand`），本仓不改 `integration/launcher.mjs`（归 R-00520）。场景类已落在 `Client/Bots/`：`SampleMiningPlan` 是纯决策（随 slnx 编译与测试），`SampleMiningScenario` 只做适配。目标解析已通（Client `BotWorldView.VisibleEntities` 按 wire 名枚举并给出 `NetEntityId`，正是 `MineAbility.Input` 要的矿脉 hex）。**仍缺两条**：一是 `BotWorldView` 只给身份不给坐标，机器人无法朝矿脉导航，只能按确定性方形螺旋盲扫，进到近战距离才打得中；二是 Client 生产代码没有一处构造 `GasJointPrediction`，`HostVoxelWorldAdapter.Prediction` 始终为空，客户端挖格因此走 `AwaitAuthority`。这两条都在 Client，不在本仓补替代品。
+- **可跑的那一半**：`Server/Tests/Gameplay/MineContentionScenarioTests.cs` 用真 DS 装配（`DedicatedServerHostBinding.TryAttach` + `Server/Assets/Maps/sample.voxel` + 真 Native）跑这三个角色：两矿工同帧下单 → 同一批发布 → revision +1 → 各自只结算一次；随后一笔仍期望 r 的写入被合法拒绝、格子不变、世界照常跑（这正是连带失效的机制）；抢同一格的人拿到合法拒绝，不扣费、不重复奖励、格子不闪回成石头；只跑动的人一次都没动过 revision。它是被测客户端形态的**权威侧孪生**——服务器没有预测记录，但「谁在 r 上校验、谁把 S 顶到 r+1」是同一件事。
+- **Bot Host 直播的那一半**：入口是 `--gameplay <玩法 dll> --scenario <场景 dll> --scenario-name Lumio.Sample.Bots.SampleMiningScenario`（`FoundationHostCommand`），本仓不改 `Tools/launcher.mjs`（归 R-00520）。场景类已落在 `Client/Bots/`：`SampleMiningPlan` 是纯决策（随 slnx 编译与测试），`SampleMiningScenario` 只做适配。目标解析已通（Client `BotWorldView.VisibleEntities` 按 wire 名枚举并给出 `NetEntityId`，正是 `MineAbility.Input` 要的矿脉 hex）。**仍缺两条**：一是 `BotWorldView` 只给身份不给坐标，机器人无法朝矿脉导航，只能按确定性方形螺旋盲扫，进到近战距离才打得中；二是 Client 生产代码没有一处构造 `GasJointPrediction`，`HostVoxelWorldAdapter.Prediction` 始终为空，客户端挖格因此走 `AwaitAuthority`。这两条都在 Client，不在本仓补替代品。
 
 ## 待解决
 

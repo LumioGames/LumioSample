@@ -30,8 +30,8 @@ status: pending
 ### 2.1 DS 怎么装载用户改完的 C# 玩法（S-2 契约）
 
 - **结论**：装载机制代码里已有，但「玩法编译时依赖的 Runtime DLL 从哪来」没人定，S-2 卡面在这里是空的。
-- **事实依据**：`LumioServer/modules/process/src/ds.rs`：`lumio-ds --config server.json`，`clr` 段含 `engine_native / hostfxr / runtime_config / assembly / entry_type / entry_method / replication_assembly / ecs_assembly / registry_assembly`；`LumioServer/eng/server.example.json` 里 `registry_assembly: managed/YourGame.Server.dll`。`entity-chat-host/.../HostEntry.cs:131-145`：按路径 `Assembly.LoadFrom` 用户 DLL，从 `replication_assembly` / `ecs_assembly` 所在目录按 `Lumio.GameRuntime.*.dll` 通配加载同级程序集（`:182`），再找 `EcsRegistry.Current` 或扫描生成的注册表子类。本仓 `engine/managed/Lumio.Engine.SDK/Lumio.Engine.SDK.csproj` 只引用 `Lumio.Engine.NativeLoader`，不含 Runtime 的 Ecs / Replication。`gen-declarations` 只在 `LumioGameRuntime/Directory.Build.targets:32,45` 里跑过，从未出过仓；`LumioGame` 也不调用它（其 `ChatComponent` 来自引用 Runtime 的样例工程）。
-- **定了什么**：DS 包不带任何 Runtime DLL；`server.json` 三个路径（`replication_assembly` / `ecs_assembly` / `registry_assembly`）全指向用户 `dotnet build` 出来的 `bin/` 目录；Ecs / Replication（后续 Gas / Coordination）随 SDK NuGet 包进用户 bin，只此一份；`gen-declarations` 以 MSBuild 任务随包分发。理由：一处维护、一份版本，排错只看一个目录。
+- **事实依据**：`LumioServer/modules/process/src/ds.rs`：`lumio-ds --config Server/Config/Startup/server.json`，`clr` 段含 `engine_native / hostfxr / runtime_config / assembly / entry_type / entry_method / replication_assembly / ecs_assembly / registry_assembly`；`LumioServer/eng/server.example.json` 里 `registry_assembly: managed/YourGame.Server.dll`。`entity-chat-host/.../HostEntry.cs:131-145`：按路径 `Assembly.LoadFrom` 用户 DLL，从 `replication_assembly` / `ecs_assembly` 所在目录按 `Lumio.GameRuntime.*.dll` 通配加载同级程序集（`:182`），再找 `EcsRegistry.Current` 或扫描生成的注册表子类。本仓 `engine/managed/Lumio.Engine.SDK/Lumio.Engine.SDK.csproj` 只引用 `Lumio.Engine.NativeLoader`，不含 Runtime 的 Ecs / Replication。`gen-declarations` 只在 `LumioGameRuntime/Directory.Build.targets:32,45` 里跑过，从未出过仓；`LumioGame` 也不调用它（其 `ChatComponent` 来自引用 Runtime 的样例工程）。
+- **定了什么**：DS 包不带任何 Runtime DLL；`Server/Config/Startup/server.json` 三个路径（`replication_assembly` / `ecs_assembly` / `registry_assembly`）全指向用户 `dotnet build` 出来的 `bin/` 目录；Ecs / Replication（后续 Gas / Coordination）随 SDK NuGet 包进用户 bin，只此一份；`gen-declarations` 以 MSBuild 任务随包分发。理由：一处维护、一份版本，排错只看一个目录。
 - **落卡**：S-2（R-00519）卡面重写；顺带删 `Lumio.Sample.Gameplay.csproj` 的 `netstandard2.1` 目标（注释写着 Unity / HybridCLR，已降为候选，浏览器走 .NET wasm 也是 net10.0）。
 
 ### 2.2 DS 侧体素那道门与存档「快门线」
@@ -44,13 +44,13 @@ status: pending
 ### 2.3 配表：M8 / M9 不存在；数据必须是文件；JSON 只解析一次
 
 - **结论**：S-10 不是「无前置、可最先做」，是 BLOCKED。编译这一头能跑，typed Reader 生成器（M8）和 DS 开机装载器（M9）都不存在。
-- **事实依据**：在 `LumioConfig` 实跑 `python3 tools/lumio_config.py export --out <scratch>` → `export: OK (3 table(s))`，产出 `server/skills.json`（`rows[]` 已按 schema 带类型）与带三重指纹的 `manifest.json`；`src/lumio_config/` 无任何代码生成模块；`LumioConfig/README.md` 明写「不实现运行时装载器」。`LumioGameRuntime/modules/config/src/Lumio.GameRuntime.Config/`：`IGeneratedConfigArtifactPort.Submit(GeneratedConfigArtifactView)` 等着有人把 export 目录读成视图；`ConfigTableReader.TryGet(key, column)` 返回 `ConfigValueView(CanonicalText)`——字符串，`ConfigSnapshotCell(Column, CanonicalText)` 每格存文本；无文件装载器。`LumioServer` HostEntry 不读配表，`server.json` 没有配表目录，`content_fingerprint` 手填。`.spec/plans/2026-09-01-lumioconfig-parallel-dispatch.md:93` 明写「M9 本轮暂缓」。
-- **定了什么**：① M8 归 LumioConfig（导表器顺手生成 C# typed Reader），**生成的 C# 只含类型与读法，不含数值**；② M9 归 Runtime + Server HostEntry：`server.json` 加配表目录，读 manifest → Submit → Stage → 首帧激活，`content_fingerprint` 从 manifest 读不再手填；③ **数据必须是文件**（现在 JSON、阶段 3 换二进制内芯）——理由是本项目自己的三条要求：V 端由 Rust 读（voxel.md 材质类表来源即同一份配表）、M9 / M10 的 reload / 回放钉版 / 浏览器分包、内容指纹按数据算；④ JSON 只在 M9 装载时解析一次，快照存按 schema 生成的强类型，Reader 直接返回类型值，Runtime 现有文本格快照随 M9 改掉；⑤ `server.json`（端口 / 密钥 / 限额）与配表（玩法数值）本就是两套，不算重复。
+- **事实依据**：在 `LumioConfig` 实跑 `python3 tools/lumio_config.py export --out <scratch>` → `export: OK (3 table(s))`，产出 `server/skills.json`（`rows[]` 已按 schema 带类型）与带三重指纹的 `manifest.json`；`src/lumio_config/` 无任何代码生成模块；`LumioConfig/README.md` 明写「不实现运行时装载器」。`LumioGameRuntime/modules/config/src/Lumio.GameRuntime.Config/`：`IGeneratedConfigArtifactPort.Submit(GeneratedConfigArtifactView)` 等着有人把 export 目录读成视图；`ConfigTableReader.TryGet(key, column)` 返回 `ConfigValueView(CanonicalText)`——字符串，`ConfigSnapshotCell(Column, CanonicalText)` 每格存文本；无文件装载器。`LumioServer` HostEntry 不读配表，`Server/Config/Startup/server.json` 没有配表目录，`content_fingerprint` 手填。`.spec/plans/2026-09-01-lumioconfig-parallel-dispatch.md:93` 明写「M9 本轮暂缓」。
+- **定了什么**：① M8 归 LumioConfig（导表器顺手生成 C# typed Reader），**生成的 C# 只含类型与读法，不含数值**；② M9 归 Runtime + Server HostEntry：`Server/Config/Startup/server.json` 加配表目录，读 manifest → Submit → Stage → 首帧激活，`content_fingerprint` 从 manifest 读不再手填；③ **数据必须是文件**（现在 JSON、阶段 3 换二进制内芯）——理由是本项目自己的三条要求：V 端由 Rust 读（voxel.md 材质类表来源即同一份配表）、M9 / M10 的 reload / 回放钉版 / 浏览器分包、内容指纹按数据算；④ JSON 只在 M9 装载时解析一次，快照存按 schema 生成的强类型，Reader 直接返回类型值，Runtime 现有文本格快照随 M9 改掉；⑤ `Server/Config/Startup/server.json`（端口 / 密钥 / 限额）与配表（玩法数值）本就是两套，不算重复。
 - **落卡**：LumioConfig 1 张（M8 C# 路）、Runtime + Server 1 张（M9）；S-10（R-00527）改为依赖它们、从 wave 1 挪后；`sample.md` 判据 3「重编重启」改「换文件重启」。
 
 ### 2.4 tick 频率一处真值
 
-- **结论**：`server.json` 的 `host.tick_hz` 是死字段，DS 真正的节拍是写死的 10 ms，R-00462 定的 `WorldEntity.TickRate` 宿主又拿不到。
+- **结论**：`Server/Config/Startup/server.json` 的 `host.tick_hz` 是死字段，DS 真正的节拍是写死的 10 ms，R-00462 定的 `WorldEntity.TickRate` 宿主又拿不到。
 - **事实依据**：`LumioServer/modules/process/src/entity_chat/mod.rs:105,146-147,198` 声明、默认、校验 `tick_hz`，全仓无读取；`entity_chat/host.rs:49` `OWNER_CADENCE_MS = 10`，`:614` `schedule_repeating(TimerMode::TickFrame, 1, 1, DISPATCH_TICK)`；HostEntry `boot` 只回 `Ok()`；`tick.md`（架构仓 `.spec/knowledge/features/tick.md`） §5「频率是游戏配置、随快照入档」；`.spec/plans/2026-09-05-bomber-engine-runtime-cards.md:76` RT-1 定 `WorldEntity.TickRate` 为唯一真值；Runtime 里 `TickRate` 尚无代码（R-00462 未落）。
 - **定了什么**：删 `tick_hz` 与常量；HostEntry `boot` 响应带回 `tickRate`（新世界从 WorldEntity 读、恢复从快照读），宿主按它设 owner 节拍。
 - **落卡**：R-00462 追加一条验收（boot 响应含 tickRate）；Server 1 张小卡（按响应设节拍、删两处旧值）。
@@ -58,7 +58,7 @@ status: pending
 ### 2.5 一条命令的真拓扑与客户端形态
 
 - **结论**：「起账号服 + DS + N Bot + 浏览器」这条链今天没有一环接通；S-3 / S-4 让复用的那套指向的是要退役的东西。
-- **事实依据**：`lumio-ds` 从没被任何脚本端到端拉起过（`LumioServer/modules/process/tests/config_example.rs` 只校验示例 json；Server 仓 CI 只有 `repository-policy.yml`）。`LumioGame/integration/entity-chat/launcher.mjs` 的 SUCCESS 路径写死 `lumio-entity-chat-replay`（test-harness 专用 bin，固定 100 Bot 剧本进程内跑完），`entity_chat/discover.rs` 要 `LumioServer/account-server/` 的 `lumio-account-server.dll`（ADR-061（架构仓 `.spec/decisions/ADR-061-lumioplatform-repository-and-account-authority.md`） 定整目录删）。`lumio-ds` 只认 allocation 绑定票（`entity_chat/secure.rs`），票只能由 LumioPlatform `POST /api/games/{slug}/launch` 签发（`LumioPlatform/.spec/knowledge/features/lobby-launch.md:33`），该端口（R-00416）未合入，Platform OpenAPI 只有 `/healthz`，且 `PLATFORM_DB_CONNECTION_STRING is required`（PostgreSQL）。`entity_chat/wire.rs:719-741` `upgrade_credential` 只认 `Authorization: Bearer` 或 `lumio-admission.` 子协议前缀；`LumioClient/modules/bot/host/FoundationHostCommand.cs:131-150` 走 `{connectionId}` 首帧的旧附着路径（`requiresMvpChannelAuth: false`），真带票时 `MvpChannelAuth` 发的是 `lumio.mvp.v0, <token>, <nonce>` 三段，对不上。浏览器端 `LumioServer/eng/connect-ds.mjs` 已按 launch 应答接 DS。
+- **事实依据**：`lumio-ds` 从没被任何脚本端到端拉起过（`LumioServer/modules/process/tests/config_example.rs` 只校验示例 json；Server 仓 CI 只有 `repository-policy.yml`）。`LumioGame/Tools/entity-chat/launcher.mjs` 的 SUCCESS 路径写死 `lumio-entity-chat-replay`（test-harness 专用 bin，固定 100 Bot 剧本进程内跑完），`entity_chat/discover.rs` 要 `LumioServer/account-server/` 的 `lumio-account-server.dll`（ADR-061（架构仓 `.spec/decisions/ADR-061-lumioplatform-repository-and-account-authority.md`） 定整目录删）。`lumio-ds` 只认 allocation 绑定票（`entity_chat/secure.rs`），票只能由 LumioPlatform `POST /api/games/{slug}/launch` 签发（`LumioPlatform/.spec/knowledge/features/lobby-launch.md:33`），该端口（R-00416）未合入，Platform OpenAPI 只有 `/healthz`，且 `PLATFORM_DB_CONNECTION_STRING is required`（PostgreSQL）。`entity_chat/wire.rs:719-741` `upgrade_credential` 只认 `Authorization: Bearer` 或 `lumio-admission.` 子协议前缀；`LumioClient/modules/bot/host/FoundationHostCommand.cs:131-150` 走 `{connectionId}` 首帧的旧附着路径（`requiresMvpChannelAuth: false`），真带票时 `MvpChannelAuth` 发的是 `lumio.mvp.v0, <token>, <nonce>` 三段，对不上。浏览器端 `LumioServer/eng/connect-ds.mjs` 已按 launch 应答接 DS。
 - **定了什么**：样例启动器就是 `lumio-ds` 的第一个真 E2E harness，起真拓扑：Platform（账号 + launch，Postgres 走 docker compose）→ `lumio-ds` → N 个 C# Bot 执行、浏览器经 `connect-ds.mjs` 旁观。判据 2 接受 Docker（判据 1 的 `dotnet build` 不受影响）。**客户端形态**：十四步由 C# Bot 执行；浏览器是最终核心验收场景（真玩家），第一阶段（残版）可先只用 Bot 收口，但里程碑「做完」= 浏览器跑通十四步。
 - **落卡**：Platform R-00416；Client 1 张「Bot 改 Bearer 载体、删 connectionId 附着」；Server 无新卡；S-3 / S-4 卡面「复用」改「参考」。
 
@@ -92,7 +92,7 @@ status: pending
 
 - **结论**：地图由地编 / 编辑器 / Minecraft 导入产出，本里程碑先用最土的办法准备一份；S-1 的程序化 `MapLayout` 生成器方向错，删。
 - **事实依据**：`save-load.md`（架构仓 `.spec/knowledge/features/save-load.md`） M1「原始地图是不可变全量快照（格式复用规范快照，零新格式）」；voxel.md M10「检查器只读，永不写回存档——不提供绕过引擎的修改路径」；`LumioVoxelEngine` 无任何离线工具（无 `[[bin]]`）。
-- **定了什么**：底图 = 规范快照文件（如 `maps/sample.voxel`），由一次性脚本经 SDK 写格（地板、硬墙、几片矿石）再 capture 生成，脚本与产物一起入库、产物不手改；DS 开机 = restore 底图；玩法首次开档扫矿石格建储量实体并登记引用；之后每次开机 = 底图 + 改动层；判据 7 从「同种子」改「同底图」。底图字节不得手改（M10），只能经引擎写再 capture。地编 / Minecraft 导入不进本里程碑。
+- **定了什么**：底图 = 规范快照文件（如 `Server/Assets/Maps/sample.voxel`），由一次性脚本经 SDK 写格（地板、硬墙、几片矿石）再 capture 生成，脚本与产物一起入库、产物不手改；DS 开机 = restore 底图；玩法首次开档扫矿石格建储量实体并登记引用；之后每次开机 = 底图 + 改动层；判据 7 从「同种子」改「同底图」。底图字节不得手改（M10），只能经引擎写再 capture。地编 / Minecraft 导入不进本里程碑。
 - **落卡**：并入 S-5（R-00522）改写：删 `MapLayout`、加底图脚本与 restore 加载。
 
 ### 2.11 矿脉「两半拆法」的稀疏引用断了三处
@@ -140,7 +140,7 @@ status: pending
 |---|---|---|---|---|
 | 0 | **非 Windows CoreCLR 宿主**：`clr-host` 补 Unix（Linux + macOS）dlopen 装载路径，Linux / Windows 双绿 | 架构仓 | — | 新卡（§2.14①）；判据 2 与 CI 转绿的真前置，排在 S-2 之前 |
 | 0 | Hello writer 发正常关闭码（对齐 `dev-run.mjs` 断言），**不放宽断言** | LumioServer | — | 新卡（§2.14②）；Windows integration 红根因 |
-| 0 | S-2 重写：SDK 包含 Runtime Ecs / Replication + gen-declarations MSBuild + **公开使用面**（XML doc + `engine/wire` / `engine/abi` 生成的公开 API / 错误码参考）；DS 包不带 Runtime DLL；`server.json` 指用户 `bin/`；删 `netstandard2.1` | 架构仓 + LumioSample | S-1 | 所有实现卡的真 wave 0；公开使用面按 §2.14 决策 18 |
+| 0 | S-2 重写：SDK 包含 Runtime Ecs / Replication + gen-declarations MSBuild + **公开使用面**（XML doc + `engine/wire` / `engine/abi` 生成的公开 API / 错误码参考）；DS 包不带 Runtime DLL；`Server/Config/Startup/server.json` 指用户 `bin/`；删 `netstandard2.1` | 架构仓 + LumioSample | S-1 | 所有实现卡的真 wave 0；公开使用面按 §2.14 决策 18 |
 | 0 | S-7 两轮哈希对账 | LumioSample | — | 参考 entity-chat `verify-evidence.mjs` |
 | 0 | S-9 LumioGame 改导航 | LumioGame | — | |
 | 0 | R-00416 launch 端口 | LumioPlatform | — | 已有卡 |
@@ -149,7 +149,7 @@ status: pending
 | 1 | R-00462 追加「boot 响应带 tickRate」 | Runtime | — | 已有卡追加验收 |
 | 1 | 宿主按 boot 响应设节拍；删 `tick_hz` 与 10 ms 常量 | Server | R-00462 | 新卡 |
 | 1 | M8：导表器生成 C# typed Reader（只含类型与读法） | LumioConfig | — | **复用已有 R-00325**（`backlog`），按 §2.3 解除守门、收窄到 C# 路；不新建卡（§2.14③） |
-| 1 | M9：装载器（`server.json` 加配表目录、指纹从 manifest 读、装载时解析一次、快照存强类型） | Runtime + Server HostEntry | M8 | 新卡；S-10 改依赖它 |
+| 1 | M9：装载器（`Server/Config/Startup/server.json` 加配表目录、指纹从 manifest 读、装载时解析一次、快照存强类型） | Runtime + Server HostEntry | M8 | 新卡；S-10 改依赖它 |
 | 1 | ABI / SDK 加 voxel `capture` / `restore` 两槽 | 架构仓 | — | 新卡 |
 | 1 | S-6 前半：入场 + 聊天 | LumioSample | S-2 | |
 | 1 | S-3 启动器（真拓扑）/ S-4 登录 | LumioSample | S-2、R-00416、Client Bearer 卡 | 「复用」改「参考」 |
@@ -202,7 +202,7 @@ status: pending
 Owner 授权后全部登记（含 conditional，登记 ≠ 可开工）；21 张新卡全部挂 R-00517 引用边，另 22 条按接口依赖的引用边、16 条评论、7 条追加验收项（R-00462 ×2、R-00468 ×2、R-00469 ×3）均已读回核对。R-00296 / R-00298 为 rejected 不重开，由新卡取代；R-00416 已在 acceptance，只加评论。
 
 - **wave 0**：R-00529 Bot 以 Bearer 携带 launch 票进 lumio-ds；删除 co…（RM-00007）
-- **wave 1**：R-00536 lumio-ds 节拍取自 HostEntry boot 响应的 tickRat…（RM-00006）；R-00535 M8：导表器生成 C# typed Table Reader（只含类型与读法，不…（RM-00009）；R-00544 M9 装载器（Runtime 侧）：读 LumioConfig export →…（RM-00005）；R-00547 HostEntry 配表装载：server.json 加配表目录、content…（RM-00006）；R-00533 ABI / SDK 增 voxel capture / restore 两槽（体…（RM-00001）
+- **wave 1**：R-00536 lumio-ds 节拍取自 HostEntry boot 响应的 tickRat…（RM-00006）；R-00535 M8：导表器生成 C# typed Table Reader（只含类型与读法，不…（RM-00009）；R-00544 M9 装载器（Runtime 侧）：读 LumioConfig export →…（RM-00005）；R-00547 HostEntry 配表装载：Server/Config/Startup/server.json 加配表目录、content…（RM-00006）；R-00533 ABI / SDK 增 voxel capture / restore 两槽（体…（RM-00001）
 - **wave 2**：R-00538 ABI 增方块-实体绑定 set / clear / get 三槽，随 bloc…（RM-00001）；R-00542 ABI 增「按角色 + 驻留预算建世界」槽（客户端体素副本用）…（RM-00001）；R-00545 契约：Section 在 DS 连接上的帧、首全量后增量与带宽配额…（RM-00001）；R-00543 提交点切携带体素那半：Runtime 经 ABI capture 出体素切、恢复…（RM-00005）；R-00546 lumio-ds runtime+voxel profile：开机建体素世界、b…（RM-00006）；R-00531 稀疏引用表进 capture / restore；放箱子再读档两半同时在…（RM-00003）；R-00539 ECS 0-9 · Local Entity：只在 .Client.cs 声明的…（RM-00005）；R-00549 lumio-ds 体素派发：按视野 / pin 选 Section、首全量后增量…（RM-00006）；R-00548 客户端体素副本 + 本地物理端口：收首包与 Section 增量喂本地世界，技能…（RM-00007）；R-00534 Bot 宿主：CLI 按名装载玩法 + 场景程序集；驱动上下文带只读 World…（RM-00007）；R-00540 跑动：移动作为 GAS Ability（两端同一段代码），服务器权威、Bot 发…（RM-00015）
 - **wave 3**：R-00537 root 表增 spatial 槽（lumio-spatial upsert /…（RM-00001）；R-00541 ECS World.QueryAabb：实体空间索引随 LogicTransfo…（RM-00005）；R-00532 replay 与 RM-00011 验收链改接 Platform（账号 WS +…（RM-00006）；R-00530 Rust→wasm32 调研：VoxelEngine 六 crate + Nat…（RM-00003）
 

@@ -41,11 +41,11 @@
 - 同级开发：设置 `LumioRuntimeRoot`，并且 Runtime 旁边要有 `LumioGameEngine`（Ecs `QueryAabb` / Simulation `clock_now` 绑 NativeLoader，没有 C# 替身）。CI 的 `build` / `test` 作业这样验。
 - 包消费：CI `external-clone` 每次用架构仓现打的 `Lumio.Engine.SDK` nupkg 编过。Owner 还没把这个包发到 nuget.org，所以干净机器上裸 `git clone && dotnet build` 会得到 `LUMIO_SDK_UNRESOLVED`——这是闸门，不是静默降级，也不是「外部 clone 已经能编」。
 - 用它当模板建新仓。
-- 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。`server.json` 是可运行的 DS 模板（runtime+voxel + snapshot_only）；allocation / 准入公钥是本机句法 stand-in。填我用的 `replace-*` 留在 `server.sample.json`，未填时报响亮缺值，不是占位 `BLOCKED_ENV`。
-- 玩法声明已在 `src/Lumio.Sample.Gameplay/`：世界 / 玩家 / 聊天 / 跑动技能 / 矿脉储量 / 掉落 / 拾取 Effect。数值在 `config/*.json`。
-- 一条命令的启动器是 `node integration/launcher.mjs --bots N`。没有 Platform / `lumio-ds` / Bot.Host 时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，不会假绿。它默认给每名 Bot 带上 `--voxel-config maps/bot-voxel-budget.json`：这个房间是 `world_profile=runtime+voxel`，**不带体素预算的 Bot 收到第一帧 SectionFrame 就 `session_faulted`**，那是 ADR-112 修订 2 ⑨ 的 fail-closed 设计行为不是缺陷（详见 [`docs/tour.md` 第 4 步](docs/tour.md)）。旁观者、纯移动压测这类本就不该拥有体素世界的跑法用 `--voxel-config off` 回到 entity-only 形态，但那只对不发 Section 的房间成立。
+- 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。`Server/Config/Startup/server.json` 是可运行的 DS 模板（runtime+voxel + snapshot_only）；allocation / 准入公钥是本机句法 stand-in。填我用的 `replace-*` 留在 `Server/Config/Startup/server.sample.json`，未填时报响亮缺值，不是占位 `BLOCKED_ENV`。
+- 玩法声明已在 `Gameplay/`：世界 / 玩家 / 聊天 / 跑动技能 / 矿脉储量 / 掉落 / 拾取 Effect。数值在两端的 `Config/Tables/*/*.json`（源表在 `Gameplay/Tables/`）。
+- 一条命令的启动器是 `node Tools/launcher.mjs --bots N`。没有 Platform / `lumio-ds` / Bot.Host 时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，不会假绿。它默认给每名 Bot 带上 `--voxel-config Server/Assets/Maps/bot-voxel-budget.json`：这个房间是 `world_profile=runtime+voxel`，**不带体素预算的 Bot 收到第一帧 SectionFrame 就 `session_faulted`**，那是 ADR-112 修订 2 ⑨ 的 fail-closed 设计行为不是缺陷（详见 [`docs/tour.md` 第 4 步](docs/tour.md)）。旁观者、纯移动压测这类本就不该拥有体素世界的跑法用 `--voxel-config off` 回到 entity-only 形态，但那只对不发 Section 的房间成立。
 
-**还没有的**：对着真 Platform + DS + C# Bot 跑通十四步；100 人移动压测的五条实测证据；存档冷恢复（R-00498 / R-00507）；体素写（R-00469）。`maps/sample.voxel` 已是 Engine capture CLI 产出的可 restore Cube 平面快照（DS 开机只 restore，不重算地形）。`server.json` 已冻成 `world_profile=runtime+voxel`、`durability=snapshot_only`（persistence-container-v1 词表），并要求 `base_map_id` / `base_map_version` / `base_map_content_sha256`。本机覆盖在 gitignored 的 [`.run/server.local.json`](.run/server.local.json)，须抄这份公共词表，不要再写 `runtime-only` / `process-crash`。旧的程序化地图生成器已删除。
+**还没有的**：对着真 Platform + DS + C# Bot 跑通十四步；100 人移动压测的五条实测证据；存档冷恢复（R-00498 / R-00507）；体素写（R-00469）。`Server/Assets/Maps/sample.voxel` 已是 Engine capture CLI 产出的可 restore Cube 平面快照（DS 开机只 restore，不重算地形）。`Server/Config/Startup/server.json` 已冻成 `world_profile=runtime+voxel`、`durability=snapshot_only`（persistence-container-v1 词表），并要求 `base_map_id` / `base_map_version` / `base_map_content_sha256`。本机覆盖在 gitignored 的 [`.run/server.local.json`](.run/server.local.json)，须抄这份公共词表，不要再写 `runtime-only` / `process-crash`。旧的程序化地图生成器已删除。
 
 **怎么安排**：2026-09-07 架构讨论把整个里程碑逐题拍板，记录在 [`.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md`](.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md)（架构仓副本）。要点：
 
@@ -79,22 +79,22 @@ dotnet build LumioSample.slnx
 dotnet test  LumioSample.slnx
 
 # 内部一条命令。缺 Platform / lumio-ds / Bot.Host 时 exit 2，BLOCKED_ENV。
-node integration/launcher.mjs --bots 2 --stagger-ms 250
+node Tools/launcher.mjs --bots 2 --stagger-ms 250
 ```
 
-[`integration/`](integration/) 里是启动器、账号客户端、证据对账和世界断言，见 [`integration/README.md`](integration/README.md)。已退役的正式 DS smoke 不要再当启动器。
+[`Tools/`](Tools/) 里是启动器、账号客户端、证据对账和世界断言，见 [`Tools/README.md`](Tools/README.md)。已退役的正式 DS smoke 不要再当启动器。
 
-> **一条命令跑完全程第一阶段只在引擎组的内部机器上跑得起来**：这条链要起账号平台，而平台镜像现在是从私有仓源码构建的，外部机器拿不到 compose 文件（见 [`integration/compose/README.md`](integration/compose/README.md)）。让外部也能一条命令跑通，排在对外发布前做。
+> **一条命令跑完全程第一阶段只在引擎组的内部机器上跑得起来**：这条链要起账号平台，而平台镜像现在是从私有仓源码构建的，外部机器拿不到 compose 文件（见 [`Tools/compose/README.md`](Tools/compose/README.md)）。让外部也能一条命令跑通，排在对外发布前做。
 > 上面的 `dotnet build` / `dotnet test` 在 sibling 或本地/CI 现打的 SDK feed 下绿。干净机器且 nuget.org 还没有包时，应看到 `LUMIO_SDK_UNRESOLVED`。CI 的 `external-clone` 每次现打再编，证明消费链通，不是证明裸 clone 就能编。
 
 ## 仓库结构
 
 | 目录 | 放什么 |
 |---|---|
-| [`src/`](src/) | 玩法程序集。服务器与客户端两端共用 |
-| [`tests/`](tests/) | 单元测试 |
-| [`config/`](config/) | 源配表与 schema。编译后由 typed Table Reader 读 |
-| [`integration/`](integration/) | 一键启动器、日志与两轮哈希对账 |
+| [`Client/`](Client/) | 客户端侧：Application / Bots / UI，以及 `Config/`（`C` 投影表与生成 Reader）|
+| [`Server/`](Server/) | **只放数据**：`Config/`（启动配置、`S`+`V` 投影表、生成 Reader）、`Assets/Maps/`、`Tests/`。服务端源码在 LumioServer |
+| [`Gameplay/`](Gameplay/) | 玩法程序集。服务器与客户端两端共用；`Tables/` 是配表源 |
+| [`Tools/`](Tools/) | 一键启动器、日志、两轮哈希对账与测试工程 |
 | [`docs/`](docs/) | [`tour.md`](docs/tour.md) 逐步导览 |
 | [`.spec/`](.spec/AGENTS.md) | 本仓的规范、决策与计划 |
 
