@@ -189,11 +189,11 @@ test('CLI parses --spectator as a boolean flag without a value', () => {
 
 test('CLI parses --spectator-url and LUMIO_SPECTATOR_ORIGIN', () => {
   const flagged = parseLaunchArgs(
-    ['--spectator-url', 'http://127.0.0.1:8765/modules/web/spectator/'],
+    ['--spectator-url', 'http://127.0.0.1:8765/Client/UI/Spectator/'],
     {},
   );
   assert.equal(flagged.spectator, true);
-  assert.equal(flagged.spectatorUrl, 'http://127.0.0.1:8765/modules/web/spectator/');
+  assert.equal(flagged.spectatorUrl, 'http://127.0.0.1:8765/Client/UI/Spectator/');
   const fromEnv = parseLaunchArgs(['--spectator'], {
     LUMIO_SPECTATOR_ORIGIN: 'http://127.0.0.1:9090',
     LUMIO_SPECTATOR_LOGIN: 'Spectator1',
@@ -217,22 +217,22 @@ test('spectator login is appended after Bot1..BotN and does not collide', () => 
   );
 });
 
-test('default spectator URL is origin + /modules/web/spectator/ without credentials', () => {
+test('default spectator URL is origin + /Client/UI/Spectator/ without credentials', () => {
   assert.equal(
     resolveSpectatorPageUrl({}),
-    'http://127.0.0.1/modules/web/spectator/',
+    'http://127.0.0.1/Client/UI/Spectator/',
   );
   assert.equal(
     resolveSpectatorPageUrl({ env: { LUMIO_SPECTATOR_ORIGIN: 'http://127.0.0.1:8080' } }),
-    'http://127.0.0.1:8080/modules/web/spectator/',
+    'http://127.0.0.1:8080/Client/UI/Spectator/',
   );
   assert.equal(
     resolveSpectatorPageUrl({ spectatorStaticPort: '9410' }),
-    'http://127.0.0.1:9410/modules/web/spectator/',
+    'http://127.0.0.1:9410/Client/UI/Spectator/',
   );
   assert.equal(
-    resolveSpectatorPageUrl({ spectatorUrl: 'http://user:ticket-secret@127.0.0.1:8/modules/web/spectator?admission=ticket-secret' }),
-    'http://127.0.0.1:8/modules/web/spectator/',
+    resolveSpectatorPageUrl({ spectatorUrl: 'http://user:ticket-secret@127.0.0.1:8/Client/UI/Spectator?admission=ticket-secret' }),
+    'http://127.0.0.1:8/Client/UI/Spectator/',
   );
 });
 
@@ -540,7 +540,7 @@ test('100 bots + spectator mint 101 unique tickets and start 100 Bot.Host proces
   assert.equal(report.admittedBots, 100);
   assert.equal(report.botHostsStarted, 100);
   assert.equal(report.spectatorLogin, 'Spectator1');
-  assert.equal(report.spectatorUrl, 'http://127.0.0.1:8080/modules/web/spectator/');
+  assert.equal(report.spectatorUrl, 'http://127.0.0.1:8080/Client/UI/Spectator/');
 
   const starts = tools.events.filter((event) => event.kind === 'start');
   assert.equal(starts.length, 101, '1 lumio-ds + 100 Bot.Host');
@@ -552,7 +552,7 @@ test('100 bots + spectator mint 101 unique tickets and start 100 Bot.Host proces
   assert.ok(!startedArgs.some((value) => String(value).includes('ticket-Spectator1')));
 
   const urlLine = lines.find((line) => line.startsWith('spectator-url='));
-  assert.equal(urlLine, 'spectator-url=http://127.0.0.1:8080/modules/web/spectator/');
+  assert.equal(urlLine, 'spectator-url=http://127.0.0.1:8080/Client/UI/Spectator/');
   assert.doesNotMatch(urlLine, /ticket-|admissionCredential|Spectator1-ticket/);
   for (const name of minted) {
     assert.doesNotMatch(urlLine, new RegExp(`ticket-${name}`));
@@ -582,7 +582,7 @@ test('injected 100 bot + spectator tickets stay unique and still skip a 101st Bo
     env: {},
     bots: 100,
     spectator: true,
-    spectatorUrl: 'http://127.0.0.1:8080/modules/web/spectator/',
+    spectatorUrl: 'http://127.0.0.1:8080/Client/UI/Spectator/',
     staggerMs: 0,
     durationMs: 5_000,
     timeoutMs: 5_000,

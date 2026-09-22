@@ -28,7 +28,7 @@ const DEFAULT_STAGGER_MS = 250;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_ACCOUNT = 'Bot1';
 const DEFAULT_SPECTATOR_LOGIN = 'Spectator1';
-const DEFAULT_SPECTATOR_PATH = '/modules/web/spectator/';
+const DEFAULT_SPECTATOR_PATH = '/Client/UI/Spectator/';
 const DEFAULT_SPECTATOR_ORIGIN = 'http://127.0.0.1';
 const BOOLEAN_FLAGS = new Set(['spectator']);
 
@@ -421,7 +421,7 @@ function usage() {
     '  --voxel-config off keeps the entity-only bot for a room that sends no Sections.',
     'Required for a live run: LUMIO_PLATFORM_ORIGIN, LUMIO_DS_EXE, LUMIO_BOT_DLL,',
     '  LUMIO_GAMEPLAY, LUMIO_ENGINE_NATIVE, LUMIO_BOT_TOOL_CREDENTIAL, sibling process-tools.mjs.',
-    'Spectator page origin defaults to LUMIO_SPECTATOR_ORIGIN or http://127.0.0.1/modules/web/spectator/.',
+    'Spectator page origin defaults to LUMIO_SPECTATOR_ORIGIN or http://127.0.0.1/Client/UI/Spectator/.',
     'Missing prerequisites exit 2 with VERIFICATION_STATUS=BLOCKED_ENV.',
   ].join('\n');
 }
