@@ -1038,17 +1038,32 @@ test('baseMapCaptureAgreement refuses a SHA that does not match the capture byte
   }
 });
 
-test('buildChildEnv injects maps/sample.voxel and the declared SHA for HostEntry first-boot restore', () => {
-  const child = buildChildEnv({
+test('buildChildEnv leaves the capture to the config path and only injects the env fallback', () => {
+  // server.json names base_map_path; the 2026-09-22 HostEntry guard rejects
+  // voxelSnapshotBase64 + LUMIO_BASE_MAP_PATH together, so the env must stay unset.
+  const withConfigPath = buildChildEnv({
     env: {},
     root: SAMPLE_ROOT,
     dsConfig: join(SAMPLE_ROOT, 'Server', 'Config', 'Startup', 'server.json'),
   });
-  assert.equal(child.LUMIO_BASE_MAP_PATH, join(SAMPLE_ROOT, 'Server', 'Assets', 'Maps', 'sample.voxel'));
+  assert.equal(withConfigPath.LUMIO_BASE_MAP_PATH, undefined);
   assert.equal(
-    child.LUMIO_BASE_MAP_SHA256,
+    withConfigPath.LUMIO_BASE_MAP_SHA256,
     JSON.parse(readFileSync(join(SAMPLE_ROOT, 'Server', 'Config', 'Startup', 'server.json'), 'utf8')).base_map_content_sha256,
   );
+
+  // Without a config path the env fallback carries the capture for HostEntry.
+  const dir = mkdtempSync(join(tmpdir(), 'lumio-childenv-'));
+  try {
+    const bare = JSON.parse(readFileSync(join(SAMPLE_ROOT, 'Server', 'Config', 'Startup', 'server.json'), 'utf8'));
+    delete bare.base_map_path;
+    const configPath = join(dir, 'server.json');
+    writeFileSync(configPath, JSON.stringify(bare));
+    const fallback = buildChildEnv({ env: {}, root: SAMPLE_ROOT, dsConfig: configPath });
+    assert.equal(fallback.LUMIO_BASE_MAP_PATH, join(SAMPLE_ROOT, 'Server', 'Assets', 'Maps', 'sample.voxel'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('runLiveTopology refuses a missing first-boot voxel capture before minting tickets', async () => {
@@ -1475,6 +1490,7 @@ test('runLiveTopology refuses a stale native sidecar before minting tickets or s
 });
 
 const CADENCE_LAG_LINE = 'ts=2026-09-15T05:00:00.000000Z level=WARN tick=0 world=0 lang=rs target=host.drop msg="cadence_lag world=- conn=-" generation=0 bytes=0 dropped=12 suppressed=0';
+const CADENCE_LAG_RUNTIME_LINE = 'ts=2026-09-15T05:00:01.000000Z level=WARN tick=4102 world=sample lang=rs target=host.drop msg="cadence_lag world=sample conn=conn-1" generation=0 bytes=0 dropped=12 suppressed=0';
 
 function stressTicketManifest() {
   const expiry = Math.floor(Date.now() / 1000) + 3600;
@@ -1533,6 +1549,8 @@ function liveTopologyHarness({ dir, nativePath, dsStdout = 'DS_READY {"pid":1,"e
   if (loggingDir) config.logging = { dir: loggingDir };
   writeFileSync(dsConfig, JSON.stringify(config));
   writeFileSync(join(dir, 'chrome.exe'), 'chrome');
+  const voxelConfig = join(dir, 'bot-voxel.json');
+  writeFileSync(voxelConfig, '{}');
   const started = [];
   return {
     gameplay,
@@ -1551,6 +1569,7 @@ function liveTopologyHarness({ dir, nativePath, dsStdout = 'DS_READY {"pid":1,"e
       gameplay,
       engineNative: nativePath,
       chrome: join(dir, 'chrome.exe'),
+      voxelConfig,
       spectatorUrl: 'http://127.0.0.1:4173/Client/UI/Spectator/',
       ticketManifest: stressTicketManifest(),
       writeTicketManifest: false,
@@ -1579,24 +1598,29 @@ function liveTopologyHarness({ dir, nativePath, dsStdout = 'DS_READY {"pid":1,"e
   };
 }
 
-test('dsCadenceLagEvidence counts the latest host.drop dropped=N', () => {
+test('dsCadenceLagEvidence separates pre-world boot drops from runtime drops', () => {
   const dir = mkdtempSync(join(tmpdir(), 'lumio-cadence-lag-parse-'));
   try {
     const logPath = join(dir, 'lumio-ds.log');
     writeFileSync(logPath, [
+      // 2026-09-22 current-main DS: pre-CLR-boot overruns, no connection can fault.
       'ts=t0 level=WARN tick=0 world=0 lang=rs target=host.drop msg="cadence_lag world=- conn=-" generation=0 bytes=0 dropped=3 suppressed=0',
       'ts=t1 level=WARN tick=0 world=0 lang=rs target=host.drop msg="cadence_lag world=- conn=-" generation=0 bytes=0 dropped=12 suppressed=0',
-      'ts=t2 level=INFO tick=1 world=0 lang=rs target=host.admit msg="admitted" dropped=99',
+      // A runtime drop still fails the gate whatever the boot did.
+      'ts=t2 level=WARN tick=4102 world=sample lang=rs target=host.drop msg="cadence_lag world=sample conn=conn-1" generation=0 bytes=0 dropped=2 suppressed=0',
+      'ts=t3 level=INFO tick=1 world=0 lang=rs target=host.admit msg="admitted" dropped=99',
     ].join('\n'));
     const evidence = dsCadenceLagEvidence(logPath, '');
-    assert.equal(evidence.dropped, 12);
+    assert.equal(evidence.dropped, 2);
+    assert.equal(evidence.bootDropped, 12);
     assert.equal(evidence.marker, DS_CADENCE_LAG_MARKER);
     assert.equal(dsCadenceLagEvidence(join(dir, 'missing.log'), 'no lag here').dropped, 0);
     const loggingDir = join(dir, 'ds-logs');
     mkdirSync(loggingDir, { recursive: true });
     writeFileSync(join(loggingDir, '2026-09-15_000.log'), CADENCE_LAG_LINE);
     const fromDir = dsCadenceLagEvidence(join(dir, 'empty-capture.log'), '', [loggingDir]);
-    assert.equal(fromDir.dropped, 12, 'must read host.drop cadence_lag from DS logging.dir');
+    assert.equal(fromDir.bootDropped, 12, 'must read host.drop cadence_lag from DS logging.dir');
+    assert.equal(fromDir.dropped, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1609,7 +1633,7 @@ test('runLiveTopology refuses Bot.Host spawn when lumio-ds already cadence-lags'
     const { nativePath } = writeNativePair(dir);
     const loggingDir = join(dir, 'ds-logs');
     mkdirSync(loggingDir, { recursive: true });
-    writeFileSync(join(loggingDir, '2026-09-15_000.log'), `${CADENCE_LAG_LINE}\n`);
+    writeFileSync(join(loggingDir, '2026-09-15_000.log'), `${CADENCE_LAG_RUNTIME_LINE}\n`);
     const harness = liveTopologyHarness({
       dir,
       nativePath,
@@ -1623,7 +1647,7 @@ test('runLiveTopology refuses Bot.Host spawn when lumio-ds already cadence-lags'
       if (String(exe).toLowerCase().includes('lumio-ds')) {
         setTimeout(() => {
           lagWrittenAfterReady = true;
-          writeFileSync(join(loggingDir, '2026-09-15_000.log'), `${CADENCE_LAG_LINE}\n`);
+          writeFileSync(join(loggingDir, '2026-09-15_000.log'), `${CADENCE_LAG_RUNTIME_LINE}\n`);
         }, 5);
       }
       return child;

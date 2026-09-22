@@ -78,10 +78,13 @@ test('spectator startup forwards its per-run config into real Bot argument const
   const call = source.match(/const args = buildBotArgs\((\{[\s\S]*?\})\);/);
   assert.ok(call, 'spectator Bot argument call must exist');
   const kernelConfigPath = 'run/kernel-config.json';
-  const args = Function('buildBotArgs', 'botDll', 'ticketWsUrl', 'ticketsPath', 'engineNative', 'kernelConfigPath', 'logDir', 'row', 'gameplay', 'options', 'childEnv', `return buildBotArgs(${call[1]});`)(
+  const args = Function('buildBotArgs', 'botDll', 'ticketWsUrl', 'ticketsPath', 'engineNative', 'kernelConfigPath', 'logDir', 'row', 'gameplay', 'options', 'childEnv', 'voxelConfig', `return buildBotArgs(${call[1]});`)(
     buildBotArgs, 'Bot.dll', 'ws://127.0.0.1:9110/', 'tickets.json', 'native.dll', kernelConfigPath, 'logs', { loginName: 'bot1' }, 'Game.dll', {},
-    { LUMIO_CONFIG_DIR: 'exports/server', LUMIO_CLIENT_CONFIG_DIR: 'exports/client' });
+    { LUMIO_CONFIG_DIR: 'exports/server', LUMIO_CLIENT_CONFIG_DIR: 'exports/client' }, 'bot-voxel-budget.json');
   assert.equal(args[args.indexOf('--kernel-config') + 1], kernelConfigPath);
+  // ADR-112 rev2 ix: the spectator's bots join a runtime+voxel room, so the spawn call itself
+  // must forward the budget (the 2026-09-22 heredoc patch that dropped it went unnoticed).
+  assert.equal(args[args.indexOf('--voxel-config') + 1], 'bot-voxel-budget.json');
   // split-export/1: a Bot.Host is a client and must never be handed the S+V tree.
   assert.equal(args[args.indexOf('--config-dir') + 1], 'exports/client');
 });

@@ -57,6 +57,9 @@ export const REQUIRED_MOVED = 90;
 export const DEFAULT_CDP_PORTS = Object.freeze([9222, 9223]);
 export const TICKET_MANIFEST_NAME = 'spectator-102.json';
 export const TICKET_PREFIX = 'stressbot';
+// Night accounts outlive their passwords: a fresh prefix is the documented way to re-run
+// the topology against the same platform without reusing yesterday's credentials.
+export const STRESS_PREFIX_ENV = 'LUMIO_STRESS_PREFIX';
 export const TICKET_START_INDEX = 0;
 export const REQUIRED_PREFLIGHT_PORTS = Object.freeze([9110, 8080, 4173, 9222, 9223]);
 /** Owner PASS H2aczB admitted 100/100 at ~100 ms between Bot.Host starts. */
@@ -588,17 +591,27 @@ export function dsCadenceLagEvidence(logPath, stdout, extraLogPaths = []) {
       chunks.push(readFileSync(path, 'utf8'));
     } catch { /* log still being written */ }
   }
+  // 2026-09-22: the current-main DS emits cadence_lag during the pre-world CLR boot
+  // (tick=0 world=- conn=-, before DS_READY). No connection exists there, so no handshake
+  // can fault — the gate's stated purpose. Only provably pre-world lines are excluded;
+  // runtime drops keep the zero-tolerance baseline, and the excluded count is reported.
+  const isPreWorldLine = line => /msg="cadence_lag world=- conn=-"/.test(line) && /\btick=0\b/.test(line);
   let dropped = 0;
-  const re = /target=host\.drop[^\n]*msg="cadence_lag[\s\S]*?dropped=(\d+)/g;
+  let bootDropped = 0;
   for (const text of chunks) {
-    re.lastIndex = 0;
-    let match;
-    while ((match = re.exec(text)) !== null) {
-      const n = Number(match[1]);
-      if (Number.isFinite(n) && n > dropped) dropped = n;
+    for (const line of String(text).split(/\r?\n/)) {
+      if (!/target=host\.drop/.test(line) || !/msg="cadence_lag/.test(line)) continue;
+      const match = line.match(/dropped=(\d+)/);
+      const n = match ? Number(match[1]) : NaN;
+      if (!Number.isFinite(n)) continue;
+      if (isPreWorldLine(line)) {
+        if (n > bootDropped) bootDropped = n;
+      } else if (n > dropped) {
+        dropped = n;
+      }
     }
   }
-  return { dropped, marker: DS_CADENCE_LAG_MARKER, paths };
+  return { dropped, bootDropped, marker: DS_CADENCE_LAG_MARKER, paths };
 }
 
 /** Return the first missing prerequisite without starting anything. */
@@ -610,6 +623,9 @@ export function missingLiveReason(env = process.env, { requireCompose = false } 
   if (!paths.gameplay || !isFilePath(paths.gameplay)) return 'LUMIO_GAMEPLAY is not set or is not a file';
   const native = paths.engineNative || paths.engineNativePath;
   if (!native || !isFilePath(native)) return 'LUMIO_ENGINE_NATIVE is not set or is not a file';
+  if (!paths.voxelConfig || !isFilePath(paths.voxelConfig)) {
+    return 'LUMIO_BOT_VOXEL_CONFIG is not set or is not a file (bots session_fault on the first SectionFrame without it, ADR-112 rev2 ix)';
+  }
   if (requireCompose && (!paths.composeFile || !isFilePath(paths.composeFile))) {
     return 'LUMIO_PLATFORM_COMPOSE is not set or is not a file';
   }
@@ -1007,11 +1023,14 @@ export function validateTicketManifest(
     const marker = partitionMarker(row);
     if (index < BOTS && !isBotPartition(marker)) errors.push(`accounts[${index}] is not in the bot partition`);
     if (index >= BOTS && !isSpectatorPartition(marker)) {
-      // Stress-ticket manifests use a neutral stressbot prefix for all rows;
-      // the fixed row boundary is their partition marker.  Named spectator
-      // rows may use an explicit role or the conventional login prefix.
+      // Stress-ticket manifests use one neutral prefix for all rows; the fixed
+      // row boundary is their partition marker. Named spectator rows may use an
+      // explicit role or the conventional login prefix. The prefix itself is
+      // operator-chosen (LUMIO_STRESS_PREFIX), so the invariant is 'same neutral
+      // prefix as the bot rows', not the literal string 'stressbot'.
       const name = identityText(row.loginName);
-      if (strictShape && !/^stressbot/i.test(name) && !SPECTATOR_NAME_PATTERN.test(name)) {
+      const botPrefix = (String(rows?.[0]?.loginName ?? '').match(/^[^0-9]+/) ?? [''])[0];
+      if (strictShape && !(botPrefix && name.startsWith(botPrefix)) && !SPECTATOR_NAME_PATTERN.test(name)) {
         errors.push(`accounts[${index}] is not in the spectator partition`);
       }
     }
@@ -1216,7 +1235,7 @@ export async function mintTickets({ env = process.env, root = ROOT, options = {}
         '--start', String(TICKET_START_INDEX),
         '--origin', origin,
         '--game', game,
-        '--prefix', TICKET_PREFIX,
+        '--prefix', String(env?.[STRESS_PREFIX_ENV] ?? options.stressPrefix ?? TICKET_PREFIX),
         '--out', ticketsPath,
       ], {
         cwd: platformRoot,
@@ -1433,8 +1452,14 @@ function buildChildEnv({ env = process.env, root = ROOT, dsConfig, engineNative 
   output.LUMIO_CLIENT_CONFIG_DIR = output.LUMIO_CLIENT_CONFIG_DIR
     ? resolve(output.LUMIO_CLIENT_CONFIG_DIR)
     : resolve(root, 'Client', 'Config', 'Tables');
+  // HostEntry (2026-09-22 build) rejects a config base_map_path (forwarded as boot
+  // voxelSnapshotBase64) combined with the env path — the env is the documented fallback
+  // for configs that cannot name the capture, not a second opinion.
+  const configNamesBaseMap = dsConfig && existsSync(dsConfig) && (() => {
+    try { return Boolean(JSON.parse(readFileSync(dsConfig, 'utf8')).base_map_path); } catch { return false; }
+  })();
   if (!output.LUMIO_BASE_MAP_PATH) {
-    output.LUMIO_BASE_MAP_PATH = resolve(root, 'Server', 'Assets', 'Maps', 'sample.voxel');
+    if (!configNamesBaseMap) output.LUMIO_BASE_MAP_PATH = resolve(root, 'Server', 'Assets', 'Maps', 'sample.voxel');
   } else {
     output.LUMIO_BASE_MAP_PATH = resolve(output.LUMIO_BASE_MAP_PATH);
   }
@@ -3344,6 +3369,14 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     const botDll = effectivePath(options.botDll ?? env.LUMIO_BOT_DLL);
     const gameplay = effectivePath(options.gameplay ?? env.LUMIO_GAMEPLAY);
     const engineNative = effectivePath(effectiveNative);
+    // ADR-112 rev2 ix: the live acceptance DS is runtime+voxel, so every admitted bot
+    // receives the first SectionFrame and session_faults without a voxel budget.
+    const voxelConfig = effectivePath(options.voxelConfig ?? env.LUMIO_BOT_VOXEL_CONFIG);
+    let liveWorldProfile = '';
+    try { liveWorldProfile = String(JSON.parse(readFileSync(effectiveDsConfig, 'utf8')).world_profile ?? ''); } catch { /* config validation reports below */ }
+    if (liveWorldProfile.includes('voxel') && !isFilePath(voxelConfig)) {
+      return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_BOT_VOXEL_CONFIG is not set or is not a file (bots session_fault on the first SectionFrame without it)' };
+    }
     if (!isFilePath(effectiveDsConfig)) return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: DS config is missing: ${effectiveDsConfig}` };
     if (!isFilePath(dsExe)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_DS_EXE is not set or is not a file' };
     if (!isFilePath(botDll)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_BOT_DLL is not set or is not a file' };
@@ -3570,6 +3603,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
         accountFrom: row.loginName,
         accountTo: row.loginName,
         gameplay,
+        voxelConfig,
       });
       const child = await track(() => tools.startLogged(options.dotnet ?? env.LUMIO_DOTNET ?? 'dotnet', args, {
         cwd: dirname(botDll), env: childEnv, log: join(evidence, `bot-${index + 1}.log`),
