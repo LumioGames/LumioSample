@@ -52,8 +52,14 @@ export function missingEnv(env = process.env) {
 export function runSuite({ resultsRoot, dotnetArgs = [], execute = spawnSync, env = process.env } = {}) {
   const missing = missingEnv(env);
   if (missing.length > 0) {
+    // Not `BLOCKED_ENV`. ADR-113 决策 2 classifies a missing artifact as a
+    // failure, and `BLOCKED_ENV` is this workspace's token for "the environment
+    // cannot run this", which callers are entitled to tolerate. These cases
+    // carry engine guarantees, so "did not arrive" has to read as a failure to
+    // whoever wraps this script next.
     throw new Error(
-      `BLOCKED_ENV: these cases carry engine guarantees and may not be skipped, but ${missing.join(', ')} did not arrive.`,
+      `MISSING_INPUT: these cases carry engine guarantees and may not be skipped, but ${missing.join(', ')} did not arrive. `
+      + 'Run Tools/prepare-server-host-inputs.mjs, which produces and names every one of them.',
     );
   }
   mkdirSync(resultsRoot, { recursive: true });
@@ -78,13 +84,28 @@ export function runSuite({ resultsRoot, dotnetArgs = [], execute = spawnSync, en
   }
   writeFileSync(join(results, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
   console.log(JSON.stringify({ results, summary }, null, 2));
+  // One line the CI job greps for. ADR-113 决策 1 measures a job by its skip
+  // count, and a run that filtered both cases away would otherwise leave
+  // nothing in the log to contradict a green exit.
+  console.log(`HOST_SUITE cases=${summary.length} ${['total', 'passed', 'failed', 'skipped']
+    .map(key => `${key}=${summary.reduce((sum, row) => sum + row[key], 0)}`).join(' ')}`);
   return summary.every(row => row.success && row.passed === 1 && row.failed === 0 && row.skipped === 0);
 }
 
-/** Microsoft.Testing.Platform prints one summary block per run. */
+/**
+ * Microsoft.Testing.Platform prints one summary block per run.
+ *
+ * The escapes have to come off first. On a CI runner the platform colours the
+ * block, so the lines arrive as `ESC[m  total: 1` and `^\s*total:` matches
+ * nothing — every count reads NaN. R-00702's first CI run failed exactly
+ * there: both cases had passed and the line still said `total=NaN passed=NaN`.
+ * It failed closed, which is right, but the counts were unreadable, and
+ * nothing local reproduces it because the platform only colours on CI.
+ */
 export function parseCounts(output) {
+  const plain = String(output).replaceAll(/\u001B\[[0-9;]*[A-Za-z]/gu, '');
   const value = label => {
-    const match = output.match(new RegExp(`^\\s*${label}:\\s*(\\d+)`, 'mu'));
+    const match = plain.match(new RegExp(`^\\s*${label}:\\s*(\\d+)`, 'mu'));
     return match ? Number(match[1]) : Number.NaN;
   };
   return { total: value('total'), passed: value('succeeded'), failed: value('failed'), skipped: value('skipped') };
