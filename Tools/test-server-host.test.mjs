@@ -10,9 +10,24 @@ const scratch = () => mkdtempSync(join(tmpdir(), 'lumio-hostsuite-'));
 
 const full = Object.fromEntries(REQUIRED_ENV.map(name => [name, `/fake/${name}`]));
 
-/** Microsoft.Testing.Platform's summary block, as the suite prints it. */
-const summary = ({ total = 1, succeeded = 1, failed = 0, skipped = 0 } = {}) =>
-  `Test run summary: ${failed ? 'Failed!' : 'Passed!'}\n  total: ${total}\n  failed: ${failed}\n  succeeded: ${succeeded}\n  skipped: ${skipped}\n`;
+/**
+ * Microsoft.Testing.Platform's summary block, as the suite prints it. `colour`
+ * is what a CI runner actually receives; the platform only colours when it
+ * detects CI, which is why R-00702's first CI run read every count as NaN
+ * while every local run parsed cleanly.
+ */
+const ESC = String.fromCharCode(27);
+const summary = ({ total = 1, succeeded = 1, failed = 0, skipped = 0, colour = false } = {}) => {
+  const paint = (code, text) => (colour ? `${ESC}[${code}m${text}` : text);
+  return [
+    paint(failed ? 31 : 32, `Test run summary: ${failed ? 'Failed!' : 'Passed!'}`),
+    paint(0, `  total: ${total}`),
+    `  failed: ${failed}`,
+    paint(32, `  succeeded: ${succeeded}`),
+    paint(0, `  skipped: ${skipped}`),
+    '',
+  ].join('\n');
+};
 
 function fakeDotnet({ status = 0, counts = {} } = {}) {
   const calls = [];
@@ -86,4 +101,15 @@ test('the grepped HOST_SUITE line reports the counts the job asserts on', () => 
 test('the printed counts are read from the platform summary block', () => {
   assert.deepEqual(parseCounts(summary({ total: 2, succeeded: 1, failed: 1, skipped: 0 })),
     { total: 2, passed: 1, failed: 1, skipped: 0 });
+});
+
+test('the counts are still readable when the platform colours the block on CI', () => {
+  const coloured = summary({ total: 2, succeeded: 1, failed: 1, skipped: 0, colour: true });
+  assert.ok(coloured.includes(ESC), 'this fixture must actually carry escapes');
+  assert.deepEqual(parseCounts(coloured), { total: 2, passed: 1, failed: 1, skipped: 0 });
+});
+
+test('a coloured all-green run passes the gate, as it does on CI', () => {
+  const dotnet = fakeDotnet({ counts: { colour: true } });
+  assert.equal(runSuite({ resultsRoot: scratch(), env: full, execute: dotnet.execute }), true);
 });

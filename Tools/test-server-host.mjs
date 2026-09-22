@@ -92,10 +92,20 @@ export function runSuite({ resultsRoot, dotnetArgs = [], execute = spawnSync, en
   return summary.every(row => row.success && row.passed === 1 && row.failed === 0 && row.skipped === 0);
 }
 
-/** Microsoft.Testing.Platform prints one summary block per run. */
+/**
+ * Microsoft.Testing.Platform prints one summary block per run.
+ *
+ * The escapes have to come off first. On a CI runner the platform colours the
+ * block, so the lines arrive as `ESC[m  total: 1` and `^\s*total:` matches
+ * nothing — every count reads NaN. R-00702's first CI run failed exactly
+ * there: both cases had passed and the line still said `total=NaN passed=NaN`.
+ * It failed closed, which is right, but the counts were unreadable, and
+ * nothing local reproduces it because the platform only colours on CI.
+ */
 export function parseCounts(output) {
+  const plain = String(output).replaceAll(/\u001B\[[0-9;]*[A-Za-z]/gu, '');
   const value = label => {
-    const match = output.match(new RegExp(`^\\s*${label}:\\s*(\\d+)`, 'mu'));
+    const match = plain.match(new RegExp(`^\\s*${label}:\\s*(\\d+)`, 'mu'));
     return match ? Number(match[1]) : Number.NaN;
   };
   return { total: value('total'), passed: value('succeeded'), failed: value('failed'), skipped: value('skipped') };
