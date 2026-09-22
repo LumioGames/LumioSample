@@ -443,6 +443,8 @@ jobs:
         with:
           name: server-hostentry-linux-x64
           path: ${{ runner.temp }}/hostentry
+      - name: TEMP(R-00702) mutation proof; delete the HostEntry artifact on purpose
+        run: rm -v "$RUNNER_TEMP/hostentry/Lumio.Server.HostEntry.dll"
       - name: Download the packed SDK that produced it
         uses: actions/download-artifact@v7
         with:
