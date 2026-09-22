@@ -19,13 +19,28 @@ dotnet build LumioSample.slnx
 dotnet test  LumioSample.slnx
 ```
 
-碰 `integration/` 再加：
+碰 `Tools/` 再加：
 
 ```bash
-node --test integration/verify-evidence.mjs
+node --test Tools/verify-evidence.mjs
 ```
 
 **「运行了零个测试」不算通过**——显式指定测试文件确保至少执行 1 个测试；CI 亦显式指定目标。
+
+## 目录（ADR-115）
+
+顶层职责目录只有四个，仓务目录（`eng` / `docs` / `.spec` / `.github`）不计入：
+
+| 目录 | 放什么 |
+|---|---|
+| `Client/` | 客户端源码（Application / Bots / UI）与 `Config/`（`C` 投影表 + 生成 Reader） |
+| `Server/` | **只放数据**：`Config/`（`Startup/server.json`、`S`+`V` 投影表、生成 Reader）、`Assets/Maps/`、`Tests/`。**不得出现任何 `.csproj`**——服务端源码在 LumioServer |
+| `Gameplay/` | 玩法程序集（一份源码分端构建）与 `Tables/`（配表源） |
+| `Tools/` | 跨端启动器、联测编排，以及两个测试工程的 `.csproj`（用例源码在各端 `Tests/`） |
+
+`Server/Storage` / `Server/Diagnostics` 由 `lumio-ds` 运行时创建，已 gitignore，不入库
+也不建空壳。配表按端导出（`split-export/1`）：`C` 进 `Client/Config/Tables`，`S` 与
+`V` 进 `Server/Config/Tables`；客户端那棵树不得出现任何服务端产物。
 
 ## 项目专属约定
 

@@ -1,0 +1,70 @@
+{
+  "baselineId": "LGE-V1.4-2026-08-27",
+  "compilerHash": "afae84f135c65e3f66053ab1a26c467bafe9c6ae4869459fbc0a51db4eacfdb2",
+  "contentFingerprint": "742501d909217966a274b0fa9de676284c4103c6249a00ef1ce2dbeec1eeb5ac",
+  "endpoint": "server",
+  "formatVersion": 1,
+  "inputHash": "995eba7e634854e837ee998710e1b498cf06c788badfe110368f9ee420d5713c",
+  "origins": "origins.json",
+  "outputHash": "9d2142ddafb7d0b7aafc853d6bfedf893946eac2be304b48a8f774281c4ae3a9",
+  "packageFingerprint": "e0f0f7c2d17d0c6eacda0bfd05e101c2ab9e5a70e68f5bcb23185448b7705030",
+  "projectionRoots": {
+    "S": "server/manifest.json",
+    "V": "voxel/manifest.json"
+  },
+  "publicRoot": "e0f0f7c2d17d0c6eacda0bfd05e101c2ab9e5a70e68f5bcb23185448b7705030",
+  "releaseFingerprint": "951719b41951360f76e358cbde4ffd8291919ebe08155c41e28ec8e2433668d1",
+  "revisionId": "742501d909217966a274b0fa9de676284c4103c6249a00ef1ce2dbeec1eeb5ac",
+  "sharedPrediction": {
+    "columns": [],
+    "fingerprint": "697d43dfa016bcd44630c7a35d8460f0bfb45c701afa0b106251d28d891a53eb",
+    "specVersion": "split-export/1"
+  },
+  "sourceFingerprint": "7d27fefa6452ae453e2cfba0b1f2cc0ea377d836cf5fd22d6359aebbaae4a3aa",
+  "specVersion": "split-export/1",
+  "tables": [
+    {
+      "contentFingerprint": "25643aa38fc00fb137166d865a4a4c3d2df4b2e539939aae6ae86fe443d336a4",
+      "sourceFingerprint": "b5fdea0ba559e21c224c5e45058b31b5461238f9135609995dd4fc68e250d7db",
+      "table": "attributes"
+    },
+    {
+      "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+      "sourceFingerprint": "3ea963e5ded01171a0ed4a0b70f2154688648f3d14055ef56d478b8ba1bd0357",
+      "table": "drops"
+    },
+    {
+      "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
+      "sourceFingerprint": "c800925661133fd9cb1b6591eeb3038de7253f813c6b03bbb2c9f05f622d2bf7",
+      "table": "effects"
+    },
+    {
+      "contentFingerprint": "07d95d7f31d5117d0400d070175b42887f76d97d9b0a1dc7a4e5b980a69f8053",
+      "sourceFingerprint": "f59bf7f4430d7a8ae86f42c316cce059238e2ea16e7baa7c14b1d9147019bc09",
+      "table": "map"
+    },
+    {
+      "contentFingerprint": "97b5df7e9c2319ef3184bd9eb084aa9cf41af681d6c71799c66128afa92a19a9",
+      "sourceFingerprint": "a8e61bf2677b1e08ca592e330f05e0d10c2785825584371e36ad7f5fe98982e4",
+      "table": "mining"
+    },
+    {
+      "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
+      "sourceFingerprint": "923ea0373d6071141748b66727a693d0e83e95e45738a266e7798350f1af32bd",
+      "table": "movement"
+    },
+    {
+      "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+      "sourceFingerprint": "a10eb3b674957381a510f243e95c4a55bd6b6a22af78405329af4184acfc3325",
+      "table": "skills"
+    }
+  ],
+  "targetManifests": {
+    "S": "server/manifest.json",
+    "V": "voxel/manifest.json"
+  },
+  "targets": [
+    "S",
+    "V"
+  ]
+}

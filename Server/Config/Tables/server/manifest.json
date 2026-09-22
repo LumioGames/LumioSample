@@ -1,0 +1,103 @@
+{
+  "tables": [
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "41dbb86b89daf798138d79e3869fa555279ed5525fad5f315d5787940af2ee61",
+          "path": "server/attributes.json"
+        }
+      ],
+      "contentFingerprint": "25643aa38fc00fb137166d865a4a4c3d2df4b2e539939aae6ae86fe443d336a4",
+      "packageFingerprint": "41dbb86b89daf798138d79e3869fa555279ed5525fad5f315d5787940af2ee61",
+      "path": "server/attributes.json",
+      "sourceFingerprint": "b5fdea0ba559e21c224c5e45058b31b5461238f9135609995dd4fc68e250d7db",
+      "table": "attributes"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "adeb3df3f58c57ba67851891d054f107867af603ff6aeeb46f3d2a911ca670d3",
+          "path": "server/drops.json"
+        }
+      ],
+      "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+      "packageFingerprint": "adeb3df3f58c57ba67851891d054f107867af603ff6aeeb46f3d2a911ca670d3",
+      "path": "server/drops.json",
+      "sourceFingerprint": "3ea963e5ded01171a0ed4a0b70f2154688648f3d14055ef56d478b8ba1bd0357",
+      "table": "drops"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "7ae8b18958dc8ca125a95265a725cc704c2b85caf86e6a3fd11a8dd850bae059",
+          "path": "server/effects.json"
+        }
+      ],
+      "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
+      "packageFingerprint": "7ae8b18958dc8ca125a95265a725cc704c2b85caf86e6a3fd11a8dd850bae059",
+      "path": "server/effects.json",
+      "sourceFingerprint": "c800925661133fd9cb1b6591eeb3038de7253f813c6b03bbb2c9f05f622d2bf7",
+      "table": "effects"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "ecdc293dff428d2296101b7064dc85d2a6a7ae410da2b9497677620c22aecafd",
+          "path": "server/map.json"
+        }
+      ],
+      "contentFingerprint": "07d95d7f31d5117d0400d070175b42887f76d97d9b0a1dc7a4e5b980a69f8053",
+      "packageFingerprint": "ecdc293dff428d2296101b7064dc85d2a6a7ae410da2b9497677620c22aecafd",
+      "path": "server/map.json",
+      "sourceFingerprint": "f59bf7f4430d7a8ae86f42c316cce059238e2ea16e7baa7c14b1d9147019bc09",
+      "table": "map"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "f6d5bf199d83d0b5c8f65b0843a8bd183d60d06671808718367c5778d9e21320",
+          "path": "server/mining.json"
+        }
+      ],
+      "contentFingerprint": "97b5df7e9c2319ef3184bd9eb084aa9cf41af681d6c71799c66128afa92a19a9",
+      "packageFingerprint": "f6d5bf199d83d0b5c8f65b0843a8bd183d60d06671808718367c5778d9e21320",
+      "path": "server/mining.json",
+      "sourceFingerprint": "a8e61bf2677b1e08ca592e330f05e0d10c2785825584371e36ad7f5fe98982e4",
+      "table": "mining"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "39aafbfc91edba7a53c6ef99d0ee7ae1cefd5eb80c2c632ea8b0cd4aa1c6b879",
+          "path": "server/movement.json"
+        }
+      ],
+      "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
+      "packageFingerprint": "39aafbfc91edba7a53c6ef99d0ee7ae1cefd5eb80c2c632ea8b0cd4aa1c6b879",
+      "path": "server/movement.json",
+      "sourceFingerprint": "923ea0373d6071141748b66727a693d0e83e95e45738a266e7798350f1af32bd",
+      "table": "movement"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "a38bc5ff1d11accbf7dde321927fbe9606062a9c31566c0140fabdb393ec6472",
+          "path": "server/skills.json"
+        }
+      ],
+      "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+      "packageFingerprint": "a38bc5ff1d11accbf7dde321927fbe9606062a9c31566c0140fabdb393ec6472",
+      "path": "server/skills.json",
+      "sourceFingerprint": "a10eb3b674957381a510f243e95c4a55bd6b6a22af78405329af4184acfc3325",
+      "table": "skills"
+    }
+  ],
+  "target": "S"
+}

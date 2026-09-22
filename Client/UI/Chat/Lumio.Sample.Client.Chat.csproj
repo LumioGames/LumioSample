@@ -5,7 +5,7 @@
     <LumioEcsGenerate>false</LumioEcsGenerate>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../src/Lumio.Sample.Gameplay/Lumio.Sample.Gameplay.csproj" />
+    <ProjectReference Include="../../../Gameplay/Lumio.Sample.Gameplay.csproj" />
     <Reference Include="Lumio.Client.Replica" HintPath="$(LumioClientReplicaAssembly)" Private="true" />
   </ItemGroup>
   <Target Name="RequireClientReplicaArtifact" BeforeTargets="PrepareForBuild;ResolveAssemblyReferences">
