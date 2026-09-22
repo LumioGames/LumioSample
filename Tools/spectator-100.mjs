@@ -440,7 +440,7 @@ export function baseMapCaptureAgreement({ root = ROOT, dsConfig, env = {} } = {}
 }
 
 /**
- * Wave B serves `LumioClient/modules/web/spectator/` as a static tree.
+ * Wave B serves `LumioClient/Client/UI/Spectator/` as a static tree.
  * `main.js` only flushes MoveAbility after wasm `ConnectionState()==="active"`.
  * A `_framework` published before replica-host Program.cs (r15 served 2026-09-12
  * wasm without that export) leaves both self-dots at the admission pose while
@@ -450,7 +450,7 @@ export const SPECTATOR_WASM_CONNECTION_STATE_MARKER = 'ConnectionState';
 export const SPECTATOR_WASM_APPLY_ERROR_MARKER = 'LastApplyError';
 
 export function spectatorPageRoot(clientRoot) {
-  return resolve(String(clientRoot ?? ''), 'modules', 'web', 'spectator');
+  return resolve(String(clientRoot ?? ''), 'Client', 'UI', 'Spectator');
 }
 
 export function spectatorWasmAgreement({ clientRoot } = {}) {
@@ -3387,7 +3387,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     // Resolve only an operator-provided URL/origin. When absent, the runner
     // owns the static server lifecycle and fills in its loopback URL below.
     const requestedSpectatorUrl = resolveExplicitSpectatorUrl({ options, env, document });
-    const pageEntry = join(pageRoot, 'modules', 'web', 'spectator', 'index.html');
+    const pageEntry = join(pageRoot, 'Client', 'UI', 'Spectator', 'index.html');
     if (!isFilePath(pageEntry) && !requestedSpectatorUrl) {
       return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: spectator page is missing: ${pageEntry}` };
     }
@@ -3713,7 +3713,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
       document.spectatorUrl = assertLoopbackPageUrl(requestedSpectatorUrl);
     } else {
       staticServer = await startStaticServer(pageRoot, staticPort);
-      document.spectatorUrl = assertLoopbackPageUrl(`http://127.0.0.1:${staticPort}/modules/web/spectator/`);
+      document.spectatorUrl = assertLoopbackPageUrl(`http://127.0.0.1:${staticPort}/Client/UI/Spectator/`);
     }
     const ports = preflight.cdpPorts ?? normalizeCdpPorts(options.cdpPorts).ports;
     const sessions = spectatorRows.map((row, index) => ({

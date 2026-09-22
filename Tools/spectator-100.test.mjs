@@ -59,7 +59,7 @@ const SAMPLE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const KERNEL_CONFIG = Object.freeze({ maxContexts: 64, maxHandles: 4096, maxNativeBytes: 67108864, maxJobsQueued: 256, maxJobsRunning: 4, maxCompletionItems: 1024, logMailboxCapacity: 8192 });
 
 const GAMEPLAY_CSPROJ = resolve(SAMPLE_ROOT, 'Gameplay', 'Lumio.Sample.Gameplay.csproj');
-const REPLICA_CSPROJ = resolve(SAMPLE_ROOT, '..', 'LumioClient', 'modules', 'replica', 'src', 'Lumio.Client.Replica.csproj');
+const REPLICA_CSPROJ = resolve(SAMPLE_ROOT, '..', 'LumioClient', 'Client', 'Gameplay', 'ECS', 'src', 'Lumio.Client.Gameplay.ECS.csproj');
 
 test('hermetic spectator-100 is BLOCKED_ENV when live env is missing', async () => {
   const evidence = mkdtempSync(join(tmpdir(), 'lumio-spectator-100-'));
@@ -96,9 +96,9 @@ test('plan is 100 bots + two spectators and steps 05-14 stay BLOCKED_ENV in laun
 
 test('spectator URL never carries credentials', () => {
   const url = resolveSpectatorPageUrl({
-    spectatorUrl: 'http://user:ticket-secret@127.0.0.1:4173/modules/web/spectator/?admission=ticket-secret',
+    spectatorUrl: 'http://user:ticket-secret@127.0.0.1:4173/Client/UI/Spectator/?admission=ticket-secret',
   });
-  assert.equal(url, 'http://127.0.0.1:4173/modules/web/spectator/');
+  assert.equal(url, 'http://127.0.0.1:4173/Client/UI/Spectator/');
   assert.doesNotMatch(url, /ticket-secret|admission=/);
 });
 
@@ -135,14 +135,14 @@ test('runSpectator100 leaves the planning URL unset until an explicit URL or ori
   assert.equal(implicit.document.spectatorUrl, null);
 
   const explicitUrl = await runPlanning({
-    spectatorUrl: 'http://127.0.0.1:9413/modules/web/spectator',
+    spectatorUrl: 'http://127.0.0.1:9413/Client/UI/Spectator',
   });
-  assert.equal(explicitUrl.observedDocument.spectatorUrl, 'http://127.0.0.1:9413/modules/web/spectator/');
+  assert.equal(explicitUrl.observedDocument.spectatorUrl, 'http://127.0.0.1:9413/Client/UI/Spectator/');
 
   const explicitOrigin = await runPlanning({
     spectatorOrigin: 'http://127.0.0.1:9414',
   });
-  assert.equal(explicitOrigin.observedDocument.spectatorUrl, 'http://127.0.0.1:9414/modules/web/spectator/');
+  assert.equal(explicitOrigin.observedDocument.spectatorUrl, 'http://127.0.0.1:9414/Client/UI/Spectator/');
 
   const explicitEnvUrl = await runPlanning({
     env: { ...baseEnv, LUMIO_SPECTATOR_URL: 'http://127.0.0.1:9415/spectator' },
@@ -379,8 +379,8 @@ function browserEvidenceRow(overrides = {}) {
     index: 1,
     headed: true,
     cdpPort: 9222,
-    target: { id: 'spectator-page-1', type: 'page', title: 'Spectator', url: 'http://127.0.0.1:4173/modules/web/spectator/' },
-    url: 'http://127.0.0.1:4173/modules/web/spectator/',
+    target: { id: 'spectator-page-1', type: 'page', title: 'Spectator', url: 'http://127.0.0.1:4173/Client/UI/Spectator/' },
+    url: 'http://127.0.0.1:4173/Client/UI/Spectator/',
     runtimeReady: true,
     t0: { status: 'connected', botCount: 100, roomId: 'room-sample-1', positions: positions0 },
     t5: {
@@ -409,7 +409,7 @@ function browserEvidenceRow(overrides = {}) {
 
 test('browser evidence gate accepts ticket endpoints carrying the allocator route', () => {
   const expectations = {
-    spectatorUrl: 'http://127.0.0.1:4173/modules/web/spectator/',
+    spectatorUrl: 'http://127.0.0.1:4173/Client/UI/Spectator/',
     expectedRoomId: 'room-sample-1',
     expectedDsEndpoint: 'ws://127.0.0.1:9110',
   };
@@ -662,7 +662,7 @@ test('preflight reuses a healthy Platform on 8080 without --start-platform', asy
     options: {
       ...idleReservedPorts([8080]),
       origin: 'http://127.0.0.1:8080',
-      spectatorUrl: 'http://127.0.0.1:4173/modules/web/spectator/',
+      spectatorUrl: 'http://127.0.0.1:4173/Client/UI/Spectator/',
       fetchImpl: async () => ({ ok: true, status: 200 }),
     },
   });
@@ -677,7 +677,7 @@ test('preflight still blocks a reserved 8080 that is not a healthy Platform', as
     options: {
       ...idleReservedPorts([8080]),
       origin: 'http://127.0.0.1:8080',
-      spectatorUrl: 'http://127.0.0.1:4173/modules/web/spectator/',
+      spectatorUrl: 'http://127.0.0.1:4173/Client/UI/Spectator/',
       fetchImpl: async () => { throw new Error('ECONNREFUSED'); },
     },
   });
@@ -693,7 +693,7 @@ test('preflight does not treat a healthy origin as free when --start-platform ne
       ...idleReservedPorts([8080]),
       origin: 'http://127.0.0.1:8080',
       startPlatform: true,
-      spectatorUrl: 'http://127.0.0.1:4173/modules/web/spectator/',
+      spectatorUrl: 'http://127.0.0.1:4173/Client/UI/Spectator/',
       fetchImpl: async () => ({ ok: true, status: 200 }),
     },
   });
@@ -1176,7 +1176,7 @@ test('runLiveTopology refuses a server gameplay assembly before minting tickets'
 test('spectatorWasmAgreement accepts a Spectator wasm that exports ConnectionState', () => {
   const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-wasm-ok-'));
   try {
-    const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
+    const framework = join(dir, 'Client', 'UI', 'Spectator', '_framework');
     mkdirSync(framework, { recursive: true });
     writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
     writeFileSync(join(framework, 'Lumio.Client.Spectator.test.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER} suffix`);
@@ -1193,7 +1193,7 @@ test('spectatorWasmAgreement accepts a Spectator wasm that exports ConnectionSta
 test('spectatorWasmAgreement refuses a pre-replica-host Spectator wasm missing ConnectionState', () => {
   const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-wasm-stale-'));
   try {
-    const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
+    const framework = join(dir, 'Client', 'UI', 'Spectator', '_framework');
     mkdirSync(framework, { recursive: true });
     writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
     writeFileSync(join(framework, 'Lumio.Client.Spectator.stale.wasm'), 'DumpPositions IssueSelfMove TakeOutbound WorldInstanceId');
@@ -1209,7 +1209,7 @@ test('spectatorWasmAgreement refuses a pre-replica-host Spectator wasm missing C
 test('spectatorWasmAgreement refuses an r18 Spectator wasm missing LastApplyError', () => {
   const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-wasm-no-apply-error-'));
   try {
-    const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
+    const framework = join(dir, 'Client', 'UI', 'Spectator', '_framework');
     mkdirSync(framework, { recursive: true });
     writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
     writeFileSync(join(framework, 'Lumio.Client.Spectator.r18.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} suffix`);
@@ -1236,10 +1236,10 @@ test('browser replica compile pins Runtime to netstandard2.1 so NativeLoader can
 });
 
 test('spectator wasm host references built ns2.1 Replica/Gameplay DLLs instead of a net10.0 ProjectReference graph', () => {
-  const host = resolve(SAMPLE_ROOT, '..', 'LumioClient', 'modules', 'web', 'spectator', 'tests', 'host', 'Lumio.Client.Spectator.csproj');
+  const host = resolve(SAMPLE_ROOT, '..', 'LumioClient', 'Client', 'UI', 'Spectator', 'tests', 'host', 'Lumio.Client.Spectator.csproj');
   assert.equal(existsSync(host), true, host);
   const csproj = readFileSync(host, 'utf8');
-  assert.match(csproj, /_SpectatorReplicaDll.*Lumio\.Client\.Replica\.dll/);
+  assert.match(csproj, /_SpectatorReplicaDll.*Lumio\.Client\.Gameplay\.ECS\.dll/);
   assert.match(csproj, /_SpectatorGameplayDll.*Lumio\.Sample\.Gameplay\.dll/);
   assert.match(csproj, /RequireBrowserReplicaAssemblies/);
   assert.match(csproj, /ForbidNativeLoaderInBrowserPublish/);
@@ -1249,7 +1249,7 @@ test('spectator wasm host references built ns2.1 Replica/Gameplay DLLs instead o
 test('spectatorWasmAgreement accepts Hfsm wasm without NativeLoader', () => {
   const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-wasm-hfsm-ok-'));
   try {
-    const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
+    const framework = join(dir, 'Client', 'UI', 'Spectator', '_framework');
     mkdirSync(framework, { recursive: true });
     writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
     writeFileSync(join(framework, 'Lumio.Client.Spectator.test.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER} suffix`);
@@ -1265,7 +1265,7 @@ test('spectatorWasmAgreement accepts Hfsm wasm without NativeLoader', () => {
 test('spectatorWasmAgreement refuses a browser _framework that still publishes NativeLoader', () => {
   const dir = mkdtempSync(join(tmpdir(), 'lumio-spectator-wasm-nativeloader-'));
   try {
-    const framework = join(dir, 'modules', 'web', 'spectator', '_framework');
+    const framework = join(dir, 'Client', 'UI', 'Spectator', '_framework');
     mkdirSync(framework, { recursive: true });
     writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
     writeFileSync(join(framework, 'Lumio.Client.Spectator.test.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER} suffix`);
@@ -1305,9 +1305,9 @@ test('runLiveTopology refuses a stale spectator wasm before minting tickets', as
       admission_public_key_hex: '9593f57065df3c7303d67a27a458cd4ec8c55de7c5e6c6153b80c5a32ef19cd7',
     }));
     const clientRoot = join(dir, 'client');
-    const framework = join(clientRoot, 'modules', 'web', 'spectator', '_framework');
+    const framework = join(clientRoot, 'Client', 'UI', 'Spectator', '_framework');
     mkdirSync(framework, { recursive: true });
-    writeFileSync(join(clientRoot, 'modules', 'web', 'spectator', 'index.html'), '<html></html>');
+    writeFileSync(join(clientRoot, 'Client', 'UI', 'Spectator', 'index.html'), '<html></html>');
     writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
     writeFileSync(join(framework, 'Lumio.Client.Spectator.stale.wasm'), 'DumpPositions IssueSelfMove TakeOutbound');
     let mintCalled = false;
@@ -1372,9 +1372,9 @@ test('runLiveTopology refuses NativeLoader in spectator _framework before mintin
       admission_public_key_hex: '9593f57065df3c7303d67a27a458cd4ec8c55de7c5e6c6153b80c5a32ef19cd7',
     }));
     const clientRoot = join(dir, 'client');
-    const framework = join(clientRoot, 'modules', 'web', 'spectator', '_framework');
+    const framework = join(clientRoot, 'Client', 'UI', 'Spectator', '_framework');
     mkdirSync(framework, { recursive: true });
-    writeFileSync(join(clientRoot, 'modules', 'web', 'spectator', 'index.html'), '<html></html>');
+    writeFileSync(join(clientRoot, 'Client', 'UI', 'Spectator', 'index.html'), '<html></html>');
     writeFileSync(join(framework, 'dotnet.js'), 'export{gt as default,ft as dotnet,mt as exit};');
     writeFileSync(join(framework, 'Lumio.Client.Spectator.ok.wasm'), `prefix ${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER} suffix`);
     writeFileSync(join(framework, 'Lumio.Engine.NativeLoader.deadbeef.wasm'), 'NativeLibrary');
@@ -1551,7 +1551,7 @@ function liveTopologyHarness({ dir, nativePath, dsStdout = 'DS_READY {"pid":1,"e
       gameplay,
       engineNative: nativePath,
       chrome: join(dir, 'chrome.exe'),
-      spectatorUrl: 'http://127.0.0.1:4173/modules/web/spectator/',
+      spectatorUrl: 'http://127.0.0.1:4173/Client/UI/Spectator/',
       ticketManifest: stressTicketManifest(),
       writeTicketManifest: false,
       processCensus: async () => [],
