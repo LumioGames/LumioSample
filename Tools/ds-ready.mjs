@@ -59,12 +59,18 @@ export function buildServerArgs(configPath) {
  * which is ADR-112 修订 2 ⑨'s fail-closed refusal of a silent downgrade, not a defect. So the
  * caller decides; this function only refuses to invent a budget of its own.
  */
-export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, kernelConfig, configDir, logDir, accountFrom, accountTo, gameplay, voxelConfig }) {
+export function buildBotArgs({
+  botDll, endpoint, admissionTicket, engineNative, kernelConfig, configDir, logDir,
+  accountFrom, accountTo, gameplay, voxelConfig, scenarioDll, scenarioName, ticks,
+}) {
   if (kernelConfig == null || String(kernelConfig).trim() === '') throw new TypeError('kernel config path is required (--kernel-config).');
   if (gameplay == null || String(gameplay).trim() === '') {
     throw new TypeError('gameplay assembly path is required (--gameplay).');
   }
   if (configDir == null || String(configDir).trim() === '') throw new TypeError('typed config export directory is required (--config-dir).');
+  if ((scenarioDll == null) !== (scenarioName == null)) {
+    throw new TypeError('--scenario and --scenario-name must be passed together.');
+  }
   const args = [
     botDll,
     '--server', endpoint,
@@ -79,6 +85,10 @@ export function buildBotArgs({ botDll, endpoint, admissionTicket, engineNative, 
   ];
   if (voxelConfig != null && String(voxelConfig).trim() !== '') {
     args.push('--voxel-config', String(voxelConfig).trim());
+  }
+  if (scenarioDll != null) {
+    args.push('--scenario', String(scenarioDll), '--scenario-name', String(scenarioName));
+    if (ticks != null && Number.isInteger(ticks) && ticks > 0) args.push('--ticks', String(ticks));
   }
   return args;
 }
