@@ -9,12 +9,40 @@ ADR-115 把原 `integration/` 归到仓根 `Tools/`（跨端启动器与联测�
 | `Lumio.Sample.Gameplay.Tests` | `Server/Tests/Gameplay/` | `dotnet test LumioSample.slnx` |
 | `Lumio.Sample.Server.HostTests` | `Server/Tests/Host/` | `node Tools/test-server-host.mjs <results-dir>` |
 
-## 从 LumioServer 移来的准入用例（R-00692）
+## 从 LumioServer 移来的准入用例（R-00692 / R-00702）
 
 `test-server-host.mjs` 逐条独立进程跑 `AdmitOnSampleRegistryRuntimeOnly` 与
 `AdmitOnSampleRegistryWithVoxel`——`Lumio.Server.HostEntry` 是进程级单例托管上下文。
 所需环境变量、守的八项引擎级断言与不入 `LumioSample.slnx` 的理由见
 [`Server/Tests/README.md`](../Server/Tests/README.md)。
+
+`prepare-server-host-inputs.mjs` 造并点名那六个输入，是 CI 与本机的同一个入口：
+
+```bash
+node Tools/prepare-server-host-inputs.mjs \
+  --engine-root ../LumioGameEngine \
+  --hostentry-dir <已构建的 Lumio.Server.HostEntry 输出目录> \
+  --gameplay-bin Gameplay/bin/Release/net10.0 \
+  --output <本次运行的 fixture 目录>
+node Tools/test-server-host.mjs <results-dir>
+```
+
+两件事它替你把住：
+
+- **voxel fixture 必须本次现造**。`LumioGameRuntime/modules/coordination/tests/
+  fixtures/voxel-native` 是对着另一个 native build 造的，voxel 那条会以
+  `load_suspended_missing_voxel` 失败；脚本按 Engine 的两个产出器现造一份，并用
+  `catalog-world-evidence.json` 的 `BinarySha256` 对本次 native 的 `build-info.json`
+  核一遍，不同源就 `VOXEL_FIXTURE_NATIVE_MISMATCH`。
+- **缺产物按名字失败，不跳过**（ADR-113 决策 2）。六个输入缺任何一个都是
+  `MISSING_INPUT: <变量名>`，不再报 `BLOCKED_ENV`——那个词在本仓是「环境跑不了」，
+  调用方有理由容忍它，而这两条不许被容忍掉。
+
+`Lumio.Server.HostEntry.dll` 要一份已构建的 LumioServer 产物。CI 由
+`server-hostentry` 作业按 LumioServer 自己的口径
+（`Tools/prepare-host-sdk.mjs` → `dotnet build`）打出来再传给 `server-host` 作业；
+本机 macOS ARM64 打不出来——`eng/pack-sdk.mjs` 只发 linux-x64 / win-x64，在这台机器上
+是 `BLOCKED_ENV`。
 
 ## Platform account client (S-4)
 

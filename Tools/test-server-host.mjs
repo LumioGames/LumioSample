@@ -52,8 +52,14 @@ export function missingEnv(env = process.env) {
 export function runSuite({ resultsRoot, dotnetArgs = [], execute = spawnSync, env = process.env } = {}) {
   const missing = missingEnv(env);
   if (missing.length > 0) {
+    // Not `BLOCKED_ENV`. ADR-113 决策 2 classifies a missing artifact as a
+    // failure, and `BLOCKED_ENV` is this workspace's token for "the environment
+    // cannot run this", which callers are entitled to tolerate. These cases
+    // carry engine guarantees, so "did not arrive" has to read as a failure to
+    // whoever wraps this script next.
     throw new Error(
-      `BLOCKED_ENV: these cases carry engine guarantees and may not be skipped, but ${missing.join(', ')} did not arrive.`,
+      `MISSING_INPUT: these cases carry engine guarantees and may not be skipped, but ${missing.join(', ')} did not arrive. `
+      + 'Run Tools/prepare-server-host-inputs.mjs, which produces and names every one of them.',
     );
   }
   mkdirSync(resultsRoot, { recursive: true });
@@ -78,6 +84,11 @@ export function runSuite({ resultsRoot, dotnetArgs = [], execute = spawnSync, en
   }
   writeFileSync(join(results, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
   console.log(JSON.stringify({ results, summary }, null, 2));
+  // One line the CI job greps for. ADR-113 决策 1 measures a job by its skip
+  // count, and a run that filtered both cases away would otherwise leave
+  // nothing in the log to contradict a green exit.
+  console.log(`HOST_SUITE cases=${summary.length} ${['total', 'passed', 'failed', 'skipped']
+    .map(key => `${key}=${summary.reduce((sum, row) => sum + row[key], 0)}`).join(' ')}`);
   return summary.every(row => row.success && row.passed === 1 && row.failed === 0 && row.skipped === 0);
 }
 

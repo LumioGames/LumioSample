@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  # ADR-113 决策 6: the zero-skip obligation binds `push` to main and a daily
+  # job, not PRs. The two server-host jobs below are the ones that carry it, so
+  # this workflow needs a daily trigger to have somewhere to carry it to.
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -128,6 +134,11 @@ jobs:
       - run: node --test Tools/server-profile.test.mjs
       - run: node --test Tools/ds-config.test.mjs
       - run: node --test Tools/sync-config-readers.test.mjs
+      # Pure unit checks over the server-host wiring: no LumioServer artifact
+      # and no native needed, so they run on every PR even though the jobs
+      # they guard are push/schedule only.
+      - run: node --test Tools/test-server-host.test.mjs
+      - run: node --test Tools/prepare-server-host-inputs.test.mjs
 
   external-clone:
     runs-on: ubuntu-latest
@@ -234,3 +245,219 @@ jobs:
       - name: Build the cloned sample against the locally packed SDK
         working-directory: /tmp/external
         run: node Tools/build-local-sdk.mjs /tmp/lumio-sdk-identity.json
+
+  # R-00692 moved LumioServer's two engine-level admit/spawn cases here and ran
+  # them once, by hand, on one machine. The two jobs below are where they run
+  # from now on. What they guard is the *engine's* contract, not the game's:
+  # the retained catalog bytes are a defensive copy; a corrupted voxel half
+  # makes restore refuse without changing the live `Manager`; a successful
+  # restore keeps `IngressBudget` identity while `Manager` is new;
+  # `ActivationContextFactory` answers only for `MineAbility`; a `runtime-only`
+  # snapshot carries no `voxelBase64`; `Physics` follows the voxel profile.
+  #
+  # ADR-113 决策 6 binds the zero-skip obligation to `push` on main and the
+  # daily job, and ADR-088 keeps PRs off a must-be-green gate, so both jobs sit
+  # out pull requests. They are split in two because `prepare-host-sdk.mjs`
+  # exports `RestoreConfigFile` / `NUGET_PACKAGES` / `LumioLocalFeed` through
+  # GITHUB_ENV, and those would then govern the Sample's own restores in any
+  # later step of the same job. A separate job plus an intra-run artifact keeps
+  # LumioServer's SDK selection where it belongs and still hands over a
+  # HostEntry built in *this* run, which is what the cases demand.
+  server-hostentry:
+    name: Build Lumio.Server.HostEntry for the moved admit/spawn cases
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # sdk-native's Cargo.toml walks five parents from
+      # engine/native/modules/sdk-native to the Engine checkout's parent, then
+      # into LumioNativeCore / LumioVoxelEngine. Those three names are load
+      # bearing: pack-sdk cannot build the native payload if they move.
+      - name: Checkout LumioServer
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioServer
+          path: LumioServer
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioGameEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameEngine
+          path: LumioGameEngine
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioGameRuntime
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameRuntime
+          path: LumioGameRuntime
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioNativeCore
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioNativeCore
+          path: LumioNativeCore
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioVoxelEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioVoxelEngine
+          path: LumioVoxelEngine
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: LumioGameEngine/engine/native -> LumioGameEngine/.build/native-target
+          shared-key: lumio-engine-native
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: LumioServer/global.json
+      # LumioServer's own entry point, run exactly as its repository-policy.yml
+      # runs it. It packs the SDK, verifies the archive identity and rewrites
+      # copies of the committed locks onto that version — which is what keeps
+      # a locally packed SDK from failing the restore with NU1403. Sample owns
+      # no second recipe for this; if it breaks, it breaks in LumioServer.
+      #
+      # pack-sdk only publishes the host RID (linux-x64 / win-x64). That is why
+      # this job cannot exist on a developer's macOS ARM64 machine and why
+      # R-00692 had to hand-build HostEntry to run the cases at all.
+      - name: Prepare the matching local SDK feed
+        working-directory: LumioServer
+        run: node Tools/prepare-host-sdk.mjs ../LumioGameEngine ../LumioGameRuntime ../LumioNativeCore ../LumioVoxelEngine .build/ci-sdk
+      - name: Build HostEntry
+        working-directory: LumioServer
+        run: dotnet build Application/HostEntry/src/Lumio.Server.HostEntry/Lumio.Server.HostEntry.csproj -c Release
+      # The whole output directory, not just the dll. The cases reach HostEntry
+      # through Assembly.LoadFrom, whose probing is directory-scoped, so the
+      # Microsoft.Extensions.Logging assemblies beside it are part of the
+      # artifact. `Lumio.Engine.SDK` is ExcludeAssets=runtime by design and is
+      # not here — the Runtime assemblies arrive as the named three-path.
+      - name: Publish the HostEntry build for the test job
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-hostentry-linux-x64
+          path: LumioServer/Application/HostEntry/src/Lumio.Server.HostEntry/bin/Release/net10.0/**
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retain the SDK selection evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-hostentry-sdk-selection
+          path: |
+            LumioServer/.build/ci-sdk/**/identity.json
+            LumioServer/.build/ci-sdk/**/engine-identity.json
+            LumioServer/.build/ci-sdk/**/sdk-selection.props
+            LumioServer/.build/ci-sdk/**/prepare.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  server-host:
+    name: Engine admit/spawn cases on the Sample registry (ADR-115 §3)
+    if: github.event_name != 'pull_request'
+    needs: server-hostentry
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
+      LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
+      LUMIO_NATIVE_CORE_ROOT: ${{ github.workspace }}/native-core-src
+      LUMIO_VOXEL_ROOT: ${{ github.workspace }}/voxel-engine-src
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: sample-source
+      - name: Checkout LumioGameRuntime
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameRuntime
+          path: LumioGameRuntime
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioGameEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioGameEngine
+          path: LumioGameEngine
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioNativeCore
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioNativeCore
+          path: native-core-src
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - name: Checkout LumioVoxelEngine
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioVoxelEngine
+          path: voxel-engine-src
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: LumioGameEngine/engine/native -> LumioGameEngine/.build/native-target
+          shared-key: lumio-engine-native
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: sample-source/global.json
+      # Exports LUMIO_ENGINE_NATIVE_PATH and writes build-info.json beside the
+      # image. The voxel fixture is authored against that identity below.
+      - name: Provision liblumio_engine_native
+        working-directory: ${{ github.workspace }}/LumioGameRuntime
+        run: bash eng/provision-engine-native.sh
+      # No `continue-on-error`: a HostEntry that did not arrive is the failure
+      # this job exists to report, not a reason to run zero cases.
+      - name: Download this run's HostEntry build
+        uses: actions/download-artifact@v7
+        with:
+          name: server-hostentry-linux-x64
+          path: ${{ runner.temp }}/hostentry
+      - name: Build the server-side Sample gameplay assembly
+        working-directory: sample-source
+        run: dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -c Release -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine
+      # Authors the catalog world against *this run's* native image and refuses
+      # a fixture whose evidence names a different one. The committed
+      # LumioGameRuntime voxel-native fixtures are authored against another
+      # build; the voxel case fails on them with load_suspended_missing_voxel,
+      # which is exactly what R-00692 hit. Every one of the six named inputs is
+      # checked here and fails by name — nothing is skipped.
+      - name: Produce and name the host suite inputs
+        working-directory: sample-source
+        run: |
+          node Tools/prepare-server-host-inputs.mjs \
+            --engine-root ${{ github.workspace }}/LumioGameEngine \
+            --hostentry-dir ${{ runner.temp }}/hostentry \
+            --gameplay-bin Gameplay/bin/Release/net10.0 \
+            --output ${{ runner.temp }}/voxel-fixture
+      # HostEntry is one process-scoped managed context, so the runner gives
+      # each case its own process. The HOST_SUITE line is asserted rather than
+      # trusted: `skipped=0` is the ADR-113 决策 1 measurement, and a run that
+      # filtered both cases away would otherwise exit green with nothing done.
+      - name: Run the two engine admit/spawn cases
+        working-directory: sample-source
+        run: |
+          set -euo pipefail
+          node Tools/test-server-host.mjs "$RUNNER_TEMP/host-results" \
+            -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine | tee "$RUNNER_TEMP/host-suite.txt"
+          grep -q 'HOST_SUITE cases=2 total=2 passed=2 failed=0 skipped=0' "$RUNNER_TEMP/host-suite.txt"
+      - name: Retain the per-case logs and the fixture provenance
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-host-results
+          path: |
+            ${{ runner.temp }}/host-results/**
+            ${{ runner.temp }}/host-suite.txt
+            ${{ runner.temp }}/voxel-fixture/catalog-world-evidence.json
+          # warn, not error: this step runs on failure too, and a job that died
+          # before the fixture existed should report that cause, not a second
+          # one from the retention step.
+          if-no-files-found: warn
+          retention-days: 7

@@ -43,3 +43,26 @@ LumioServer `Tools/test-host-entry.mjs` 的 `isolatedCases`）。
 | `LUMIO_SAMPLE_GAMEPLAY_DLL` | 本次构建的 `Lumio.Sample.Gameplay.dll`（服务端侧） |
 | `LUMIO_CONFIG_DIR` | `Server/Config/Tables`（服务端那一份分端导出） |
 | `LUMIO_TEST_VOXEL_FIXTURE_DIR` | 含 `catalog-world.json` + `catalog-world.capture`，须与本次 native 镜像同源 |
+
+这六个值由 [`Tools/prepare-server-host-inputs.mjs`](../../Tools/prepare-server-host-inputs.mjs)
+统一造并点名，本机与 CI 走同一个入口。缺任何一个都是 `MISSING_INPUT: <变量名>`：
+按 ADR-113 决策 2，缺产物是失败，不是 skip，也不再报 `BLOCKED_ENV`。
+
+## 在 CI 的哪里跑（R-00702）
+
+R-00692 把这两条接了进来并实跑通过，但没进任何流水线——八项引擎级断言只在一台机器上
+被跑过一次。现在它们在 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
+的两个作业里：
+
+| 作业 | 做什么 |
+|---|---|
+| `server-hostentry` | 按 LumioServer 自己的口径（`Tools/prepare-host-sdk.mjs` → `dotnet build`）打出本次的 `Lumio.Server.HostEntry.dll`，整个输出目录作为制品传下去（`Assembly.LoadFrom` 的探测是按目录的，旁边的 `Microsoft.Extensions.Logging*` 也是制品的一部分） |
+| `server-host` | 造本次的 native 与 voxel fixture、构建服务端侧 Gameplay、取上一个作业的制品，然后逐条独立进程跑这两条，并 grep 断言 `HOST_SUITE cases=2 total=2 passed=2 failed=0 skipped=0` |
+
+触发面按 ADR-113 决策 6：`push` 到 main 与每日作业，PR 不跑（ADR-088 不给 PR 设必绿门）。
+跳过计数为 0 是决策 1 的度量口径，所以断言的是那一行而不是退出码。
+
+两个作业而不是一个，是因为 `prepare-host-sdk.mjs` 经 `GITHUB_ENV` 导出
+`RestoreConfigFile` / `NUGET_PACKAGES` / `LumioLocalFeed`——同作业里的后续步骤会被它接管，
+连带影响本仓自己的 restore。拆开之后 LumioServer 的 SDK 选择留在它自己的作业里，
+而交过来的仍是**本次运行**构建的 HostEntry，这正是用例要求的。
