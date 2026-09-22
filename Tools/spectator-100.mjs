@@ -3690,7 +3690,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
           '--start', String(TICKET_START_INDEX + index),
           '--origin', String(effectiveOrigin ?? ''),
           '--game', String(options.slug ?? 'sample'),
-          '--prefix', TICKET_PREFIX,
+          '--prefix', String(env?.[STRESS_PREFIX_ENV] ?? options.stressPrefix ?? TICKET_PREFIX),
           '--out', retryPath,
         ], {
           cwd: platformRoot,
