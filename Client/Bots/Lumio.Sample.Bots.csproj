@@ -19,7 +19,7 @@
     -->
     <ProjectReference Include="../../Gameplay/Lumio.Sample.Gameplay.csproj" Private="false" />
     <Reference Include="Lumio.Client.Bot" HintPath="$(LumioClientBotAssembly)" Private="false" />
-    <Reference Include="Lumio.Client.Input" HintPath="$(LumioClientBotDirectory)/Lumio.Client.Input.dll" Private="false" />
+    <Reference Include="Lumio.Client.Gameplay.Input" HintPath="$(LumioClientBotDirectory)/Lumio.Client.Gameplay.Input.dll" Private="false" />
   </ItemGroup>
   <!--
     Private="false" only covers the two direct references; the Runtime graph still arrives
@@ -39,7 +39,7 @@
   <Target Name="RequireClientBotArtifacts" BeforeTargets="PrepareForBuild;ResolveAssemblyReferences">
     <Error Condition="'$(LumioClientBotAssembly)' == '' or !Exists('$(LumioClientBotAssembly)')"
            Text="SAMPLE_BOTS_CLIENT_BOT_MISSING: set LumioClientBotAssembly to the exact prebuilt Lumio.Client.Bot.dll." />
-    <Error Condition="'$(LumioClientBotDirectory)' == '' or !Exists('$(LumioClientBotDirectory)/Lumio.Client.Input.dll')"
+    <Error Condition="'$(LumioClientBotDirectory)' == '' or !Exists('$(LumioClientBotDirectory)/Lumio.Client.Gameplay.Input.dll')"
            Text="SAMPLE_BOTS_CLIENT_GRAPH_MISSING: set LumioClientBotDirectory to the prebuilt Bot module output directory." />
   </Target>
 </Project>
