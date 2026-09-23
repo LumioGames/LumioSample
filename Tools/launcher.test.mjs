@@ -379,6 +379,39 @@ test('live bots against the committed Sample tree mark step 05 READY for a resto
   }
 });
 
+test('a runtime+voxel DS with --voxel-config off blocks step 04 loudly (ADR-112 rev2 ix)', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-voxel-'));
+  const evidenceDir = join(isolated, 'evidence');
+  const tools = processTools({ evidenceDir, botLogs: [admitLine('Bot1')] });
+  const files = launchFiles(isolated);
+  const config = runnableDsConfig();
+  config.world_profile = 'runtime+voxel';
+  writeFileSync(files.dsConfig, JSON.stringify(config) + '\n');
+  const report = await runLauncher({
+    root: isolated,
+    env: {},
+    bots: 1,
+    staggerMs: 0,
+    durationMs: 80,
+    timeoutMs: 5_000,
+    // The committed budget is on by default (launchFiles copies it in); off is the only road to a
+    // budget-less bot, so that is what the gate has to catch.
+    voxelConfig: 'off',
+    sessions: [session('Bot1', 'ticket-one')],
+    ...files,
+    processTools: tools,
+    log() {},
+    evidenceDir,
+  });
+  const step04 = report.steps.find((step) => step.id === '04');
+  assert.equal(step04.status, 'BLOCKED_ENV');
+  assert.match(step04.detail, /LUMIO_BOT_VOXEL_CONFIG/);
+  assert.match(report.steps.find((step) => step.id === '07').detail, /waiting for a voxel-capable bot fleet/);
+  assert.equal(report.status, 'BLOCKED_ENV');
+  // No bot process may start: an entity-only fleet would session_fault on the first SectionFrame.
+  assert.ok(!tools.events.some((event) => event.kind === 'start' && event.args.includes('--gameplay')));
+});
+
 test('admit wait keeps timers alive so Linux node --test cannot drop the timeout', () => {
   const text = readFileSync(new URL('launcher.mjs', import.meta.url), 'utf8');
   assert.match(text, /await sleepFn\(25, \{ keepAlive: true \}\)/);

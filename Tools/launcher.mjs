@@ -600,6 +600,17 @@ export async function runLauncher(options = {}) {
     // there is a launcher error, not N bots each faulting on their first SectionFrame.
     const voxelConfig = resolveBotVoxelConfig(options.voxelConfig, root);
     report.botVoxelConfig = voxelConfig;
+    // ADR-112 rev2 ix: against a runtime+voxel DS every admitted connection receives the first
+    // SectionFrame, and a bot without a voxel budget session_faults on it. The only road to a
+    // budget-less bot is an explicit `off`; against such a DS that is a loud BLOCKED_ENV, never a
+    // silently entity-only bot fleet.
+    const worldProfile = String(JSON.parse(readFileSync(dsConfig, 'utf8')).world_profile ?? '');
+    if (voxelConfig == null && worldProfile.includes('voxel')) {
+      record('04', 'BLOCKED_ENV', `--voxel-config / LUMIO_BOT_VOXEL_CONFIG is off (required: DS world_profile=${worldProfile}); bots session_fault on the first SectionFrame without it (ADR-112 rev2 ix).`);
+      for (const step of TOUR_STEPS.slice(4)) record(step.id, 'BLOCKED_ENV', 'waiting for a voxel-capable bot fleet');
+      report.status = reportStatusFromSteps(report.steps);
+      return report;
+    }
     log(voxelConfig
       ? `bot voxel budget: ${voxelConfig}`
       : 'bot voxel budget: entity-only (--voxel-config off); this bot faults if the room sends Sections.');

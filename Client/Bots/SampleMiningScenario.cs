@@ -42,6 +42,7 @@ public sealed class SampleMiningScenario : BotScenario
     private ulong _sequence;
     private int _accepted;
     private string _lastReject = string.Empty;
+    private bool _chatAccepted;
 
     /// <inheritdoc />
     public override IReadOnlyList<string> RequiredCapabilities
@@ -55,10 +56,27 @@ public sealed class SampleMiningScenario : BotScenario
         get { return _accepted; }
     }
 
+    /// <summary>True once the tour's one chat line was accepted onto the outbox (tour step 08).</summary>
+    public bool ChatAccepted
+    {
+        get { return _chatAccepted; }
+    }
+
     /// <inheritdoc />
     public override BotStepResult Step(in BotDriverContext context)
     {
         BotWorldView world = context.World;
+        // Tour step 08 (chat): exactly one line, on the frame the replica first says who we are,
+        // through the registry's own chat.input mapping — never a guessed component or method.
+        if (world.HasSelf && !_chatAccepted
+            && context.Vocabulary.TryGet(BotInputKind.ChatInput, out BotInputTerm chatTerm)
+            && chatTerm.Available)
+        {
+            BotIssueResult chat = context.Issue(BotIssuedCommand.Chat(chatTerm, "sample tour: hello from the mining bot"));
+            if (chat.Accepted) _chatAccepted = true;
+            else _lastReject = chat.Reason;
+        }
+
         SampleBotCommand command = _plan.Advance(world.HasSelf, world.Self.NetEntityId, ReadCensus(in world));
         switch (command.Act)
         {
@@ -85,6 +103,8 @@ public sealed class SampleMiningScenario : BotScenario
     {
         ArgumentNullException.ThrowIfNull(sink);
         sink.That(_plan.SelfBound, "self_bound");
+        sink.That(_chatAccepted, "chat_activated");
+        sink.That(_plan.MoveOrders > 0, "move_activated");
         sink.That(_plan.MineOrders > 0, "mine_activated");
         sink.That(_plan.TargetVeinGone, "vein_dug_through");
         sink.That(_plan.PickupOrders > 0, "pickup_activated");
