@@ -20,16 +20,19 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: sample-source
+        working-directory: LumioSample
     env:
       LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
     steps:
       # Sibling layout (same as external-clone): Sample's Directory.Packages.props
       # must not sit above Engine. Checking Engine out under the Sample tree
       # makes CPM apply to NativeLoader and fails NU1008.
+      # This job's checkout is named `LumioSample`, not `sample-source`: the ADR-115
+      # directory contract check below identifies the repository by its checkout
+      # directory name and skips anything not named Lumio* (R-00719).
       - uses: actions/checkout@v7
         with:
-          path: sample-source
+          path: LumioSample
       - name: Checkout LumioGameRuntime
         uses: actions/checkout@v7
         with:
@@ -47,9 +50,38 @@ jobs:
           path: LumioGameEngine
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
+      # ADR-115 directory contract (R-00719). `lumio-repo-layout` has no implementation
+      # in this repository: it imports `repoLayoutCheck` and reads
+      # `.spec/tools/repo-layout.json` from the LumioGameEngine checkout just above,
+      # which is why it runs in this job. A job of its own would need one more
+      # LUMIO_CI_PAT checkout, and this public repository does not widen that
+      # secret's use (Owner 2026-09-23); `.run/LumioGameEngine` inside the Sample
+      # tree is ruled out anyway by the NU1008 note at the top of this job.
+      - name: Checkout Workflow spec-lint
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/workflow-plugin
+          ref: dc8cab318d7509978b17a144120c93a1753e0510
+          path: .run/workflow-plugin
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.16.0'
+          package-manager-cache: false
+      - name: Spec lint, including the ADR-115 directory contract
+        # spec-lint reports and does not fail the job (ADR-088): read the output. The
+        # `lumio-repo-layout:` line names the repo-layout.json and Engine HEAD it used.
+        env:
+          WORKFLOW_PLUGIN_ROOT: ${{ github.workspace }}/.run/workflow-plugin
+          LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
+        run: node .spec/tools/lint-extensions.mjs
+      - name: Spec-lint extension self-test
+        env:
+          WORKFLOW_PLUGIN_ROOT: ${{ github.workspace }}/.run/workflow-plugin
+        run: node --test .spec/tools/lint-extensions.test.mjs
       - uses: actions/setup-dotnet@v6
         with:
-          global-json-file: sample-source/global.json
+          global-json-file: LumioSample/global.json
       - run: dotnet build LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine
 
   test:
