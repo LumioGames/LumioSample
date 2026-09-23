@@ -2,19 +2,21 @@
 
 这份导览按真实文件与行号记录示例游戏的十四步。需求真值在架构仓；本文不复述引擎契约字段。
 
-前八步今天能在本仓走完的是**声明 + hermetic 测试 + 启动器逐步打印**。对着真 Platform / `lumio-ds` / Bot.Host 跑到第八步，还要等 Client R-00534 与内部 compose。缺依赖时启动器印 `step=NN status=BLOCKED_ENV` 并以 exit 2 离开——那不是通过。第 04 步只有 Bot 日志出现 `session state changed … Active … established` 才 PASS；进程起来不算入房。
+十四步只有一个驱动：[`Tools/launcher.mjs`](../Tools/launcher.mjs)。第 1 名 Bot 是**导览 Bot**，跑 `SampleMiningScenario`（`LUMIO_SCENARIO_DLL`）；第 05–13 步在它跑完后**只看它留下的东西**判——DS 标准输出与日志目录、它自己的生命周期日志和 `result.ndjson`（判据在 [`tour-steps.mjs`](../Tools/tour-steps.mjs)）。第 14 步等 DS 打出导览 Bot 完成之后才开始的那次 checkpoint，停 DS，在同一份存储上重启，再让同一账号以 `SampleRestoreVerifyScenario` 重新进房核对世界。其余 Bot 是陪跑的 fleet。缺依赖时启动器印 `step=NN status=BLOCKED_ENV` 并以 exit 2 离开——那不是通过。第 04 步只有 Bot 日志出现 `session state changed … Active … established` 才 PASS；进程起来不算入房。
+
+**结果文件缺了、空了、或者截断在 run 记录之前，读它的每一步都是 FAIL**：`BotAssertionSink` 只记失败的名字，所以「结果里没有某个失败名」只有在 assert 记录真的存在时才算证据。每次运行自己的 `bot-N/`、`ds-boot-N/` 与存储目录在开跑前清空或新建，复用的证据目录里上一轮的文件不会被当成这一轮的证据。
 
 | 步 | 做什么 | 本仓落点 |
 |---|---|---|
 | 1 | 编译配表 | [`Server/Config/Tables/manifest.json`](../Server/Config/Tables/manifest.json) · [`SampleTables`](../Gameplay/Config/SampleTables.cs) |
 | 2 | 注册登录 | [`account-client.mjs`](../Tools/account-client.mjs#L313) |
-| 3 | 起 DS | [`Server/Config/Startup/server.json`](../Server/Config/Startup/server.json#L24) · [`launcher.mjs`](../Tools/launcher.mjs#L216) |
+| 3 | 起 DS | [`Server/Config/Startup/server.json`](../Server/Config/Startup/server.json#L24) · [`launcher.mjs`](../Tools/launcher.mjs) |
 | 4 | 进房间 | [`parseBotAdmit`](../Tools/launcher.mjs) · [`collectLaunchTickets`](../Tools/launcher.mjs) |
 | 5 | 加载底图 | [`Server/Assets/Maps/sample.voxel`](../Server/Assets/Maps/sample.voxel) · [`capture-basemap.mjs`](../Tools/capture-basemap.mjs) |
 | 6 | 玩家入场 | [`PlayerEntity`](../Gameplay/EntityTypes/PlayerEntity.cs#L8) |
 | 7 | 跑动 | [`MoveAbility.SetLocalPosition`](../Gameplay/Abilities/MoveAbility.cs#L136) |
 | 8 | 聊天 | [`ChatComponent.SendMessage`](../Gameplay/Components/Chat/ChatComponent.cs#L10) |
-| 9–14 | 挖掘到存档 | 占位，见文末；等对应引擎卡 |
+| 9–14 | 挖掘到存档 | [`SampleMiningScenario`](../Client/Bots/SampleMiningScenario.cs) · [`SampleRestoreVerifyScenario`](../Client/Bots/SampleRestoreVerifyScenario.cs) · 判据 [`tour-steps.mjs`](../Tools/tour-steps.mjs) |
 
 > 两轮同底图哈希对账（S-7）贯穿全程，不单列一步。[`verify-evidence.mjs`](../Tools/verify-evidence.mjs) 读两轮独立目录的日志，并经 [`world-assert.mjs`](../Tools/world-assert.mjs) 核对格子与矿石数。
 
@@ -54,7 +56,7 @@ node --test Tools/account-client.test.mjs
 
 ## 第 3 步：起 DS
 
-[`Server/Config/Startup/server.json`](../Server/Config/Startup/server.json) 的 [`config_dir`](../Server/Config/Startup/server.json#L24) 指向本仓 `Server/Config/Tables/`（相对配置文件目录解析，ADR-115），三条程序集路径指向本仓 `bin/`，[`world_profile`](../Server/Config/Startup/server.json#L25) 已冻成 `runtime+voxel`，[`durability`](../Server/Config/Startup/server.json#L26) 是 persistence-container-v1 的 `snapshot_only`（不是 `process-crash` / `power-loss`），并要求 `base_map_*`。allocation 与 `admission_public_key_hex` 是本机可跑的句法 stand-in，不是 Platform 票；填我用的 `replace-*` / `REPLACE_WITH_…` 留在 [`Server/Config/Startup/server.sample.json`](../Server/Config/Startup/server.sample.json)，未填时启动器第 03 步是响亮的 `MISSING_VALUE`（不是占位 `BLOCKED_ENV`）。本机覆盖是 gitignored 的 `.run/server.local.json`（`LUMIO_DS_CONFIG`），须抄这份公共词表。启动器经架构仓 `eng/process-tools.mjs` 拉起 `LUMIO_DS_EXE`，并从 stdout 解析 [`DS_READY `](../Tools/ds-ready.mjs#L1)。
+[`Server/Config/Startup/server.json`](../Server/Config/Startup/server.json) 是**模板**：启动器每次运行把它抄成证据目录里的 `server.boot-1.json` / `server.boot-2.json`——相对路径先按模板所在目录变成绝对路径，存储换成这次运行新建的目录，日志目录每次开机各一个、级别 `debug`（第 07 步要数 `host.operation_result`），allocation 六项取 Platform launch 应答。机器相关的 CLR 文件只从变量或模板来：`LUMIO_ENGINE_NATIVE`、`LUMIO_HOSTFXR`、`LUMIO_SERVER_HOSTENTRY_DLL`（同目录的 `.runtimeconfig.json` 一起用）、`LUMIO_RUNTIME_REPLICATION_DLL`、`LUMIO_RUNTIME_ECS_DLL`、`LUMIO_SAMPLE_GAMEPLAY_DLL`；两边都不是文件就 `BLOCKED_ENV` 点名变量，不回落到任何一台机器的路径。`LUMIO_PLATFORM_ADMISSION_KEY` 替换模板里的 stand-in 公钥。模板的 [`config_dir`](../Server/Config/Startup/server.json#L24) 指向本仓 `Server/Config/Tables/`（相对配置文件目录解析，ADR-115），三条程序集路径指向本仓 `bin/`，[`world_profile`](../Server/Config/Startup/server.json#L25) 已冻成 `runtime+voxel`，[`durability`](../Server/Config/Startup/server.json#L26) 是 persistence-container-v1 的 `snapshot_only`（不是 `process-crash` / `power-loss`），并要求 `base_map_*`。allocation 与 `admission_public_key_hex` 是本机可跑的句法 stand-in，不是 Platform 票；填我用的 `replace-*` / `REPLACE_WITH_…` 留在 [`Server/Config/Startup/server.sample.json`](../Server/Config/Startup/server.sample.json)，未填时启动器第 03 步是响亮的 `MISSING_VALUE`（不是占位 `BLOCKED_ENV`）。本机覆盖是 gitignored 的 `.run/server.local.json`（`LUMIO_DS_CONFIG`），须抄这份公共词表。启动器经架构仓 `eng/process-tools.mjs` 拉起 `LUMIO_DS_EXE`，并从 stdout 解析 [`DS_READY `](../Tools/ds-ready.mjs#L1)。
 
 **今天能跑**
 
@@ -66,12 +68,13 @@ node Tools/launcher.mjs --bots 2 --stagger-ms 250
 **应该看到的日志**
 
 - 无 `lumio-ds`：`step=03 status=BLOCKED_ENV LUMIO_DS_EXE is not set or is not a file`（[launcher.mjs](../Tools/launcher.mjs)），exit 2——挡的是二进制，不是 `replace-*` 字符串
+- 缺 CLR 文件：`step=03 status=BLOCKED_ENV LUMIO_HOSTFXR is not set and DS config clr.hostfxr is not a file (…)`，DS 不起
 - 配置里还留着 `replace-*` / `REPLACE_WITH_PLATFORM_32_BYTE_PUBLIC_KEY_HEX`：`step=03 status=FAIL missing required value: …`（`MISSING_VALUE`），exit 1
 - 真 DS 起来：一行 `DS_READY { "pid": …, "endpoint": "ws://127.0.0.1:…" }`，endpoint 不得带凭据或 query
 
 ## 第 4 步：进房间
 
-启动器按 `--bots N` 规划 `Bot1`…`BotN`，错峰 `--stagger-ms`，每名 Bot 一张 [`loginAndLaunch`](../Tools/account-client.mjs#L313) 票。[`collectLaunchTickets`](../Tools/launcher.mjs#L93) 拒绝复用。票交给 Client `Bot.Host`（`LUMIO_BOT_DLL`），并带 `--gameplay`（`LUMIO_GAMEPLAY` 或本仓 `Lumio.Sample.Gameplay.dll`）。本仓不写场景类去顶替宿主接口。
+启动器按 `--bots N` 规划 `Bot1`…`BotN`，错峰 `--stagger-ms`，每名 Bot 一张 [`loginAndLaunch`](../Tools/account-client.mjs#L313) 票。[`collectLaunchTickets`](../Tools/launcher.mjs) 拒绝复用。票交给 Client `Bot.Host`（`LUMIO_BOT_DLL`），并带 `--gameplay`（`LUMIO_GAMEPLAY` 或本仓 `Lumio.Sample.Gameplay.dll`）。本仓不写场景类去顶替宿主接口。
 
 ### Bot 要进体素世界，必须带 `--voxel-config`
 
@@ -100,7 +103,9 @@ node --test Tools/launcher.test.mjs
 
 ## 第 5 步：加载底图
 
-底图是作者时 Capture 入库的规范快照，不由玩法程序集程序化生成，DS 开机只 restore。[`Server/Assets/Maps/sample.voxel`](../Server/Assets/Maps/sample.voxel) 是 Engine `eng/capture-voxel.mjs` 产出的 Cube 平面（W×D 石头地板 + 一圈硬墙 + 一片矿脉，尺寸与矿脉在 [`Server/Assets/Maps/sample.layout.json`](../Server/Assets/Maps/sample.layout.json)）。[`capture-basemap.mjs`](../Tools/capture-basemap.mjs) 只在作者时调用那条 CLI，玩法程序集与 DS 不得引用它。体素写（挖穿变空气）仍是 R-00469，本步只做读与首包。直播冷恢复仍等 R-00498 / R-00507，不得把第 05–14 步整批标 PASS。
+底图是作者时 Capture 入库的规范快照，不由玩法程序集程序化生成，DS 开机只 restore。[`Server/Assets/Maps/sample.voxel`](../Server/Assets/Maps/sample.voxel) 是 Engine `eng/capture-voxel.mjs` 产出的 Cube 平面（W×D 石头地板 + 一圈硬墙 + 一片矿脉，尺寸与矿脉在 [`Server/Assets/Maps/sample.layout.json`](../Server/Assets/Maps/sample.layout.json)）。[`capture-basemap.mjs`](../Tools/capture-basemap.mjs) 只在作者时调用那条 CLI，玩法程序集与 DS 不得引用它。
+
+启动器第 05 步要四样同时成立：`DS_READY` 的 `worldProfile` 是 `runtime+voxel`；第一次开机的日志有 `empty store: first boot opens the world from the configured base map`，且**没有** `recovered checkpoint outranks base_map_path`（新存储开出了旧存档就不是加载底图）；`admission baseline: wrote N SectionFrame` 且 N>0；导览 Bot 的 Active 行 `scopeActivated=True`。
 
 [`verify-evidence.mjs`](../Tools/verify-evidence.mjs) 读取两轮独立目录的日志，逐位核对 `eventOrder` 与 `appliedTicks`，并经 [`world-assert.mjs`](../Tools/world-assert.mjs) 核对格子与矿石数。空日志或「哈希一致但世界错」都失败。
 
@@ -113,9 +118,8 @@ node --test Tools/capture-basemap.test.mjs
 
 **应该看到的日志**
 
-- 启动器：`step=05 status=READY Server/Assets/Maps/sample.voxel is a VoxelEngine capture; DS boot restores only (R-00522).`
-- 第 07–13 步仍是诚实的 `BLOCKED_ENV`（Activate / 聊天 / 挖掘 / 体素写 / 掉落 / 拾取还没直播）
-- 第 14 步仍是 `BLOCKED_ENV`：`save/restore waits R-00498 / R-00507`——底图可 restore，不声称直播冷恢复已过
+- 启动器：`step=05 status=PASS worldProfile=runtime+voxel; base map boot=true; SectionFrames written=4; bot scope active=true`
+- 没设 `LUMIO_SCENARIO_DLL`：第 05–14 步 `BLOCKED_ENV LUMIO_SCENARIO_DLL is not set …`；所有 Bot 照常常驻，第 04 步照样能证明
 - fixture `Tools/fixtures/oracle-min` 两轮比对退出码 0；空目录 FAIL
 
 ## 第 6 步：玩家入场
@@ -125,11 +129,11 @@ node --test Tools/capture-basemap.test.mjs
 **应该看到的日志**
 
 - 启动器在缺 Bot.Host 时第 6 步也是 `BLOCKED_ENV`（[launcher.mjs](../Tools/launcher.mjs)）
-- 真入场后：Bot 日志出现本玩家的 `NetEntityId` hex；聊天将用同一个 hex 当说话人
+- 真入场后：导览 Bot 已准入，且它的 assert 记录里 `self_bound` 没有失败：`step=06 status=PASS admitted=true; self_bound held`
 
 ## 第 7 步：跑动
 
-[`MoveAbility`](../Gameplay/Abilities/MoveAbility.cs#L17) 是唯一调用 [`SetLocalPosition`](../Gameplay/Abilities/MoveAbility.cs#L136) 的手写文件。步长与扫掠半径来自 [`Server/Config/Tables/server/movement.json`](../Server/Config/Tables/server/movement.json)。硬墙依赖 `IAbilityPhysicsPort`；端口缺失时拒绝本次位移、不写坐标。直播 `Activate` 等 Client R-00534 AC10。
+[`MoveAbility`](../Gameplay/Abilities/MoveAbility.cs#L17) 是唯一调用 [`SetLocalPosition`](../Gameplay/Abilities/MoveAbility.cs#L136) 的手写文件。步长与扫掠半径来自 [`Server/Config/Tables/server/movement.json`](../Server/Config/Tables/server/movement.json)。硬墙依赖 `IAbilityPhysicsPort`；端口缺失时拒绝本次位移、不写坐标。启动器第 07 步要导览 Bot 的 `move_activated` / `activation_accepted` / `bot_uplinked` 都成立，且 DS 至少一行 `outcome=Succeeded/Applied`（`debug` 级；有 fleet 时这一半是全房间的，不单指导览 Bot）。
 
 **今天能跑**
 
@@ -140,39 +144,51 @@ dotnet exec Server/Tests/Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.Tests.
 **应该看到的日志**
 
 - `MoveAbilityTests` 通过；`SourceHygieneTests` 保证其它手写文件不再写坐标
-- 启动器：`step=07 status=BLOCKED_ENV MoveAbility is in-tree; live Activate waits Client R-00534 AC10`（[launcher.mjs](../Tools/launcher.mjs)）
-- 真 Activate 后：Bot 向硬墙跑应停下；对家同帧看到位移。这一条还没有直播证据
+- 启动器：`step=07 status=PASS move_activated+activation_accepted+bot_uplinked held; DS applied ops=N`
+- 结果文件缺失：`step=07 status=FAIL no-result (no assert record in result.ndjson); DS applied ops=N`——DS 那一半再多也不够
 
 ## 第 8 步：聊天
 
-共享声明在 [`ChatComponent.cs` 第 10 行](../Gameplay/Components/Chat/ChatComponent.cs#L10)（`chat.input`）。服务器把说话人写成 [`Entity.ToHex() + ": " + text`](../Gameplay/Components/Chat/ChatComponent.Server.cs#L23)，UTF-8 上限 512 是生成器写死的，不是玩法配表。直播收发等 Bot.Host。
+共享声明在 [`ChatComponent.cs` 第 10 行](../Gameplay/Components/Chat/ChatComponent.cs#L10)（`chat.input`）。服务器把说话人写成 [`Entity.ToHex() + ": " + text`](../Gameplay/Components/Chat/ChatComponent.Server.cs#L23)，UTF-8 上限 512 是生成器写死的，不是玩法配表。导览 Bot 在第一次看到自己的那一帧经 registry 的 `chat.input` 映射发一行固定文本；启动器第 08 步要它的 `chat_activated` 成立，且 DS 日志里有**这一行文本**的 `says:`——fleet 的聊天不算。
 
 **应该看到的日志**
 
-- 启动器：`step=08 status=BLOCKED_ENV ChatComponent is in-tree; live chat waits Bot.Host`（[launcher.mjs](../Tools/launcher.mjs)）
-- 真双 Bot：A 发言后 B 按序收到 `OnChatMessage`；服务器信息日志形如 `{hex} says: {text}`（[Server 第 26 行](../Gameplay/Components/Chat/ChatComponent.Server.cs#L26)）
+- 启动器：`step=08 status=PASS chat_activated held; DS says line=true`
+- 服务器信息日志形如 `{hex} says: sample tour: hello from the mining bot`（[Server 第 26 行](../Gameplay/Components/Chat/ChatComponent.Server.cs#L26)）
 - 两轮同输入的 `eventOrder` 由 S-7 对账，不在本步另造哈希
 
-## 第 3–4 步合在一起：一条内部命令
+## 一条内部命令
 
 ```bash
-node Tools/launcher.mjs --bots 2 --stagger-ms 250
+node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll <Lumio.Sample.Bots.dll>
 ```
 
 判据 2 第一阶段是内部验收：Platform 镜像现在从私有仓构建，外部机器拿不到 compose 文件。本仓用环境变量 `LUMIO_PLATFORM_COMPOSE` 指向那份内部文件，见 [`Tools/compose/README.md`](../Tools/compose/README.md)。`forceCleanup` 不是通过证据。
 
-## 第 9–14 步（占位，等引擎卡）
+## 第 9–14 步：挖掘到存档
 
-| 步 | 做什么 | 等哪张卡 | 本仓已有的壳 |
+第 09–13 步与前面一样只在导览 Bot 退出之后判，DS 一半读第一次开机的日志目录，Bot 一半读它的 assert 记录。数量只要求「至少一次」，不在启动器里写配表数值。
+
+| 步 | 做什么 | DS 要看到 | 导览 Bot 的 assert 里要成立 |
 |---|---|---|---|
-| 9 | 挖掘（技能五步准入） | **R-00468**；轨 B S-11 | [`MineAbility`](../Gameplay/Abilities/MineAbility.cs#L17) |
-| 10 | 矿脉储量 -1 | **R-00469** / **R-00538**；S-12 | [`VeinReserveComponent`](../Gameplay/Components/Vein/VeinReserveComponent.Server.cs) |
-| 11 | 储量归零，方块变空气 | **R-00469**；S-12 | `MineAbility.TryRequestAirWrite` 恒为 false |
-| 12 | 掉出矿石 | **R-00462**；S-13 | [`OreDropEntity`](../Gameplay/EntityTypes/OreDropEntity.cs) |
-| 13 | 拾取（GAS Ability 准入 → Effect 单第 9 相改基础账） | **R-00636**（DS 直播归 R-00600）；S-14 | [`PickupAbility`](../Gameplay/Abilities/PickupAbility.cs) → [`PickupOreEffect`](../Gameplay/Effects/PickupOreEffect.cs) |
-| 14 | 存档并重启恢复 | **R-00498** / **R-00507**；S-15 | `world_profile` 已是 `runtime+voxel` + `snapshot_only`；`Server/Assets/Maps/sample.voxel` 是可 restore 的 Capture。直播冷恢复仍等这两张卡，启动器第 14 步保持 `BLOCKED_ENV`。后段正文归 S-16 |
+| 9 | 挖掘 | `mining_stage txn=…` 与 `mining_pre txn=…` | `mine_activated` |
+| 10 | 矿脉储量 -1 | `mining_applied txn=…` | `vein_dug_through` |
+| 11 | 方块变空气 | `mining_post txn=… block=0` | — |
+| 12 | 掉出矿石 | `mining_reward txn=… amount=N`，N>0 | `pickup_activated`（它只在复制过来的 census 里出现了 `oreDrop` 之后才发） |
+| 13 | 拾取 | — | `pickup_activated` 与 `drop_collected`，且整份 assert 通过 |
+| 14 | 存档重启 | 见下 | `SampleRestoreVerifyScenario` 整份通过 |
 
-启动器这六步的 `BLOCKED_ENV` 文案在 [`launcher.mjs`](../Tools/launcher.mjs) 的第 9–14 步记录处。
+第 14 步：
+
+1. 导览 Bot 退出的那一刻记下 DS 已经打出的 `DS_CHECKPOINT` 代数。
+2. 等**第二次**更新的 checkpoint。DS 在一次存档**做完**时才打这一行，存档之间不重叠，所以完成之后打出的第一次可能是完成之前就开始的存档，快照里可能还没有拾取；第二次一定是完成之后才开始的。代数必须严格递增。等到超时或 DS 先退出都是 FAIL，而且不会重启。
+3. 停 DS（Windows 没有跨进程 Ctrl+C，只能 kill；受审的是 checkpoint，不是 kill）。
+4. 用同一份存储、另一个日志目录重启，同一账号用同一口令（本次运行的 `LUMIO_ACCOUNT_PASSWORD`，没设就是这次运行生成的那一个）重新 login + launch；launch 绑到的 allocation 与重启的 DS 不同就是 FAIL。
+5. 以 `SampleRestoreVerifyScenario` 进房。PASS 要三样：重启日志有 `recovered checkpoint outranks base_map_path`、没有 `empty store: first boot …`，以及核对场景整份通过（3 条矿脉、0 个掉落）。开出一张全新底图时它看到 4 条矿脉，第 14 步 FAIL。
+
+`--checkpoint-seconds` / `LUMIO_CHECKPOINT_SECONDS` 可以把本次运行的存档周期调短；不设就用模板的值。没有 `LUMIO_PLATFORM_ORIGIN` 就无法重新准入，第 14 步 `BLOCKED_ENV`。
+
+Bot* 登录名要 Platform 签发的 `LUMIO_BOT_TOOL_CREDENTIAL`。compose 平台的 bot-tool 公钥还是占位时，用 `--login-prefix` / `LUMIO_LOGIN_PREFIX` 换成普通命名空间的名字；重复跑同一组名字时设固定的 `LUMIO_ACCOUNT_PASSWORD`。
 
 ## 100 人压测门
 

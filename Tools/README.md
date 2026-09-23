@@ -65,9 +65,31 @@ CLI prints only a public summary so secrets never land in logs.
 
 ## One-command launcher (S-3 / R-00520)
 
-`launcher.mjs` is the internal fourteen-step command. It copies the committed `Server/Config/Startup/server.json.clr.kernel_config` object to each run's `kernel-config.json` and passes that path to Bot.Host; native execution has no hidden Context limits. It prints `step=NN`
-for every sample.md step, admits `--bots N` names (`Bot1`…) with a
-configurable `--stagger-ms`, and consumes unique `loginAndLaunch` tickets.
+`launcher.mjs` is the internal fourteen-step command and the only driver of
+those steps. It copies the committed `Server/Config/Startup/server.json.clr.kernel_config` object to each run's `kernel-config.json` and passes that path to Bot.Host; native execution has no hidden Context limits. It prints `step=NN`
+for every sample.md step, admits `--bots N` names (`Bot1`…, or
+`--login-prefix`) with a configurable `--stagger-ms`, and consumes unique
+`loginAndLaunch` tickets.
+
+Bot 1 is the tour bot: it runs `SampleMiningScenario` from
+`LUMIO_SCENARIO_DLL` / `--scenario-dll`. Steps 05–13 are judged after it exits,
+from artefacts only (`tour-steps.mjs`): the DS's stdout and log directory, the
+bot's lifecycle log and its `result.ndjson`. A missing, empty or truncated
+result file is FAIL for every step that reads it. Step 14 waits for the second
+`DS_CHECKPOINT` printed after the tour bot finished (the first may be a save
+that was already running), stops the DS, reboots it on the same store and
+re-admits the same account under `SampleRestoreVerifyScenario`. Bots 2..N and
+the spectator are the fleet and are stopped before the restart.
+
+`server.json` (or `LUMIO_DS_CONFIG`) is a template: each run writes
+`server.boot-1.json` / `server.boot-2.json` into its evidence directory with
+absolute paths, a fresh store, one debug log directory per boot and the
+Platform launch's allocation claims. The CLR files come from
+`LUMIO_ENGINE_NATIVE`, `LUMIO_HOSTFXR`, `LUMIO_SERVER_HOSTENTRY_DLL`,
+`LUMIO_RUNTIME_REPLICATION_DLL`, `LUMIO_RUNTIME_ECS_DLL` and
+`LUMIO_SAMPLE_GAMEPLAY_DLL`, else from the template; when neither is a file the
+run stops at step 03 with `BLOCKED_ENV` naming the variable.
+`LUMIO_PLATFORM_ADMISSION_KEY` replaces the template's stand-in key.
 Process management is imported from Engine `eng/process-tools.mjs`
 (`LUMIO_ENGINE_ROOT` or a sibling `LumioGameEngine` checkout). If that
 file is missing the command exits `2` with `VERIFICATION_STATUS=BLOCKED_ENV`.
@@ -82,7 +104,7 @@ appear here.
 
 ```bash
 node --test Tools/launcher.test.mjs
-node Tools/launcher.mjs --bots 2 --stagger-ms 250
+node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll <Lumio.Sample.Bots.dll>
 ```
 
 ## 100-bot move gate (R-00588)

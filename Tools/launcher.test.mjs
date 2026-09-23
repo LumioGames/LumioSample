@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -15,7 +15,22 @@ import {
   resolveSpectatorPageUrl,
   runLauncher,
 } from './launcher.mjs';
-import { formatStep, planBotLogins, TOUR_STEPS } from './tour-steps.mjs';
+import { DS_CLR_INPUTS } from './ds-config.mjs';
+import {
+  checkpointGenerations,
+  formatStep,
+  judgeCheckpoint,
+  judgeRestore,
+  judgeTourSteps,
+  planBotLogins,
+  RESTORE_SCENARIO,
+  scenarioVerdict,
+  parseBotResult,
+  TOUR_ASSERTIONS,
+  TOUR_CHAT_TEXT,
+  TOUR_SCENARIO,
+  TOUR_STEPS,
+} from './tour-steps.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 
@@ -96,9 +111,25 @@ function processTools({ evidenceDir, botLogs = [] } = {}) {
   };
 }
 
+/** The seven CLR inputs a run config must name as files (ds-config.mjs DS_CLR_INPUTS). */
+const CLR_FILES = {
+  engine_native: 'lumio.dll',
+  hostfxr: 'hostfxr.dll',
+  runtime_config: 'Lumio.Server.HostEntry.runtimeconfig.json',
+  assembly: 'Lumio.Server.HostEntry.dll',
+  replication_assembly: 'Lumio.GameRuntime.Replication.dll',
+  ecs_assembly: 'Lumio.GameRuntime.Ecs.dll',
+  registry_assembly: 'Lumio.Sample.Gameplay.Server.dll',
+};
+
 function runnableDsConfig() {
   return {
-    clr: { kernel_config: { maxContexts: 64, maxHandles: 4096, maxNativeBytes: 67108864, maxJobsQueued: 256, maxJobsRunning: 4, maxCompletionItems: 1024, logMailboxCapacity: 8192 } },
+    clr: {
+      ...CLR_FILES,
+      kernel_config: { maxContexts: 64, maxHandles: 4096, maxNativeBytes: 67108864, maxJobsQueued: 256, maxJobsRunning: 4, maxCompletionItems: 1024, logMailboxCapacity: 8192 },
+    },
+    checkpoint_seconds: 30,
+    logging: { dir: 'logs', min_level: 'info' },
     config_dir: '../Tables',
     allocation: {
       serverAudience: 'sample-local',
@@ -124,6 +155,8 @@ function voxelBudgetFiles(isolated) {
 function launchFiles(isolated) {
   const dsConfig = join(isolated, 'server.json');
   writeFileSync(dsConfig, `${JSON.stringify(runnableDsConfig())}\n`);
+  // The run config resolves these against server.json's own directory, so they sit beside it.
+  for (const name of Object.values(CLR_FILES)) touch(isolated, name);
   voxelBudgetFiles(isolated);
   return {
     dsExe: touch(isolated, 'lumio-ds'),
@@ -338,45 +371,13 @@ test('started bots stay up for --duration-ms before forceCleanup', async () => {
   const botStart = tools.events.find((event) => event.kind === 'start' && event.args.includes('--gameplay'));
   // Bots are clients: they get the C export, never the DS's S+V tables.
   assert.equal(botStart.args[botStart.args.indexOf('--config-dir') + 1], join(isolated, 'Client', 'Config', 'Tables'));
-  assert.equal(report.steps.find((step) => step.id === '05').status, 'BLOCKED_ENV');
-  assert.equal(report.steps.find((step) => step.id === '07').detail, 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
-  assert.match(report.steps.find((step) => step.id === '05').detail, /placeholder and must not be treated as a base map/);
-  assert.match(report.steps.find((step) => step.id === '05').detail, /Missing command/);
-  assert.doesNotMatch(report.steps.find((step) => step.id === '05').detail, /does not exist|not public/);
-  assert.equal(report.steps.find((step) => step.id === '14').status, 'BLOCKED_ENV');
-  assert.match(report.steps.find((step) => step.id === '14').detail, /runtime\+voxel/);
-  assert.doesNotMatch(report.steps.find((step) => step.id === '14').detail, /runtime-only/);
-  for (const id of ['05', '07', '08', '09', '10', '11', '12', '13', '14']) {
-    assert.equal(report.steps.find((step) => step.id === id).status, 'BLOCKED_ENV');
+  // No scenario assembly: step 04 is still proven, 05–14 name what is missing and nothing runs a scenario.
+  for (const id of ['05', '06', '07', '08', '09', '10', '11', '12', '13', '14']) {
+    const step = report.steps.find((entry) => entry.id === id);
+    assert.equal(step.status, 'BLOCKED_ENV');
+    assert.match(step.detail, /LUMIO_SCENARIO_DLL is not set/);
   }
-});
-
-test('live bots against the committed Sample tree mark step 05 READY for a restorable capture', async () => {
-  const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-map-'));
-  const evidenceDir = join(isolated, 'evidence');
-  const sampleRoot = resolve(HERE, '..');
-  const tools = processTools({ evidenceDir, botLogs: [admitLine('Bot1')] });
-  const report = await runLauncher({
-    root: sampleRoot,
-    env: {},
-    bots: 1,
-    staggerMs: 0,
-    durationMs: 80,
-    timeoutMs: 5_000,
-    sessions: [session('Bot1', 'ticket-one')],
-    ...launchFiles(isolated),
-    processTools: tools,
-    log() {},
-    evidenceDir,
-  });
-  assert.equal(report.steps.find((step) => step.id === '05').status, 'READY');
-  assert.match(report.steps.find((step) => step.id === '05').detail, /restores only/);
-  assert.doesNotMatch(report.steps.find((step) => step.id === '05').detail, /placeholder/);
-  assert.equal(report.steps.find((step) => step.id === '14').status, 'BLOCKED_ENV');
-  assert.match(report.steps.find((step) => step.id === '14').detail, /restoreable capture/);
-  for (const id of ['07', '08', '09', '10', '11', '12', '13', '14']) {
-    assert.equal(report.steps.find((step) => step.id === id).status, 'BLOCKED_ENV');
-  }
+  assert.ok(!botStart.args.includes('--scenario'));
 });
 
 test('a runtime+voxel DS with --voxel-config off blocks step 04 loudly (ADR-112 rev2 ix)', async () => {
@@ -503,6 +504,7 @@ test('launcher and helpers contain no retired Game harness paths', () => {
     'engine-tools.mjs',
     'account-client.mjs',
     'tour-steps.mjs',
+    'ds-config.mjs',
   ];
   for (const name of files) {
     const text = readFileSync(new URL(name, import.meta.url), 'utf8');
@@ -510,6 +512,10 @@ test('launcher and helpers contain no retired Game harness paths', () => {
     assert.doesNotMatch(text, /LumioServer\/account-server/);
     assert.doesNotMatch(text, /\/Users\//);
     assert.doesNotMatch(text, /\/home\//);
+    // No machine's checkout, dotnet install or admission key may stand in for a missing variable.
+    assert.doesNotMatch(text, /[A-Za-z]:[\\/](?:Work|Users|Program Files)/);
+    assert.doesNotMatch(text, /\.dotnet[\\/]host[\\/]fxr/);
+    assert.doesNotMatch(text, /9593f57065df3c73/);
   }
 });
 
@@ -752,9 +758,18 @@ test('step 03 with a live DS exe does not fail on replace-* tokens', async () =>
   const evidenceDir = join(isolated, 'evidence');
   const committed = JSON.parse(readFileSync(new URL('../Server/Config/Startup/server.json', import.meta.url), 'utf8'));
   writeFileSync(join(isolated, 'server.json'), `${JSON.stringify(committed)}\n`);
+  touch(isolated, 'Lumio.Server.HostEntry.runtimeconfig.json');
   const report = await runLauncher({
     root: isolated,
-    env: {},
+    // The committed template names no machine's hostfxr or HostEntry; the operator's variables do.
+    env: {
+      LUMIO_HOSTFXR: touch(isolated, 'hostfxr.dll'),
+      LUMIO_SERVER_HOSTENTRY_DLL: touch(isolated, 'Lumio.Server.HostEntry.dll'),
+      LUMIO_RUNTIME_REPLICATION_DLL: touch(isolated, 'Lumio.GameRuntime.Replication.dll'),
+      LUMIO_RUNTIME_ECS_DLL: touch(isolated, 'Lumio.GameRuntime.Ecs.dll'),
+      LUMIO_SAMPLE_GAMEPLAY_DLL: touch(isolated, 'Lumio.Sample.Gameplay.dll'),
+    },
+    engineNative: touch(isolated, 'lumio.dll'),
     bots: 1,
     staggerMs: 0,
     durationMs: 0,
@@ -893,5 +908,521 @@ test('started bots receive --voxel-config, and off starts them without it', asyn
     } else {
       assert.equal(report.botVoxelConfig, null);
     }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Steps 05–14: the tour bot's scenario and the restart, judged from artefacts.
+// ---------------------------------------------------------------------------
+
+const TOUR_DS_READY = 'DS_READY {"pid":1,"endpoint":"ws://127.0.0.1:9110","worldProfile":"runtime+voxel"}\n';
+const LOG_PREFIX = '2026-09-23T00:00:00.0000000Z INF tick=40 world=1 lang=rs cat=ds';
+const GREEN_BOOT_LOGS = [
+  `${LOG_PREFIX} msg="empty store: first boot opens the world from the configured base map"`,
+  `${LOG_PREFIX} msg="admission baseline: wrote 4 SectionFrame(s) to 1 connection(s) from the cut at tick 3"`,
+  '2026-09-23T00:00:01.0000000Z DBG tick=41 world=1 lang=rs cat=host.operation_result msg="observed" sequence=1 outcome=Succeeded/Applied/Accepted code=-',
+  `${LOG_PREFIX} msg="0a1b2c3d4e5f60718293a4b5c6d7e8f9 says: ${TOUR_CHAT_TEXT}"`,
+  `${LOG_PREFIX} msg="mining_stage txn=t1 section=s:0:0:0 cell=12 bound=v1"`,
+  `${LOG_PREFIX} msg="mining_pre txn=t1 block=7 revision=3"`,
+  `${LOG_PREFIX} msg="mining_applied txn=t1 section=s:0:0:0 cell=12 vein=v1"`,
+  `${LOG_PREFIX} msg="mining_post txn=t1 block=0 revision=4 bound="`,
+  `${LOG_PREFIX} msg="mining_reward txn=t1 amount=4"`,
+].join('\n');
+const RESTORED_BOOT_LOGS = `${LOG_PREFIX} msg="recovered checkpoint outranks base_map_path; this boot restores the saved world"`;
+const FRESH_BOOT_LOGS = `${LOG_PREFIX} msg="empty store: first boot opens the world from the configured base map"`;
+
+/** Bot.Host result.ndjson as BotHostResidentLoop.FinishScenarios writes it. */
+function resultLines({ passed = true, failed = '', run = true } = {}) {
+  const lines = [JSON.stringify({ kind: 'assert', bot: 'bot-0', step: 900, passed, failed })];
+  if (run) lines.push(JSON.stringify({ kind: 'run', bots: 1, ticks: 900, uplinks: 40, commandStreamSha256: 'ab', passed }));
+  return `${lines.join('\n')}\n`;
+}
+
+function failedResult(...names) {
+  return resultLines({ passed: false, failed: names.join(',') });
+}
+
+function argValue(args, flag) {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] : undefined;
+}
+
+/**
+ * Process tools for a whole tour. Each DS boot reads the run config the launcher wrote and puts its
+ * log lines in that config's logging.dir. Scenario bots "finish" at once. Once the tour bot has
+ * started, every read of boot 1's stdout shows one more DS_CHECKPOINT, up to
+ * `checkpointsAfterCompletion` — so "a save after completion" does not depend on timers.
+ */
+function tourTools({
+  boots = [{ logs: GREEN_BOOT_LOGS }, { logs: RESTORED_BOOT_LOGS }],
+  tourResult = resultLines(),
+  verifyResult = resultLines(),
+  tourAdmit = (account) => admitLine(account),
+  checkpointsAfterCompletion = 2,
+  dsDiesAtCompletion = false,
+} = {}) {
+  const events = [];
+  let dsBoots = 0;
+  let armed = false;
+  return {
+    events,
+    command() { return 'configuration_valid'; },
+    startLogged(exe, args = []) {
+      events.push({ kind: 'start', exe, args: [...args], at: Date.now() });
+      if (args[0] === '--config') {
+        const boot = boots[dsBoots];
+        dsBoots += 1;
+        const bootIndex = dsBoots;
+        const config = JSON.parse(readFileSync(args[1], 'utf8'));
+        mkdirSync(config.logging.dir, { recursive: true });
+        writeFileSync(join(config.logging.dir, 'lumio-ds-0.log'), `${boot.logs}\n`);
+        let reads = 0;
+        const state = { child: { pid: bootIndex, kill() {} }, closed: false, config, boot: bootIndex };
+        Object.defineProperty(state, 'stdout', {
+          get() {
+            let text = TOUR_DS_READY;
+            if (bootIndex !== 1) return text;
+            // Generation 1 predates the tour bot's completion.
+            text += 'DS_CHECKPOINT {"generation":1}\n';
+            if (!armed) return text;
+            reads += 1;
+            if (dsDiesAtCompletion) state.closed = true;
+            const extra = Math.min(reads - 1, checkpointsAfterCompletion);
+            for (let generation = 2; generation < 2 + extra; generation += 1) text += `DS_CHECKPOINT {"generation":${generation}}\n`;
+            return text;
+          },
+        });
+        return state;
+      }
+      const logDir = argValue(args, '--log-dir');
+      const account = argValue(args, '--account-from');
+      const scenario = argValue(args, '--scenario-name');
+      mkdirSync(logDir, { recursive: true });
+      const bot = (pid, admit, result, closed) => {
+        writeFileSync(join(logDir, '2026-09-23_000.log'), `${admit}\n`);
+        if (result != null) writeFileSync(join(logDir, 'result.ndjson'), result);
+        return { stdout: '', child: { pid, kill() {} }, closed };
+      };
+      const started = events[events.length - 1];
+      if (scenario === TOUR_SCENARIO) {
+        armed = true;
+        started.pid = 50;
+        return bot(50, tourAdmit(account), tourResult, true);
+      }
+      if (scenario === RESTORE_SCENARIO) {
+        started.pid = 60;
+        return bot(60, admitLine(account), verifyResult, true);
+      }
+      started.pid = 70 + events.length;
+      return bot(started.pid, admitLine(account), null, false);
+    },
+    assertAlive(state) {
+      if (state?.config && state.closed) throw new Error(`lumio-ds boot ${state.boot} exited`);
+    },
+    waitExit() { return Promise.resolve(); },
+    forceCleanup(state) {
+      events.push({ kind: 'cleanup', pid: state?.child?.pid, at: Date.now() });
+      return Promise.resolve();
+    },
+  };
+}
+
+function tourFiles(isolated) {
+  const files = launchFiles(isolated);
+  const config = { ...runnableDsConfig(), world_profile: 'runtime+voxel' };
+  writeFileSync(files.dsConfig, `${JSON.stringify(config)}\n`);
+  for (const end of [['Server', 'Config', 'Tables'], ['Client', 'Config', 'Tables']]) {
+    mkdirSync(join(isolated, ...end), { recursive: true });
+    writeFileSync(join(isolated, ...end, 'manifest.json'), '{"revisionId":"test"}\n');
+  }
+  return { ...files, scenarioDll: touch(isolated, 'Lumio.Sample.Bots.dll') };
+}
+
+async function runTour(tools, overrides = {}) {
+  const isolated = overrides.isolated ?? mkdtempSync(join(tmpdir(), 'lumio-tour-'));
+  const evidenceDir = join(isolated, 'evidence');
+  const logins = [];
+  const lines = [];
+  // `files` lets a test hand in a fixture it already edited; otherwise a green one is written.
+  const { isolated: _unused, files = tourFiles(isolated), ...rest } = overrides;
+  const report = await runLauncher({
+    root: isolated,
+    env: {},
+    origin: 'http://127.0.0.1:1',
+    bots: 1,
+    staggerMs: 0,
+    durationMs: 0,
+    timeoutMs: 5_000,
+    checkpointTimeoutMs: 300,
+    loginAndLaunch: async ({ loginName, password }) => {
+      logins.push({ loginName, password });
+      return session(loginName, `ticket-${loginName}-${logins.length}`);
+    },
+    ...files,
+    processTools: tools,
+    log: (line) => lines.push(line),
+    evidenceDir,
+    ...rest,
+  });
+  const status = (id) => report.steps.find((step) => step.id === id)?.status;
+  const detail = (id) => report.steps.find((step) => step.id === id)?.detail;
+  return { report, logins, lines, evidenceDir, isolated, status, detail };
+}
+
+const BOT_EVIDENCED_STEPS = ['06', '07', '08', '09', '10', '12', '13'];
+
+test('a green tour passes all fourteen steps: 05–13 from artefacts, 14 from a reboot on the same store', async () => {
+  const tools = tourTools();
+  const { report, logins, status, detail, evidenceDir } = await runTour(tools);
+  assert.deepEqual(report.steps.map((step) => `${step.id}:${step.status}`), [
+    '01:READY', '02:PASS', '03:PASS', '04:PASS', '05:PASS', '06:PASS', '07:PASS',
+    '08:PASS', '09:PASS', '10:PASS', '11:PASS', '12:PASS', '13:PASS', '14:PASS',
+  ]);
+  assert.equal(report.status, 'PASS');
+  assert.equal(report.tourLogin, 'Bot1');
+  assert.match(detail('05'), /SectionFrames written=4; bot scope active=true/);
+  assert.match(detail('12'), /amounts=\[4\]/);
+  assert.match(detail('14'), /gen 1→3; restore marker=true; verify assertions=passed/);
+  assert.deepEqual(report.checkpoint, { atCompletion: 1, released: 3 });
+
+  const starts = tools.events.filter((event) => event.kind === 'start');
+  const [boot1, tourBot, boot2, verifyBot] = starts;
+  assert.equal(argValue(tourBot.args, '--scenario-name'), TOUR_SCENARIO);
+  assert.equal(argValue(tourBot.args, '--ticks'), '15000');
+  assert.equal(argValue(verifyBot.args, '--scenario-name'), RESTORE_SCENARIO);
+  assert.equal(argValue(verifyBot.args, '--account-from'), 'Bot1');
+  assert.equal(argValue(verifyBot.args, '--admission-ticket'), 'ticket-Bot1-2');
+  // Same account, same run-scoped password: the re-login after the restart can only work that way.
+  assert.deepEqual(logins.map((login) => login.loginName), ['Bot1', 'Bot1']);
+  assert.ok(logins[0].password && logins[0].password === logins[1].password);
+  // Same store, separate log directories; the reboot starts only after boot 1 was stopped.
+  const config1 = JSON.parse(readFileSync(argValue(boot1.args, '--config'), 'utf8'));
+  const config2 = JSON.parse(readFileSync(argValue(boot2.args, '--config'), 'utf8'));
+  assert.equal(config1.store_path, config2.store_path);
+  assert.ok(config1.store_path.startsWith(evidenceDir));
+  assert.notEqual(config1.logging.dir, config2.logging.dir);
+  assert.equal(config1.logging.min_level, 'debug');
+  const bootOneStopped = tools.events.findIndex((event) => event.kind === 'cleanup' && event.pid === 1);
+  assert.ok(bootOneStopped >= 0 && bootOneStopped < tools.events.indexOf(boot2));
+});
+
+test('a missing, empty or truncated tour result.ndjson fails every bot-evidenced step (no vacuous pass)', async (t) => {
+  for (const [label, tourResult] of [
+    ['absent', null],
+    ['empty', ''],
+    ['assert record without the closing run record', resultLines({ run: false })],
+  ]) {
+    const { status, detail, lines } = await runTour(tourTools({ tourResult }));
+    t.diagnostic(`${label}: ${lines.filter((line) => /^step=(0[5-9]|1[0-3]) /.test(line)).join(' | ')}`);
+    for (const id of BOT_EVIDENCED_STEPS) {
+      assert.equal(status(id), 'FAIL', `${label}: step ${id} passed without a result`);
+      assert.match(detail(id), /no-result/);
+    }
+  }
+});
+
+test('a result.ndjson left by an earlier run in a reused evidence dir is not this run\'s evidence', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-tour-stale-'));
+  mkdirSync(join(isolated, 'evidence', 'bot-1'), { recursive: true });
+  writeFileSync(join(isolated, 'evidence', 'bot-1', 'result.ndjson'), resultLines());
+  mkdirSync(join(isolated, 'evidence', 'ds-boot-2'), { recursive: true });
+  writeFileSync(join(isolated, 'evidence', 'ds-boot-2', 'old.log'), `${RESTORED_BOOT_LOGS}\n`);
+  const { status } = await runTour(tourTools({ tourResult: null, boots: [{ logs: GREEN_BOOT_LOGS }, { logs: FRESH_BOOT_LOGS }] }), { isolated });
+  for (const id of BOT_EVIDENCED_STEPS) assert.equal(status(id), 'FAIL', `step ${id} read a stale result`);
+  assert.equal(status('14'), 'FAIL');
+});
+
+test('step 14 fails when the reboot opens a fresh base map instead of the save', async (t) => {
+  const { status, detail, lines } = await runTour(tourTools({
+    boots: [{ logs: GREEN_BOOT_LOGS }, { logs: FRESH_BOOT_LOGS }],
+    verifyResult: failedResult('veins==3(got 4)'),
+  }));
+  t.diagnostic(lines.find((line) => line.startsWith('step=14 ')));
+  assert.equal(status('14'), 'FAIL');
+  assert.match(detail('14'), /restore marker=false; reboot opened the fresh base map; verify assertions=failed: veins==3\(got 4\)/);
+});
+
+test('step 14 never stops the DS before a save that started after the tour bot finished', async () => {
+  for (const [after, expected] of [[0, /no DS_CHECKPOINT after it/], [1, /only gen 2 \(may have started before completion\)/]]) {
+    const tools = tourTools({ checkpointsAfterCompletion: after });
+    const { status, detail } = await runTour(tools);
+    assert.equal(status('14'), 'FAIL');
+    assert.match(detail('14'), expected);
+    assert.match(detail('14'), /DS stopped without a post-completion save/);
+    // No reboot and no verification bot: a restore of an unsaved world proves nothing.
+    const starts = tools.events.filter((event) => event.kind === 'start');
+    assert.equal(starts.filter((event) => event.args[0] === '--config').length, 1);
+    assert.ok(!starts.some((event) => argValue(event.args, '--scenario-name') === RESTORE_SCENARIO));
+  }
+});
+
+test('lumio-ds exiting before the post-completion checkpoint is FAIL, not a restart', async () => {
+  // It dies the moment the tour bot is done, having printed no save after that.
+  const tools = tourTools({ dsDiesAtCompletion: true, checkpointsAfterCompletion: 0 });
+  const { status, detail } = await runTour(tools);
+  assert.equal(status('14'), 'FAIL');
+  assert.match(detail('14'), /lumio-ds exited before it/);
+  assert.equal(tools.events.filter((event) => event.kind === 'start' && event.args[0] === '--config').length, 1);
+});
+
+test('step 14 is BLOCKED_ENV without a Platform to re-admit the tour account', async () => {
+  const { status, detail } = await runTour(tourTools(), {
+    origin: undefined,
+    sessions: [session('Bot1', 'ticket-one')],
+  });
+  assert.equal(status('13'), 'PASS');
+  assert.equal(status('14'), 'BLOCKED_ENV');
+  assert.match(detail('14'), /LUMIO_PLATFORM_ORIGIN is not set/);
+});
+
+test('a re-launch bound to another room than the restarted DS is FAIL', async () => {
+  const bound = (roomId, ticket) => ({
+    login: { loginName: 'Bot1', accountId: 'acct_Bot1' },
+    launch: {
+      admissionCredential: ticket,
+      serverAudience: 'aud', gameId: 'sample', gameReleaseId: 'rel', contractId: 'c', roomId, allocationId: 'alloc',
+    },
+  });
+  let calls = 0;
+  const tools = tourTools();
+  const { status, detail } = await runTour(tools, {
+    loginAndLaunch: async () => {
+      calls += 1;
+      return calls === 1 ? bound('room-a', 'ticket-a') : bound('room-b', 'ticket-b');
+    },
+  });
+  // The first launch's claims are what the run config carries.
+  const boot1 = tools.events.find((event) => event.kind === 'start' && event.args[0] === '--config');
+  assert.equal(JSON.parse(readFileSync(boot1.args[1], 'utf8')).allocation.roomId, 'room-a');
+  assert.equal(status('14'), 'FAIL');
+  assert.match(detail('14'), /bound to another roomId/);
+});
+
+test('fleet bots run beside the tour bot and are stopped before the DS restarts', async () => {
+  const tools = tourTools();
+  const { status, report } = await runTour(tools, { bots: 2, durationMs: 50 });
+  assert.equal(report.status, 'PASS');
+  assert.equal(status('04'), 'PASS');
+  const starts = tools.events.filter((event) => event.kind === 'start');
+  const fleet = starts.find((event) => argValue(event.args, '--account-from') === 'Bot2');
+  assert.ok(!fleet.args.includes('--scenario'), 'bot 2 is a resident fleet bot');
+  const boot2 = starts.filter((event) => event.args[0] === '--config')[1];
+  const fleetStopped = tools.events.findIndex((event) => event.kind === 'cleanup' && event.pid === fleet.pid);
+  assert.ok(fleetStopped >= 0 && fleetStopped < tools.events.indexOf(boot2));
+});
+
+test('without LUMIO_SCENARIO_DLL bots still prove step 04 and 05–14 are BLOCKED_ENV by name', async () => {
+  const tools = tourTools();
+  const { status, detail, report } = await runTour(tools, { scenarioDll: undefined, durationMs: 20 });
+  assert.equal(status('04'), 'PASS');
+  for (const id of ['05', '06', '07', '08', '09', '10', '11', '12', '13', '14']) {
+    assert.equal(status(id), 'BLOCKED_ENV');
+    assert.match(detail(id), /LUMIO_SCENARIO_DLL is not set/);
+  }
+  assert.equal(report.status, 'BLOCKED_ENV');
+  assert.ok(!tools.events.some((event) => event.kind === 'start' && event.args.includes('--scenario')));
+});
+
+test('every CLR input the DS needs is BLOCKED_ENV by variable when missing, with no fallback path', async (t) => {
+  for (const input of DS_CLR_INPUTS) {
+    const isolated = mkdtempSync(join(tmpdir(), 'lumio-tour-clr-'));
+    const files = tourFiles(isolated);
+    const config = JSON.parse(readFileSync(files.dsConfig, 'utf8'));
+    config.clr[input.field] = `missing/${input.field}`;
+    writeFileSync(files.dsConfig, `${JSON.stringify(config)}\n`);
+    const tools = tourTools();
+    const { status, detail, lines } = await runTour(tools, {
+      isolated,
+      files: { ...files, engineNative: input.field === 'engine_native' ? undefined : files.engineNative },
+    });
+    if (input.field === 'hostfxr') t.diagnostic(lines.find((line) => line.startsWith('step=03 ')));
+    assert.equal(status('03'), 'BLOCKED_ENV', input.field);
+    assert.match(detail('03'), new RegExp(`^${input.env} is not set and DS config clr\\.${input.field} is not a file`));
+    assert.ok(!tools.events.some((event) => event.kind === 'start'), `${input.field}: nothing may start`);
+  }
+});
+
+test('CLR variables override the template, and HostEntry brings its runtimeconfig', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-tour-env-'));
+  const files = tourFiles(isolated);
+  const config = JSON.parse(readFileSync(files.dsConfig, 'utf8'));
+  for (const field of Object.keys(CLR_FILES)) config.clr[field] = `not-here/${field}`;
+  writeFileSync(files.dsConfig, `${JSON.stringify(config)}\n`);
+  const machine = join(isolated, 'machine');
+  mkdirSync(machine);
+  const env = {
+    LUMIO_HOSTFXR: touch(machine, 'hostfxr.dll'),
+    LUMIO_SERVER_HOSTENTRY_DLL: touch(machine, 'Lumio.Server.HostEntry.dll'),
+    LUMIO_RUNTIME_REPLICATION_DLL: touch(machine, 'Lumio.GameRuntime.Replication.dll'),
+    LUMIO_RUNTIME_ECS_DLL: touch(machine, 'Lumio.GameRuntime.Ecs.dll'),
+    LUMIO_SAMPLE_GAMEPLAY_DLL: touch(machine, 'Lumio.Sample.Gameplay.dll'),
+  };
+  touch(machine, 'Lumio.Server.HostEntry.runtimeconfig.json');
+  const tools = tourTools();
+  const { status } = await runTour(tools, { isolated, files, env });
+  assert.equal(status('03'), 'PASS');
+  const boot1 = tools.events.find((event) => event.kind === 'start' && event.args[0] === '--config');
+  const clr = JSON.parse(readFileSync(boot1.args[1], 'utf8')).clr;
+  assert.equal(clr.hostfxr, env.LUMIO_HOSTFXR);
+  assert.equal(clr.assembly, env.LUMIO_SERVER_HOSTENTRY_DLL);
+  assert.equal(clr.runtime_config, join(machine, 'Lumio.Server.HostEntry.runtimeconfig.json'));
+  assert.equal(clr.engine_native, files.engineNative);
+  assert.equal(clr.registry_assembly, env.LUMIO_SAMPLE_GAMEPLAY_DLL);
+});
+
+test('judgeTourSteps passes 05–13 on green artefacts', () => {
+  const steps = judgeTourSteps({
+    dsStdout: TOUR_DS_READY,
+    dsLogs: GREEN_BOOT_LOGS,
+    botAdmit: parseBotAdmit(admitLine('Bot1')),
+    botResult: resultLines(),
+  });
+  assert.deepEqual(steps.map((step) => step.id), ['05', '06', '07', '08', '09', '10', '11', '12', '13']);
+  for (const step of steps) assert.equal(step.status, 'PASS', `${step.id}: ${step.detail}`);
+  // The in-memory stdout is a tail; DS_READY parsed at boot still speaks for step 05 once it scrolled out.
+  const scrolled = { dsLogs: GREEN_BOOT_LOGS, botAdmit: parseBotAdmit(admitLine('Bot1')), botResult: resultLines(), dsStdout: '' };
+  assert.equal(judgeTourSteps({ ...scrolled, dsReady: { worldProfile: 'runtime+voxel' } })[0].status, 'PASS');
+  assert.equal(judgeTourSteps(scrolled)[0].status, 'FAIL');
+});
+
+test('each of steps 05–13 fails on exactly its own missing evidence', () => {
+  const without = (marker) => GREEN_BOOT_LOGS.split('\n').filter((line) => !line.includes(marker)).join('\n');
+  const green = {
+    dsStdout: TOUR_DS_READY,
+    dsLogs: GREEN_BOOT_LOGS,
+    botAdmit: { admitted: true, scopeActivated: true },
+    botResult: resultLines(),
+  };
+  const cases = [
+    ['base map boot line', { dsLogs: without('empty store') }, ['05']],
+    ['no SectionFrame baseline', { dsLogs: without('admission baseline') }, ['05']],
+    ['bot scope never activated', { botAdmit: { admitted: true, scopeActivated: false } }, ['05']],
+    ['runtime-only DS', { dsStdout: TOUR_DS_READY.replace('runtime+voxel', 'runtime-only') }, ['05']],
+    ['boot 1 restored an old checkpoint', { dsLogs: `${GREEN_BOOT_LOGS}\n${RESTORED_BOOT_LOGS}` }, ['05']],
+    ['not admitted', { botAdmit: { admitted: false, scopeActivated: true } }, ['06']],
+    ['self_bound failed', { botResult: failedResult('self_bound') }, ['06', '13']],
+    ['no applied op on the DS', { dsLogs: without('outcome=Succeeded/Applied') }, ['07']],
+    ['move_activated failed', { botResult: failedResult('move_activated') }, ['07', '13']],
+    ['activation refused', { botResult: failedResult('activation_accepted:sink closed') }, ['07', '13']],
+    ['nothing uplinked', { botResult: failedResult('bot_uplinked') }, ['07', '13']],
+    ['no tour chat on the DS', { dsLogs: without('says:').concat('\nmsg="beef says: hello from Bot2"') }, ['08']],
+    ['chat_activated failed', { botResult: failedResult('chat_activated') }, ['08', '13']],
+    ['no mining_stage', { dsLogs: without('mining_stage') }, ['09']],
+    ['no mining_pre', { dsLogs: without('mining_pre') }, ['09']],
+    ['mine_activated failed', { botResult: failedResult('mine_activated') }, ['09', '13']],
+    ['no mining_applied', { dsLogs: without('mining_applied') }, ['10']],
+    ['vein survived', { botResult: failedResult('vein_dug_through') }, ['10', '13']],
+    ['cell not air', { dsLogs: GREEN_BOOT_LOGS.replace('block=0 revision=4', 'block=7 revision=4') }, ['11']],
+    ['no reward', { dsLogs: without('mining_reward') }, ['12']],
+    ['zero reward', { dsLogs: GREEN_BOOT_LOGS.replace('amount=4', 'amount=0') }, ['12']],
+    ['drop never reached the client', { botResult: failedResult('pickup_activated') }, ['12', '13']],
+    ['drop not collected', { botResult: failedResult('drop_collected') }, ['13']],
+  ];
+  for (const [label, change, expected] of cases) {
+    const failing = judgeTourSteps({ ...green, ...change })
+      .filter((step) => step.status === 'FAIL')
+      .map((step) => step.id);
+    assert.deepEqual(failing, expected, label);
+  }
+});
+
+test('scenarioVerdict needs one well-formed assert record closed by an agreeing run record', () => {
+  const verdict = (text) => scenarioVerdict(parseBotResult(text));
+  assert.equal(verdict(resultLines()).present, true);
+  assert.equal(verdict(resultLines()).passed, true);
+  assert.deepEqual(verdict(failedResult('a', 'b(got 4)')).failed, ['a', 'b(got 4)']);
+  for (const [label, text] of [
+    ['empty', ''],
+    ['garbage', 'not json\n'],
+    ['no run record', resultLines({ run: false })],
+    ['two assert records', `${resultLines({ run: false })}${resultLines()}`],
+    ['passed but lists a failure', `${JSON.stringify({ kind: 'assert', passed: true, failed: 'x' })}\n${JSON.stringify({ kind: 'run', bots: 1, passed: true })}\n`],
+    ['run disagrees', `${JSON.stringify({ kind: 'assert', passed: true, failed: '' })}\n${JSON.stringify({ kind: 'run', bots: 1, passed: false })}\n`],
+    ['no failed field', `${JSON.stringify({ kind: 'assert', passed: true })}\n${JSON.stringify({ kind: 'run', bots: 1, passed: true })}\n`],
+  ]) {
+    assert.equal(verdict(text).present, false, label);
+  }
+});
+
+test('checkpoint generations must rise strictly, and only a save started after completion releases the stop', () => {
+  assert.deepEqual(checkpointGenerations('x\nDS_CHECKPOINT {"generation":4}\nDS_CHECKPOINT {bad}\nDS_CHECKPOINT {"generation":5}\n'), [4, 5]);
+  assert.equal(judgeCheckpoint([], []).ok, false);
+  assert.equal(judgeCheckpoint([14], [14]).ok, false);
+  // The first save printed after completion may have been running already.
+  assert.equal(judgeCheckpoint([14], [14, 15]).ok, false);
+  assert.deepEqual(judgeCheckpoint([14], [14, 15, 16]), { ok: true, generation: 16, detail: 'gen 14→16' });
+  assert.equal(judgeCheckpoint([], [1, 2]).generation, 2);
+  const broken = judgeCheckpoint([3], [3, 2, 4, 5]);
+  assert.equal(broken.ok, false);
+  assert.equal(broken.broken, true);
+  assert.match(broken.detail, /not strictly increasing/);
+});
+
+test('judgeRestore needs the saved checkpoint, the restore marker and a passing verification bot', () => {
+  const saved = { ok: true, generation: 16, detail: 'gen 14→16' };
+  const green = { checkpoint: saved, bootLogs: RESTORED_BOOT_LOGS, verifyResult: resultLines() };
+  assert.equal(judgeRestore(green).status, 'PASS');
+  for (const [label, change] of [
+    ['fresh base map, four veins', { bootLogs: FRESH_BOOT_LOGS, verifyResult: failedResult('veins==3(got 4)') }],
+    ['marker but the world is wrong', { verifyResult: failedResult('oreDrops==0(got 1)') }],
+    ['no marker', { bootLogs: '' }],
+    ['no verification result', { verifyResult: '' }],
+    ['no post-completion checkpoint', { checkpoint: { ok: false, detail: 'gen 14 at completion; no DS_CHECKPOINT after it' } }],
+  ]) {
+    assert.equal(judgeRestore({ ...green, ...change }).status, 'FAIL', label);
+  }
+});
+
+test('every assertion name a step relies on is a sink.That in the scenario source, and the chat line matches', () => {
+  const mining = readFileSync(new URL('../Client/Bots/SampleMiningScenario.cs', import.meta.url), 'utf8');
+  const restore = readFileSync(new URL('../Client/Bots/SampleRestoreVerifyScenario.cs', import.meta.url), 'utf8');
+  for (const name of new Set(Object.values(TOUR_ASSERTIONS).flat())) {
+    assert.match(mining, new RegExp(`sink\\.That\\([^;]*"${name}[":]`), `${name} is not asserted by SampleMiningScenario`);
+  }
+  assert.ok(mining.includes(`"${TOUR_CHAT_TEXT}"`), 'the chat line step 08 looks for is not the one the scenario sends');
+  assert.match(mining, /namespace Lumio\.Sample\.Bots;[\s\S]*class SampleMiningScenario\b/);
+  assert.match(restore, /namespace Lumio\.Sample\.Bots;[\s\S]*class SampleRestoreVerifyScenario\b/);
+  assert.equal(TOUR_SCENARIO, 'Lumio.Sample.Bots.SampleMiningScenario');
+  assert.equal(RESTORE_SCENARIO, 'Lumio.Sample.Bots.SampleRestoreVerifyScenario');
+});
+
+test('parseBotAdmit reports scopeActivated only on the Active+established line that says so', () => {
+  assert.equal(parseBotAdmit(admitLine('Bot1')).scopeActivated, true);
+  assert.equal(parseBotAdmit(admitLine('Bot1').replace('scopeActivated=True', 'scopeActivated=False').replace('True True True', 'True False True')).scopeActivated, false);
+  assert.equal(parseBotAdmit('').scopeActivated, false);
+});
+
+test('CLI parses the tour flags and refuses bad values', () => {
+  const options = parseLaunchArgs(
+    ['--scenario-dll', 'Bots.dll', '--tour-ticks', '900', '--checkpoint-seconds', '15', '--login-prefix', 'Tour'],
+    {},
+  );
+  assert.equal(options.scenarioDll, 'Bots.dll');
+  assert.equal(options.tourTicks, 900);
+  assert.equal(options.checkpointSeconds, 15);
+  assert.equal(options.loginPrefix, 'Tour');
+  const fromEnv = parseLaunchArgs([], { LUMIO_SCENARIO_DLL: 'env.dll', LUMIO_CHECKPOINT_SECONDS: '20', LUMIO_LOGIN_PREFIX: 'Acct' });
+  assert.equal(fromEnv.scenarioDll, 'env.dll');
+  assert.equal(fromEnv.checkpointSeconds, 20);
+  assert.equal(fromEnv.tourTicks, 15000);
+  assert.equal(parseLaunchArgs([], {}).checkpointSeconds, undefined);
+  assert.throws(() => parseLaunchArgs(['--checkpoint-seconds', '0'], {}), /checkpoint-seconds/);
+  assert.throws(() => parseLaunchArgs(['--tour-ticks', '-1'], {}), /tour-ticks/);
+  assert.throws(() => parseLaunchArgs(['--login-prefix', '9x'], {}), /login-prefix/);
+  assert.deepEqual(planLaunchLogins(2, { loginPrefix: 'Tour' }), ['Tour1', 'Tour2']);
+});
+
+test('the fourteen steps have one driver: tour-run.mjs is gone and nothing points at it', () => {
+  assert.equal(existsSync(new URL('tour-run.mjs', import.meta.url)), false);
+  const root = resolve(HERE, '..');
+  const texts = [
+    join(root, 'README.md'),
+    join(root, 'docs', 'tour.md'),
+    join(root, 'Tools', 'README.md'),
+    ...readdirSync(HERE).filter((name) => name.endsWith('.mjs')).map((name) => join(HERE, name)),
+  ];
+  for (const path of texts) {
+    if (path.endsWith('launcher.test.mjs')) continue;
+    assert.doesNotMatch(readFileSync(path, 'utf8'), /tour-run/, path);
   }
 });

@@ -43,9 +43,9 @@
 - 用它当模板建新仓。
 - 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。`Server/Config/Startup/server.json` 是可运行的 DS 模板（runtime+voxel + snapshot_only）；allocation / 准入公钥是本机句法 stand-in。填我用的 `replace-*` 留在 `Server/Config/Startup/server.sample.json`，未填时报响亮缺值，不是占位 `BLOCKED_ENV`。
 - 玩法声明已在 `Gameplay/`：世界 / 玩家 / 聊天 / 跑动技能 / 矿脉储量 / 掉落 / 拾取 Effect。数值在两端的 `Config/Tables/*/*.json`（源表在 `Gameplay/Tables/`）。
-- 一条命令的启动器是 `node Tools/launcher.mjs --bots N`。没有 Platform / `lumio-ds` / Bot.Host 时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，不会假绿。它默认给每名 Bot 带上 `--voxel-config Server/Assets/Maps/bot-voxel-budget.json`：这个房间是 `world_profile=runtime+voxel`，**不带体素预算的 Bot 收到第一帧 SectionFrame 就 `session_faulted`**，那是 ADR-112 修订 2 ⑨ 的 fail-closed 设计行为不是缺陷（详见 [`docs/tour.md` 第 4 步](docs/tour.md)）。旁观者、纯移动压测这类本就不该拥有体素世界的跑法用 `--voxel-config off` 回到 entity-only 形态，但那只对不发 Section 的房间成立。
+- 一条命令的启动器是 `node Tools/launcher.mjs --bots N`，十四步只有它一个驱动：第 1 名 Bot 跑 `SampleMiningScenario`（`LUMIO_SCENARIO_DLL`），第 05–13 步只凭 DS 日志与该 Bot 的 `result.ndjson` 判，结果文件缺了就是 FAIL；第 14 步在同一份存储上重启 DS，让同一账号以 `SampleRestoreVerifyScenario` 核对世界。没有 Platform / `lumio-ds` / Bot.Host / 场景程序集时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，点名缺的变量，不会假绿。它默认给每名 Bot 带上 `--voxel-config Server/Assets/Maps/bot-voxel-budget.json`：这个房间是 `world_profile=runtime+voxel`，**不带体素预算的 Bot 收到第一帧 SectionFrame 就 `session_faulted`**，那是 ADR-112 修订 2 ⑨ 的 fail-closed 设计行为不是缺陷（详见 [`docs/tour.md` 第 4 步](docs/tour.md)）。旁观者、纯移动压测这类本就不该拥有体素世界的跑法用 `--voxel-config off` 回到 entity-only 形态，但那只对不发 Section 的房间成立。
 
-**还没有的**：对着真 Platform + DS + C# Bot 跑通十四步；100 人移动压测的五条实测证据；存档冷恢复（R-00498 / R-00507）；体素写（R-00469）。`Server/Assets/Maps/sample.voxel` 已是 Engine capture CLI 产出的可 restore Cube 平面快照（DS 开机只 restore，不重算地形）。`Server/Config/Startup/server.json` 已冻成 `world_profile=runtime+voxel`、`durability=snapshot_only`（persistence-container-v1 词表），并要求 `base_map_id` / `base_map_version` / `base_map_content_sha256`。本机覆盖在 gitignored 的 [`.run/server.local.json`](.run/server.local.json)，须抄这份公共词表，不要再写 `runtime-only` / `process-crash`。旧的程序化地图生成器已删除。
+**还没有的**：用 `Tools/launcher.mjs` 对着真 Platform + DS + C# Bot 跑通十四步（2026-09-22 由已删的第二个驱动在 Windows 真机跑通过一次，那些判据并进启动器后还要真机复跑）；100 人移动压测的五条实测证据；存档冷恢复（R-00498 / R-00507）；体素写（R-00469）。`Server/Assets/Maps/sample.voxel` 已是 Engine capture CLI 产出的可 restore Cube 平面快照（DS 开机只 restore，不重算地形）。`Server/Config/Startup/server.json` 已冻成 `world_profile=runtime+voxel`、`durability=snapshot_only`（persistence-container-v1 词表），并要求 `base_map_id` / `base_map_version` / `base_map_content_sha256`。本机覆盖在 gitignored 的 [`.run/server.local.json`](.run/server.local.json)，须抄这份公共词表，不要再写 `runtime-only` / `process-crash`。旧的程序化地图生成器已删除。
 
 **怎么安排**：2026-09-07 架构讨论把整个里程碑逐题拍板，记录在 [`.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md`](.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md)（架构仓副本）。要点：
 
@@ -78,8 +78,8 @@ git clone https://github.com/LumioGames/LumioSample && cd LumioSample
 dotnet build LumioSample.slnx
 dotnet test  LumioSample.slnx
 
-# 内部一条命令。缺 Platform / lumio-ds / Bot.Host 时 exit 2，BLOCKED_ENV。
-node Tools/launcher.mjs --bots 2 --stagger-ms 250
+# 内部一条命令。缺 Platform / lumio-ds / Bot.Host / 场景程序集时 exit 2，BLOCKED_ENV。
+node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll <Lumio.Sample.Bots.dll>
 ```
 
 [`Tools/`](Tools/) 里是启动器、账号客户端、证据对账和世界断言，见 [`Tools/README.md`](Tools/README.md)。已退役的正式 DS smoke 不要再当启动器。
