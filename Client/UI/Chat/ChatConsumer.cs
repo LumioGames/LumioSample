@@ -1,5 +1,5 @@
 using System;
-using Lumio.Client.Replica;
+using Lumio.Client.Gameplay.ECS;
 using Lumio.Sample.Gameplay;
 
 namespace Lumio.Sample.Client.Chat
