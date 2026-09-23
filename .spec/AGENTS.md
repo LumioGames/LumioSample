@@ -57,3 +57,4 @@ node --test Tools/verify-evidence.mjs
 - 决策唯一落点:[`decisions/`](decisions/README.md)(ADR,不改写、只新增取代)
 - 实现计划:[`plans/`](plans/README.md)(历史记录,日期前缀、不设索引)
 - 离线任务卡:[`tasks/`](tasks/README.md)(无内置任务工具的宿主用)
+- 结构体检：`node .spec/tools/lint-extensions.mjs`（与 `node eng/spec-lint.mjs` 同一入口）；调用 Workflow 插件 API 1，默认只报告不阻断，`--strict` 供回归测试使用，扩展项见脚本头注释。插件默认路径为 `~/.local/share/workflow/plugin`，可用 `WORKFLOW_PLUGIN_ROOT` 指定，找不到插件报 `BLOCKED_ENV`。ADR-115 目录契约检查从架构仓 `LumioGameEngine` 的检出读 `repo-layout.json`：设了 `LUMIO_ENGINE_ROOT` 就只用它（下面没有该 JSON 即 `BLOCKED_ENV`，不回落）；没设则依次找同后缀 worktree（`LumioSample-x` 找 `LumioGameEngine-x`）与同级主检出，都没有也报 `BLOCKED_ENV`。自测 `node --test .spec/tools/lint-extensions.test.mjs` 前提相同。
