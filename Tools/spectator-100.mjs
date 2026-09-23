@@ -614,8 +614,28 @@ export function dsCadenceLagEvidence(logPath, stdout, extraLogPaths = []) {
   return { dropped, bootDropped, marker: DS_CADENCE_LAG_MARKER, paths };
 }
 
+/** The DS config both prerequisite gates read: explicit value, else the committed startup config. */
+function liveDsConfigPath(value, root = ROOT) {
+  return effectivePath(value, resolve(root, 'Server', 'Config', 'Startup', 'server.json'));
+}
+
+/**
+ * The one bot voxel budget gate, shared by missingLiveReason and runLiveTopology. Same
+ * predicate as Tools/launcher.mjs: a budget is required only when the DS world_profile
+ * includes 'voxel' — a runtime+voxel DS pushes SectionFrames at every bot, and a bot with no
+ * budget session_faults on the first one (ADR-112 rev2 ix); a room without voxels sends none,
+ * so an entity-only bot is a valid shape there. An unreadable DS config gives no verdict here:
+ * the DS config checks report it.
+ */
+function botVoxelBudgetReason({ dsConfig, voxelConfig }) {
+  let worldProfile;
+  try { worldProfile = String(JSON.parse(readFileSync(dsConfig, 'utf8')).world_profile ?? ''); } catch { return null; }
+  if (!worldProfile.includes('voxel') || isFilePath(voxelConfig)) return null;
+  return `LUMIO_BOT_VOXEL_CONFIG is not set or is not a file (required: DS world_profile=${worldProfile}; bots session_fault on the first SectionFrame without it, ADR-112 rev2 ix)`;
+}
+
 /** Return the first missing prerequisite without starting anything. */
-export function missingLiveReason(env = process.env, { requireCompose = false } = {}) {
+export function missingLiveReason(env = process.env, { requireCompose = false, root = ROOT } = {}) {
   const paths = requiredLivePaths(env);
   if (!paths.origin) return 'LUMIO_PLATFORM_ORIGIN is not set';
   if (!paths.dsExe || !isFilePath(paths.dsExe)) return 'LUMIO_DS_EXE is not set or is not a file';
@@ -623,9 +643,11 @@ export function missingLiveReason(env = process.env, { requireCompose = false } 
   if (!paths.gameplay || !isFilePath(paths.gameplay)) return 'LUMIO_GAMEPLAY is not set or is not a file';
   const native = paths.engineNative || paths.engineNativePath;
   if (!native || !isFilePath(native)) return 'LUMIO_ENGINE_NATIVE is not set or is not a file';
-  if (!paths.voxelConfig || !isFilePath(paths.voxelConfig)) {
-    return 'LUMIO_BOT_VOXEL_CONFIG is not set or is not a file (bots session_fault on the first SectionFrame without it, ADR-112 rev2 ix)';
-  }
+  const voxelBudget = botVoxelBudgetReason({
+    dsConfig: liveDsConfigPath(paths.dsConfig, root),
+    voxelConfig: paths.voxelConfig,
+  });
+  if (voxelBudget) return voxelBudget;
   if (requireCompose && (!paths.composeFile || !isFilePath(paths.composeFile))) {
     return 'LUMIO_PLATFORM_COMPOSE is not set or is not a file';
   }
@@ -1159,6 +1181,15 @@ function secretValuesFromManifest(manifest) {
   return secrets;
 }
 
+/**
+ * The one account prefix every stress-tickets call signs with: first round, per-bot retry and
+ * an injected issuer. Retry tickets are matched back to their account by prefix+number, so a
+ * second source would mint tickets for accounts the topology never planned.
+ */
+function stressTicketPrefix({ env, options } = {}) {
+  return String(env?.[STRESS_PREFIX_ENV] ?? options?.stressPrefix ?? TICKET_PREFIX);
+}
+
 export async function mintTickets({ env = process.env, root = ROOT, options = {}, evidence = join(root, '.run'), document = {} } = {}) {
   const ticketsPath = resolve(options.ticketPath ?? join(root, '.run', TICKET_MANIFEST_NAME));
   assertTicketPathSafe(root, ticketsPath);
@@ -1197,10 +1228,11 @@ export async function mintTickets({ env = process.env, root = ROOT, options = {}
       const issued = await options.mintTickets({
         // These values are fixed by the Wave B acceptance contract.  Pass them
         // to test issuers as well so a harness cannot accidentally mint a smaller
-        // topology and have the runner silently accept it.
+        // topology and have the runner silently accept it. The prefix is the
+        // operator's, from the same source as the real issuer call below.
         count: TOTAL_TICKETS,
         start: TICKET_START_INDEX,
-        prefix: TICKET_PREFIX,
+        prefix: stressTicketPrefix({ env, options }),
         bots: BOTS,
         spectators: SPECTATORS,
         origin,
@@ -1235,7 +1267,7 @@ export async function mintTickets({ env = process.env, root = ROOT, options = {}
         '--start', String(TICKET_START_INDEX),
         '--origin', origin,
         '--game', game,
-        '--prefix', String(env?.[STRESS_PREFIX_ENV] ?? options.stressPrefix ?? TICKET_PREFIX),
+        '--prefix', stressTicketPrefix({ env, options }),
         '--out', ticketsPath,
       ], {
         cwd: platformRoot,
@@ -3338,7 +3370,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
   evidence = resolve(evidence ?? join(root, '.run', 'spectator-100-live'));
   mkdirSync(evidence, { recursive: true });
   const effectiveOrigin = options.origin ?? env.LUMIO_PLATFORM_ORIGIN;
-  const effectiveDsConfig = effectivePath(options.dsConfig ?? env.LUMIO_DS_CONFIG, resolve(root, 'Server', 'Config', 'Startup', 'server.json'));
+  const effectiveDsConfig = liveDsConfigPath(options.dsConfig ?? env.LUMIO_DS_CONFIG, root);
   const effectiveNative = options.engineNative ?? env.LUMIO_ENGINE_NATIVE ?? env.LUMIO_ENGINE_NATIVE_PATH;
   const childEnv = buildChildEnv({
     env: { ...env, LUMIO_PLATFORM_ORIGIN: effectiveOrigin },
@@ -3369,14 +3401,10 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     const botDll = effectivePath(options.botDll ?? env.LUMIO_BOT_DLL);
     const gameplay = effectivePath(options.gameplay ?? env.LUMIO_GAMEPLAY);
     const engineNative = effectivePath(effectiveNative);
-    // ADR-112 rev2 ix: the live acceptance DS is runtime+voxel, so every admitted bot
-    // receives the first SectionFrame and session_faults without a voxel budget.
+    // ADR-112 rev2 ix: same gate as missingLiveReason (world_profile decides, as in launcher.mjs).
     const voxelConfig = effectivePath(options.voxelConfig ?? env.LUMIO_BOT_VOXEL_CONFIG);
-    let liveWorldProfile = '';
-    try { liveWorldProfile = String(JSON.parse(readFileSync(effectiveDsConfig, 'utf8')).world_profile ?? ''); } catch { /* config validation reports below */ }
-    if (liveWorldProfile.includes('voxel') && !isFilePath(voxelConfig)) {
-      return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_BOT_VOXEL_CONFIG is not set or is not a file (bots session_fault on the first SectionFrame without it)' };
-    }
+    const voxelBudget = botVoxelBudgetReason({ dsConfig: effectiveDsConfig, voxelConfig });
+    if (voxelBudget) return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: ${voxelBudget}` };
     if (!isFilePath(effectiveDsConfig)) return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: DS config is missing: ${effectiveDsConfig}` };
     if (!isFilePath(dsExe)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_DS_EXE is not set or is not a file' };
     if (!isFilePath(botDll)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_BOT_DLL is not set or is not a file' };
@@ -3690,7 +3718,8 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
           '--start', String(TICKET_START_INDEX + index),
           '--origin', String(effectiveOrigin ?? ''),
           '--game', String(options.slug ?? 'sample'),
-          '--prefix', String(env?.[STRESS_PREFIX_ENV] ?? options.stressPrefix ?? TICKET_PREFIX),
+          // childEnv is what the first round's mintTickets read (and what this issuer runs under).
+          '--prefix', stressTicketPrefix({ env: childEnv, options }),
           '--out', retryPath,
         ], {
           cwd: platformRoot,
@@ -4031,8 +4060,10 @@ export async function runSpectator100(options = {}) {
     LUMIO_ENGINE_NATIVE: options.engineNative ?? env.LUMIO_ENGINE_NATIVE,
     LUMIO_ENGINE_NATIVE_PATH: options.engineNative ?? env.LUMIO_ENGINE_NATIVE_PATH,
     LUMIO_CHROME: options.chrome ?? env.LUMIO_CHROME,
+    // runLiveTopology reads options.voxelConfig first; the pre-gate must judge the same budget.
+    LUMIO_BOT_VOXEL_CONFIG: options.voxelConfig ?? env.LUMIO_BOT_VOXEL_CONFIG,
   };
-  const missing = options.missingReason ?? missingLiveReason(prerequisiteEnv);
+  const missing = options.missingReason ?? missingLiveReason(prerequisiteEnv, { root });
   if (missing) {
     document.status = 'BLOCKED_ENV';
     document.error = `BLOCKED_ENV: ${missing}`;
