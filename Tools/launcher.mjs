@@ -1,27 +1,45 @@
 #!/usr/bin/env node
 
 /**
- * S-3 one-command launcher (R-00520).
+ * The one fourteen-step driver (S-3 / R-00520; ADR-115 acceptance: `node Tools/launcher.mjs`).
  *
  * Real topology: Platform compose + lumio-ds + N C# Bot.Host processes, staggered
  * admit, unique launch tickets. Internal-only while the Platform image is private.
  * Missing process-tools / Platform / DS / Bot.Host is BLOCKED_ENV (exit 2), not a pass.
  * Bot.Host production mode requires --gameplay (Client FoundationHostCommand).
- * Live children stay up for the acceptance window (--duration-ms, else --timeout-ms)
- * before forceCleanup. forceCleanup is never treated as proof.
+ *
+ * Bot 1 is the tour bot: it runs SampleMiningScenario (LUMIO_SCENARIO_DLL) and steps 05–13 are
+ * judged from what the run left behind — lumio-ds stdout, the DS log directory, the tour bot's
+ * lifecycle log and result.ndjson (tour-steps.mjs). Step 14 waits for a DS_CHECKPOINT whose save
+ * started after the tour bot finished, stops the DS, reboots it on the same store and re-admits
+ * the same account under SampleRestoreVerifyScenario. A result file that is missing or cut short
+ * is FAIL for every step that reads it. Bots 2..N and the spectator are the fleet: they stay up
+ * for the acceptance window (--duration-ms, else --timeout-ms) before forceCleanup.
+ * forceCleanup is never treated as proof.
  * --spectator mints one extra loginAndLaunch ticket and prints the spectator page
  * URL; it does not start a Bot.Host for that ticket.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loginAndLaunch } from './account-client.mjs';
+import { BINDING_FIELDS, loginAndLaunch } from './account-client.mjs';
+import { LOGIN_NAME_PATTERN, resolvePassword } from './bot-credential.mjs';
 import { buildBotArgs, buildServerArgs, findDsReady, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
-import { assertRunnableDsConfig, writeKernelConfigForRun } from './ds-config.mjs';
+import { assertDsClrInputs, assertRunnableDsConfig, deriveRunDsConfig, writeKernelConfigForRun } from './ds-config.mjs';
 import { blocked, loadProcessTools } from './engine-tools.mjs';
-import { inspectBaseMap } from './server-profile.mjs';
-import { formatStep, planBotLogins, TOUR_STEPS } from './tour-steps.mjs';
+import {
+  checkpointGenerations,
+  DEFAULT_LOGIN_PREFIX,
+  formatStep,
+  judgeCheckpoint,
+  judgeRestore,
+  judgeTourSteps,
+  planBotLogins,
+  RESTORE_SCENARIO,
+  TOUR_SCENARIO,
+  TOUR_STEPS,
+} from './tour-steps.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_STAGGER_MS = 250;
@@ -31,6 +49,13 @@ const DEFAULT_SPECTATOR_LOGIN = 'Spectator1';
 const DEFAULT_SPECTATOR_PATH = '/Client/UI/Spectator/';
 const DEFAULT_SPECTATOR_ORIGIN = 'http://127.0.0.1';
 const BOOLEAN_FLAGS = new Set(['spectator']);
+/** Owner frames the tour bot gets for the mining scenario (Bot.Host --ticks; ~16 ms each). */
+const DEFAULT_TOUR_TICKS = 15_000;
+/** Owner frames the step-14 verification bot gets; it completes on its first bound frame. */
+const VERIFY_TICKS = 6_000;
+/** Wall-clock allowance per owner frame when bounding a scenario bot's run, plus a fixed margin. */
+const SCENARIO_MS_PER_TICK = 20;
+const SCENARIO_MARGIN_MS = 60_000;
 
 /**
  * The committed Bot voxel budget (ADR-101 explicit host configuration). It is ON by default
@@ -112,6 +137,10 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     spectatorOrigin: environment.LUMIO_SPECTATOR_ORIGIN || undefined,
     spectatorLogin: environment.LUMIO_SPECTATOR_LOGIN || DEFAULT_SPECTATOR_LOGIN,
     spectatorStaticPort: environment.LUMIO_SPECTATOR_STATIC_PORT || undefined,
+    scenarioDll: environment.LUMIO_SCENARIO_DLL || undefined,
+    tourTicks: Number(environment.LUMIO_TOUR_TICKS || DEFAULT_TOUR_TICKS),
+    checkpointSeconds: environment.LUMIO_CHECKPOINT_SECONDS ? Number(environment.LUMIO_CHECKPOINT_SECONDS) : undefined,
+    loginPrefix: environment.LUMIO_LOGIN_PREFIX || DEFAULT_LOGIN_PREFIX,
   };
   const names = {
     bots: 'bots',
@@ -136,7 +165,12 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     'spectator-origin': 'spectatorOrigin',
     'spectator-login': 'spectatorLogin',
     'spectator-static-port': 'spectatorStaticPort',
+    'scenario-dll': 'scenarioDll',
+    'tour-ticks': 'tourTicks',
+    'checkpoint-seconds': 'checkpointSeconds',
+    'login-prefix': 'loginPrefix',
   };
+  const numeric = new Set(['bots', 'tourTicks', 'checkpointSeconds']);
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (flag === '--help' || flag === '-h') return { help: true };
@@ -154,24 +188,34 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     }
     if (index + 1 >= argv.length || argv[index + 1].startsWith('--')) throw new UsageError(`${flag} requires a value`);
     const value = argv[++index];
-    options[key] = key === 'bots' || key.endsWith('Ms') ? Number(value) : value;
+    options[key] = numeric.has(key) || key.endsWith('Ms') ? Number(value) : value;
   }
   if (!Number.isInteger(options.bots) || options.bots < 1) throw new UsageError('--bots must be a positive integer.');
   if (!Number.isInteger(options.staggerMs) || options.staggerMs < 0) throw new UsageError('--stagger-ms must be a non-negative integer.');
   if (!Number.isInteger(options.durationMs) || options.durationMs < 0) throw new UsageError('--duration-ms must be a non-negative integer.');
   if (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 1_000) throw new UsageError('--timeout-ms must be an integer of at least 1000.');
+  if (!Number.isInteger(options.tourTicks) || options.tourTicks < 1) throw new UsageError('--tour-ticks must be a positive integer.');
+  if (options.checkpointSeconds !== undefined
+    && (!Number.isInteger(options.checkpointSeconds) || options.checkpointSeconds < 1 || options.checkpointSeconds > 3600)) {
+    throw new UsageError('--checkpoint-seconds must be an integer between 1 and 3600 (lumio-ds range).');
+  }
+  // `<prefix>1` must satisfy the account-port grammar; `Bot` is the bot namespace (needs
+  // LUMIO_BOT_TOOL_CREDENTIAL), any other prefix registers ordinary accounts.
+  if (!LOGIN_NAME_PATTERN.test(`${options.loginPrefix}1`)) throw new UsageError('--login-prefix must make valid login names (letter first, [A-Za-z0-9_-]).');
   options.spectatorLogin = String(options.spectatorLogin || DEFAULT_SPECTATOR_LOGIN).trim();
   if (!options.spectatorLogin) throw new UsageError('--spectator-login must be a non-empty login name.');
   if (options.spectatorUrl) options.spectator = true;
   return options;
 }
 
-export function planLaunchLogins(bots, { spectator = false, spectatorLogin = DEFAULT_SPECTATOR_LOGIN } = {}) {
-  const logins = planBotLogins(bots);
+export function planLaunchLogins(bots, {
+  spectator = false, spectatorLogin = DEFAULT_SPECTATOR_LOGIN, loginPrefix = DEFAULT_LOGIN_PREFIX,
+} = {}) {
+  const logins = planBotLogins(bots, loginPrefix);
   if (!spectator) return logins;
   const name = String(spectatorLogin || DEFAULT_SPECTATOR_LOGIN).trim() || DEFAULT_SPECTATOR_LOGIN;
   if (logins.includes(name)) {
-    throw new UsageError(`spectator login ${name} collides with planBotLogins(${bots}).`);
+    throw new UsageError(`spectator login ${name} collides with planBotLogins(${bots}, ${loginPrefix}).`);
   }
   return [...logins, name];
 }
@@ -282,16 +326,24 @@ export function collectBotEvidenceText({ evidenceDir, index, child } = {}) {
   return chunks.join('\n');
 }
 
+/** Every post-office log file under one directory, concatenated (lumio-ds `logging.dir`). */
+function readLogText(dir) {
+  return listLogFiles(dir).map((file) => readTextIfPresent(file)).join('\n');
+}
+
 /**
  * Client Bot.Host (ADR-081) writes one lifecycle line per transition:
- * `session state changed {account} {state} {previous} {reason} …`
+ * `session state changed {account} {state} {previous} {reason} {generation} {handshakeBegin}
+ * {baselineAck} {scopeActivated} {runtimeCommitted}`.
  * Active + reason established is the admit receipt. Process start is not.
+ * `scopeActivated` (step 05) is the same Active line saying the baseline scope went live.
  */
 export function parseBotAdmit(text) {
   const lines = String(text ?? '').split(/\r?\n/);
   let admitted = false;
   let rejected = false;
   let faulted = false;
+  let scopeActivated = false;
   for (const line of lines) {
     if (!line) continue;
     if (line.includes('session login requested')) {
@@ -302,11 +354,16 @@ export function parseBotAdmit(text) {
     if (line.includes('session state changed')) {
       const active = /\bstate=Active\b/.test(line) || /\sActive\s/.test(line);
       const established = /\breason=established\b/.test(line) || /\bestablished\b/.test(line);
-      if (active && established) admitted = true;
+      if (active && established) {
+        admitted = true;
+        if (/\bscopeActivated=True\b/.test(line) || /\bestablished \d+ \d+ (?:True|False) True (?:True|False)\b/.test(line)) {
+          scopeActivated = true;
+        }
+      }
       if (/\bstate=Faulted\b/.test(line) || /\bsession_faulted\b/.test(line)) faulted = true;
     }
   }
-  return { admitted, rejected, faulted };
+  return { admitted, rejected, faulted, scopeActivated };
 }
 
 export function inspectBotAdmit(source) {
@@ -341,6 +398,9 @@ async function waitBotsAdmitted({
     latest = countAdmittedBots(bots, { evidenceDir, children: botChildren });
     if (latest.details.some((item) => item.rejected || item.faulted)) return latest;
     if (latest.admitted === bots) return latest;
+    // The tour bot is not in liveChildren (it exits by design once its scenario completes); one
+    // that is gone before it was ever admitted will not be admitted later.
+    if (botChildren.some((child, index) => child?.closed && !latest.details[index]?.admitted)) return latest;
     // keepAlive: node --test on Linux drops unref'd timers and reports
     // "Promise resolution is still pending but the event loop has already resolved".
     await sleepFn(25, { keepAlive: true });
@@ -405,6 +465,164 @@ async function waitForAcceptance(options, tools, children) {
   }
 }
 
+/** A directory this run owns outright: files an earlier run left in a reused evidence dir are not this run's evidence. */
+function freshDir(path) {
+  rmSync(path, { recursive: true, force: true });
+  mkdirSync(path, { recursive: true });
+  return path;
+}
+
+/** Start lumio-ds on one config and wait for its DS_READY line (null on timeout; throws if it dies). */
+async function startDs(tools, dsExe, configPath, logPath, children, timeoutMs) {
+  const ds = tools.startLogged(dsExe, buildServerArgs(configPath), { cwd: dirname(dsExe), log: logPath });
+  children.push(ds);
+  const started = Date.now();
+  let ready = findDsReady(ds.stdout);
+  while (!ready && Date.now() - started < timeoutMs) {
+    tools.assertAlive(ds);
+    await sleep(25, { keepAlive: true });
+    ready = findDsReady(ds.stdout);
+  }
+  return { ds, ready };
+}
+
+/** Wait for a scenario bot to exit on its own: 'exited', 'lost-ds' (a watched process closed first) or 'timeout'. */
+async function waitForExit(state, { timeoutMs, watch = [] }) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (state.closed) return 'exited';
+    if (watch.some((other) => other.closed)) return 'lost-ds';
+    await sleep(25, { keepAlive: true });
+  }
+  return state.closed ? 'exited' : 'timeout';
+}
+
+const OUTCOME_NOTES = Object.freeze({
+  exited: '',
+  timeout: '; scenario bot did not finish in time and was killed',
+  'lost-ds': '; lumio-ds exited while the scenario bot was running',
+});
+
+function scenarioTimeoutMs(ticks) {
+  return ticks * SCENARIO_MS_PER_TICK + SCENARIO_MARGIN_MS;
+}
+
+/**
+ * Steps 05–14 for the tour bot (bot 1). 05–13 are judged once its SampleMiningScenario has exited,
+ * from artefacts only; the fleet then gets its acceptance window and is stopped; step 14 restarts
+ * the DS on the same store and re-admits the tour account under SampleRestoreVerifyScenario.
+ */
+async function runTour(context) {
+  const { options, tools, record, evidence, ds, bootLogDirs, tourBot, fleet } = context;
+  const outcome = await waitForExit(tourBot, {
+    timeoutMs: options.tourTimeoutMs ?? scenarioTimeoutMs(options.tourTicks ?? DEFAULT_TOUR_TICKS),
+    watch: [ds],
+  });
+  // Taken the moment the bot is done: step 14 may only stop the DS on a save that started later.
+  const generationsAtCompletion = checkpointGenerations(ds.stdout);
+  if (outcome !== 'exited') await tools.forceCleanup(tourBot);
+  const steps = judgeTourSteps({
+    dsReady: context.dsReady,
+    dsStdout: String(ds.stdout ?? ''),
+    dsLogs: readLogText(bootLogDirs[0]),
+    botAdmit: parseBotAdmit(collectBotEvidenceText({ evidenceDir: evidence, index: 0, child: tourBot })),
+    botResult: readTextIfPresent(join(evidence, 'bot-1', 'result.ndjson')),
+  });
+  for (const step of steps) {
+    record(step.id, step.status, step.status === 'FAIL' ? `${step.detail}${OUTCOME_NOTES[outcome]}` : step.detail);
+  }
+  // The fleet and the spectator keep their acceptance window, then leave before the DS stops.
+  if (!ds.closed && (fleet.length > 0 || options.spectator === true)) {
+    await waitForAcceptance(options, tools, [ds, ...fleet]);
+  }
+  for (const bot of fleet) await tools.forceCleanup(bot);
+  const step14 = await runRestoreStep({ ...context, generationsAtCompletion });
+  record('14', step14.status, step14.detail);
+}
+
+async function runRestoreStep({
+  options, tools, log, report, evidence, children, env, password,
+  ds, dsExe, bootConfigs, bootLogDirs, runConfig, tourLogin, bot, generationsAtCompletion,
+}) {
+  if (!options.origin) {
+    return { status: 'BLOCKED_ENV', detail: 'LUMIO_PLATFORM_ORIGIN is not set; step 14 re-admits the tour account after the restart.' };
+  }
+  // Two saves after completion, not one: the first may have been running when the bot finished.
+  const deadline = Date.now() + (options.checkpointTimeoutMs ?? 2 * runConfig.checkpoint_seconds * 1000 + SCENARIO_MARGIN_MS);
+  let checkpoint = judgeCheckpoint(generationsAtCompletion, checkpointGenerations(ds.stdout));
+  while (!checkpoint.ok && !checkpoint.broken && !ds.closed && Date.now() < deadline) {
+    await sleep(25, { keepAlive: true });
+    checkpoint = judgeCheckpoint(generationsAtCompletion, checkpointGenerations(ds.stdout));
+  }
+  report.checkpoint = { atCompletion: generationsAtCompletion.at(-1) ?? null, released: checkpoint.generation };
+  const dsGone = ds.closed;
+  // A kill, not a signal: Windows has no cross-process Ctrl+C. The checkpoint is the artefact under
+  // judgment, and a kill that no post-completion checkpoint precedes is FAIL below.
+  await tools.forceCleanup(ds);
+  const fail = (detail) => ({ status: 'FAIL', detail: `checkpoint ${checkpoint.detail}; ${detail}` });
+  if (!checkpoint.ok) return fail(dsGone ? 'lumio-ds exited before it' : 'DS stopped without a post-completion save');
+
+  let reboot;
+  try {
+    reboot = await startDs(tools, dsExe, bootConfigs[1], join(evidence, 'lumio-ds.boot-2.log'), children, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  } catch (error) {
+    return fail(`restarted lumio-ds exited: ${error.message}`);
+  }
+  if (!reboot.ready) return fail('restarted lumio-ds printed no DS_READY');
+  let endpoint;
+  try {
+    endpoint = resolveDsEndpoint(reboot.ready, options.endpoint);
+  } catch (error) {
+    return fail(`restarted lumio-ds endpoint: ${error.message}`);
+  }
+
+  let relaunch;
+  try {
+    relaunch = await (options.loginAndLaunch ?? loginAndLaunch)({
+      origin: options.origin, loginName: tourLogin, slug: options.slug, env, password, log: (line) => log(line),
+    });
+  } catch (error) {
+    return fail(`re-login of ${tourLogin} failed: ${error.message}`);
+  }
+  const rebound = BINDING_FIELDS.filter((key) => relaunch?.launch?.[key] != null && String(relaunch.launch[key]) !== String(runConfig.allocation[key]));
+  if (rebound.length > 0) return fail(`Platform re-launch is bound to another ${rebound.join('/')} than the restarted DS`);
+
+  const ticket = relaunch.launch.admissionCredential;
+  const logDir = freshDir(join(evidence, 'bot-verify'));
+  const args = buildBotArgs({
+    botDll: bot.botDll,
+    endpoint,
+    admissionTicket: ticket,
+    engineNative: bot.engineNative,
+    kernelConfig: bot.kernelConfigPath,
+    configDir: bot.configDir,
+    logDir,
+    accountFrom: tourLogin,
+    accountTo: tourLogin,
+    gameplay: bot.gameplay,
+    voxelConfig: bot.voxelConfig,
+    scenarioDll: bot.scenarioDll,
+    scenarioName: RESTORE_SCENARIO,
+    ticks: VERIFY_TICKS,
+  });
+  log(`$ ${JSON.stringify([bot.dotnet, ...redactArgs(args, ticket)])}`);
+  const verifyBot = tools.startLogged(bot.dotnet, args, { cwd: dirname(bot.botDll), log: join(evidence, 'bot-verify.log') });
+  children.push(verifyBot);
+  const outcome = await waitForExit(verifyBot, {
+    timeoutMs: options.verifyTimeoutMs ?? scenarioTimeoutMs(VERIFY_TICKS),
+    watch: [reboot.ds],
+  });
+  if (outcome !== 'exited') await tools.forceCleanup(verifyBot);
+  const verdict = judgeRestore({
+    checkpoint,
+    bootStdout: String(reboot.ds.stdout ?? ''),
+    bootLogs: readLogText(bootLogDirs[1]),
+    verifyResult: readTextIfPresent(join(logDir, 'result.ndjson')),
+  });
+  await tools.forceCleanup(reboot.ds);
+  return verdict.status === 'FAIL' ? { ...verdict, detail: `${verdict.detail}${OUTCOME_NOTES[outcome]}` } : verdict;
+}
+
 function printStep(log, id, status, detail) {
   const line = formatStep(id, status, detail);
   log(line);
@@ -413,14 +631,24 @@ function printStep(log, id, status, detail) {
 
 function usage() {
   return [
-    'Usage: node Tools/launcher.mjs --bots N [--stagger-ms 250] [--origin url]',
+    'Usage: node Tools/launcher.mjs [--bots N] [--stagger-ms 250] [--origin url] [--scenario-dll path]',
     '  [--spectator] [--spectator-url url] [--duration-ms ms] [--voxel-config path|off]',
+    '  [--tour-ticks 15000] [--checkpoint-seconds s] [--login-prefix Bot]',
+    'Runs the fourteen sample.md steps. Bot 1 is the tour bot (SampleMiningScenario): steps 05–13 are',
+    '  judged from DS logs and its result.ndjson; step 14 restarts lumio-ds on the same store and',
+    '  re-admits that account under SampleRestoreVerifyScenario. Bots 2..N are the fleet.',
     'Internal-only first stage: Platform image is built from a private compose file.',
     `Bots carry ${DEFAULT_BOT_VOXEL_CONFIG} by default; this room is world_profile=runtime+voxel,`,
     '  and a bot with no voxel budget faults on its first SectionFrame (ADR-112 修订 2 ⑨, by design).',
     '  --voxel-config off keeps the entity-only bot for a room that sends no Sections.',
-    'Required for a live run: LUMIO_PLATFORM_ORIGIN, LUMIO_DS_EXE, LUMIO_BOT_DLL,',
-    '  LUMIO_GAMEPLAY, LUMIO_ENGINE_NATIVE, LUMIO_BOT_TOOL_CREDENTIAL, sibling process-tools.mjs.',
+    'Required for a live run: LUMIO_PLATFORM_ORIGIN, LUMIO_DS_EXE, LUMIO_BOT_DLL, LUMIO_GAMEPLAY,',
+    '  LUMIO_ENGINE_NATIVE, LUMIO_SCENARIO_DLL, sibling process-tools.mjs (or LUMIO_ENGINE_ROOT),',
+    '  LUMIO_BOT_TOOL_CREDENTIAL for Bot* names (or --login-prefix for ordinary accounts).',
+    'DS config: LUMIO_DS_CONFIG (default Server/Config/Startup/server.json) is a template; each run',
+    '  writes its own copy with a fresh store. Its clr files come from LUMIO_HOSTFXR,',
+    '  LUMIO_SERVER_HOSTENTRY_DLL, LUMIO_RUNTIME_REPLICATION_DLL, LUMIO_RUNTIME_ECS_DLL,',
+    '  LUMIO_SAMPLE_GAMEPLAY_DLL, LUMIO_ENGINE_NATIVE, else from the template; a missing one is BLOCKED_ENV.',
+    '  LUMIO_PLATFORM_ADMISSION_KEY replaces the template\'s stand-in admission key.',
     'Spectator page origin defaults to LUMIO_SPECTATOR_ORIGIN or http://127.0.0.1/Client/UI/Spectator/.',
     'Missing prerequisites exit 2 with VERIFICATION_STATUS=BLOCKED_ENV.',
   ].join('\n');
@@ -450,6 +678,10 @@ export async function runLauncher(options = {}) {
     report.steps.push({ id, status, detail: detail || '', line });
     return line;
   };
+  /** Steps after index `from` (0-based) that this run cannot reach, all with one reason. */
+  const recordRest = (from, status, detail) => {
+    for (const step of TOUR_STEPS.slice(from)) record(step.id, status, detail);
+  };
 
   let tools;
   const children = [];
@@ -459,7 +691,11 @@ export async function runLauncher(options = {}) {
     const logins = planLaunchLogins(botCount, {
       spectator: spectatorMode,
       spectatorLogin: options.spectatorLogin,
+      loginPrefix: options.loginPrefix,
     });
+    // One password for the whole run (LUMIO_ACCOUNT_PASSWORD, else generated once): step 14
+    // re-logs the tour account in after the restart, and a per-call one-shot password cannot.
+    const password = resolvePassword(env).password;
     record(
       '01',
       // split-export/1 writes one manifest per end; both have to be on disk
@@ -488,7 +724,7 @@ export async function runLauncher(options = {}) {
       tools = options.processTools ?? await loadProcessTools({ env, repoRoot: root });
     } catch (error) {
       if (error?.code !== 'BLOCKED_ENV') throw error;
-      for (const step of TOUR_STEPS.slice(1)) record(step.id, 'BLOCKED_ENV', error.message);
+      recordRest(1, 'BLOCKED_ENV', error.message);
       report.status = reportStatusFromSteps(report.steps);
       report.error = error.message;
       return report;
@@ -507,6 +743,7 @@ export async function runLauncher(options = {}) {
             loginName,
             slug: options.slug,
             env,
+            password,
             log: (line) => log(line),
           });
           sessions.push(session);
@@ -533,44 +770,68 @@ export async function runLauncher(options = {}) {
 
     if (!options.dsExe || !existsSync(options.dsExe)) {
       record('03', 'BLOCKED_ENV', 'LUMIO_DS_EXE is not set or is not a file.');
-      for (const step of TOUR_STEPS.slice(3)) record(step.id, 'BLOCKED_ENV', 'waiting for lumio-ds');
+      recordRest(3, 'BLOCKED_ENV', 'waiting for lumio-ds');
       report.status = reportStatusFromSteps(report.steps);
       return report;
     }
 
     const dsExe = requiredFile(options.dsExe, 'LUMIO_DS_EXE');
-    const dsConfig = requiredFile(options.dsConfig ?? join(root, DEFAULT_DS_CONFIG), 'LUMIO_DS_CONFIG');
+    const dsTemplate = requiredFile(options.dsConfig ?? join(root, DEFAULT_DS_CONFIG), 'LUMIO_DS_CONFIG');
+    // One run owns one fresh store and one log directory per boot. A reused evidence directory must
+    // not hand this run an earlier run's checkpoint (step 05 would boot it instead of the base map)
+    // or an earlier run's log lines (every step 05–14 reads them).
+    const store = mkdtempSync(join(evidence, 'ds-store-'));
+    const bootLogDirs = [freshDir(join(evidence, 'ds-boot-1')), freshDir(join(evidence, 'ds-boot-2'))];
+    const dsEnv = { ...env };
+    if (options.engineNative) dsEnv.LUMIO_ENGINE_NATIVE = options.engineNative;
+    const runConfig = deriveRunDsConfig(JSON.parse(readFileSync(dsTemplate, 'utf8')), {
+      templatePath: dsTemplate,
+      env: dsEnv,
+      storePath: store,
+      logDir: bootLogDirs[0],
+      launch: sessions?.[0]?.launch,
+      checkpointSeconds: options.checkpointSeconds,
+    });
     try {
-      assertRunnableDsConfig(JSON.parse(readFileSync(dsConfig, 'utf8')));
+      assertRunnableDsConfig(runConfig);
     } catch (error) {
       if (error?.code === 'MISSING_VALUE') {
         record('03', 'FAIL', error.message);
-        for (const step of TOUR_STEPS.slice(3)) record(step.id, 'BLOCKED_ENV', 'waiting for a filled DS config');
+        recordRest(3, 'BLOCKED_ENV', 'waiting for a filled DS config');
         report.status = reportStatusFromSteps(report.steps);
         return report;
       }
       throw error;
     }
-    const kernelConfigPath = writeKernelConfigForRun(dsConfig, join(evidence, 'kernel-config.json'));
-    const dsArgs = buildServerArgs(dsConfig);
-    const check = tools.command(dsExe, [...dsArgs, '--check-config'], { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.check-config.log') });
-    log(`lumio-ds --check-config\n${check ?? ''}`);
-    const ds = tools.startLogged(dsExe, dsArgs, { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.log') });
-    children.push(ds);
-    const started = Date.now();
-    let ready = findDsReady(ds.stdout);
-    while (!ready && Date.now() - started < (options.timeoutMs ?? DEFAULT_TIMEOUT_MS)) {
-      tools.assertAlive(ds);
-      await sleep(25, { keepAlive: true });
-      ready = findDsReady(ds.stdout);
+    try {
+      assertDsClrInputs(runConfig);
+    } catch (error) {
+      if (error?.code !== 'BLOCKED_ENV') throw error;
+      record('03', 'BLOCKED_ENV', error.message.replace(/^BLOCKED_ENV: /, ''));
+      recordRest(3, 'BLOCKED_ENV', 'waiting for lumio-ds');
+      report.status = reportStatusFromSteps(report.steps);
+      return report;
     }
-    if (!ready) throw new Error('Timed out waiting for lumio-ds DS_READY. See Tools/logs.');
-    const endpoint = resolveDsEndpoint(ready, options.endpoint);
+    // Two boots, one store: only the log directory differs, so step 14's restore marker can only
+    // come from the reboot.
+    const bootConfigs = bootLogDirs.map((dir, index) => {
+      const path = join(evidence, `server.boot-${index + 1}.json`);
+      writeFileSync(path, `${JSON.stringify({ ...runConfig, logging: { ...runConfig.logging, dir } }, null, 2)}\n`);
+      return path;
+    });
+    report.dsStore = store;
+    const kernelConfigPath = writeKernelConfigForRun(bootConfigs[0], join(evidence, 'kernel-config.json'));
+    const check = tools.command(dsExe, [...buildServerArgs(bootConfigs[0]), '--check-config'], { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.check-config.log') });
+    log(`lumio-ds --check-config\n${check ?? ''}`);
+    const boot = await startDs(tools, dsExe, bootConfigs[0], join(evidence, 'lumio-ds.log'), children, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    if (!boot.ready) throw new Error('Timed out waiting for lumio-ds DS_READY. See Tools/logs.');
+    const ds = boot.ds;
+    const endpoint = resolveDsEndpoint(boot.ready, options.endpoint);
     record('03', 'PASS', `endpoint=${endpoint}`);
 
     if (!options.botDll || !existsSync(options.botDll)) {
       record('04', 'BLOCKED_ENV', 'LUMIO_BOT_DLL is not set (Client Bot.Host / R-00534).');
-      for (const step of TOUR_STEPS.slice(4)) record(step.id, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
+      recordRest(4, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
       report.status = reportStatusFromSteps(report.steps);
       return report;
     }
@@ -578,7 +839,7 @@ export async function runLauncher(options = {}) {
     const gameplayCandidate = options.gameplay || defaultGameplayPath(root);
     if (!existsSync(gameplayCandidate)) {
       record('04', 'BLOCKED_ENV', 'LUMIO_GAMEPLAY is not set (Client Bot.Host requires --gameplay).');
-      for (const step of TOUR_STEPS.slice(4)) record(step.id, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
+      recordRest(4, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
       report.status = reportStatusFromSteps(report.steps);
       return report;
     }
@@ -590,6 +851,7 @@ export async function runLauncher(options = {}) {
     const engineNative = requiredFile(options.engineNative, 'LUMIO_ENGINE_NATIVE');
     const gameplay = requiredFile(gameplayCandidate, 'LUMIO_GAMEPLAY');
     const dotnet = requiredValue(options.dotnet || 'dotnet', 'LUMIO_DOTNET');
+    const botDll = requiredFile(options.botDll, 'LUMIO_BOT_DLL');
     // The DS loads its own S+V tables through server.json#config_dir. Bots are
     // clients, so they get the C export; split-export/1 keeps the two ends in
     // separate directories and the server end carries no client projection.
@@ -604,24 +866,35 @@ export async function runLauncher(options = {}) {
     // SectionFrame, and a bot without a voxel budget session_faults on it. The only road to a
     // budget-less bot is an explicit `off`; against such a DS that is a loud BLOCKED_ENV, never a
     // silently entity-only bot fleet.
-    const worldProfile = String(JSON.parse(readFileSync(dsConfig, 'utf8')).world_profile ?? '');
+    const worldProfile = String(runConfig.world_profile ?? '');
     if (voxelConfig == null && worldProfile.includes('voxel')) {
       record('04', 'BLOCKED_ENV', `--voxel-config / LUMIO_BOT_VOXEL_CONFIG is off (required: DS world_profile=${worldProfile}); bots session_fault on the first SectionFrame without it (ADR-112 rev2 ix).`);
-      for (const step of TOUR_STEPS.slice(4)) record(step.id, 'BLOCKED_ENV', 'waiting for a voxel-capable bot fleet');
+      recordRest(4, 'BLOCKED_ENV', 'waiting for a voxel-capable bot fleet');
       report.status = reportStatusFromSteps(report.steps);
       return report;
     }
     log(voxelConfig
       ? `bot voxel budget: ${voxelConfig}`
       : 'bot voxel budget: entity-only (--voxel-config off); this bot faults if the room sends Sections.');
+    // Steps 05–14 are driven by the scenario assembly (Client/Bots, built against a LumioClient
+    // checkout). Without it bots still prove step 04, and 05–14 say what is missing.
+    let scenarioDll = null;
+    let tourBlocked = null;
+    if (options.scenarioDll == null || String(options.scenarioDll).trim() === '') {
+      tourBlocked = 'LUMIO_SCENARIO_DLL is not set (Lumio.Sample.Bots.dll drives steps 05–14).';
+    } else if (!existsSync(options.scenarioDll)) {
+      tourBlocked = `LUMIO_SCENARIO_DLL does not point to a file: ${options.scenarioDll}`;
+    } else {
+      scenarioDll = resolve(options.scenarioDll);
+    }
     const botSessions = spectatorMode ? sessions.slice(0, botCount) : sessions;
     const botChildren = [];
     for (const [index, session] of botSessions.entries()) {
       if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
-      const botLogDir = join(evidence, `bot-${index + 1}`);
-      mkdirSync(botLogDir, { recursive: true });
+      const botLogDir = freshDir(join(evidence, `bot-${index + 1}`));
+      const tour = index === 0 && scenarioDll != null;
       const args = buildBotArgs({
-        botDll: requiredFile(options.botDll, 'LUMIO_BOT_DLL'),
+        botDll,
         endpoint,
         admissionTicket: session.launch.admissionCredential,
         engineNative,
@@ -632,20 +905,24 @@ export async function runLauncher(options = {}) {
         accountTo: session.login.loginName,
         gameplay,
         voxelConfig,
+        ...(tour ? { scenarioDll, scenarioName: TOUR_SCENARIO, ticks: options.tourTicks ?? DEFAULT_TOUR_TICKS } : {}),
       });
       log(`$ ${JSON.stringify([dotnet, ...redactArgs(args, session.launch.admissionCredential)])}`);
       const bot = tools.startLogged(dotnet, args, {
-        cwd: dirname(options.botDll),
+        cwd: dirname(botDll),
         log: join(evidence, `bot-${index + 1}.log`),
       });
       botChildren.push(bot);
       children.push(bot);
     }
+    // The tour bot exits by design once its scenario completes; only the fleet must stay alive.
+    const tourBot = scenarioDll != null ? botChildren[0] : null;
+    const fleet = tourBot ? botChildren.slice(1) : botChildren;
     const admit = await waitBotsAdmitted({
       bots: botSessions.length,
       evidenceDir: evidence,
       botChildren,
-      liveChildren: children,
+      liveChildren: [ds, ...fleet],
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       tools,
       sleepFn: sleep,
@@ -659,41 +936,28 @@ export async function runLauncher(options = {}) {
     }
     if (admit.admitted !== botSessions.length) {
       record('04', 'FAIL', `${admit.admitted} of ${botSessions.length} bots admitted (reject/no welcome/timeout)`);
-    } else {
-      record('04', 'PASS', spectatorMode
-        ? `${admit.admitted} bots admitted; spectator ticket held without Bot.Host`
-        : `${admit.admitted} bots admitted with unique tickets`);
+      recordRest(4, 'BLOCKED_ENV', 'waiting for step 04 (every bot admitted)');
+      report.status = reportStatusFromSteps(report.steps);
+      return report;
     }
-    const map = inspectBaseMap(root);
-    if (map.placeholder || !map.restorable) {
-      record(
-        '05',
-        'BLOCKED_ENV',
-        `${map.path} is a placeholder and must not be treated as a base map; Sample write-cell consume is not wired (R-00522). Missing command: ${map.missingCommand}.`,
-      );
-    } else {
-      record('05', 'READY', `${map.path} is a VoxelEngine capture; DS boot restores only (R-00522).`);
-    }
-    record('06', 'READY', 'PlayerEntity is declared; live spawn is the DS admit path.');
-    record('07', 'BLOCKED_ENV', 'MoveAbility is in-tree; live Activate waits Client R-00534 AC10.');
-    record('08', 'BLOCKED_ENV', 'ChatComponent is in-tree; live chat waits Bot.Host.');
-    record('09', 'BLOCKED_ENV', 'MineAbility is in-tree; mine admit R-00468 is an engine gap.');
-    record('10', 'BLOCKED_ENV', 'VeinReserveComponent decrements in-process; voxel bind is R-00469.');
-    record('11', 'BLOCKED_ENV', 'MineAbility.TryRequestAirWrite is false until voxel batch write exists.');
-    record('12', 'BLOCKED_ENV', 'OreDropEntity is declared; structure-commit R-00462 is an engine gap.');
-    record('13', 'BLOCKED_ENV', 'PickupAbility and PickupOreEffect are in-tree (R-00636); live DS pickup is R-00600 acceptance.');
-    record(
-      '14',
-      'BLOCKED_ENV',
-      map.restorable
-        ? 'save/restore waits R-00498 / R-00507; committed server.json is runtime+voxel + snapshot_only and maps/sample.voxel is a restoreable capture. Live cold restore is not claimed here.'
-        : 'save/restore waits a restoreable VoxelEngine capture; committed server.json is runtime+voxel + snapshot_only, but maps/sample.voxel is still a placeholder.',
-    );
-    report.status = reportStatusFromSteps(report.steps);
-    // Hold until the acceptance window ends (or spectator page connects), then let finally forceCleanup.
-    if (admit.admitted === botSessions.length) {
+    record('04', 'PASS', spectatorMode
+      ? `${admit.admitted} bots admitted; spectator ticket held without Bot.Host`
+      : `${admit.admitted} bots admitted with unique tickets`);
+    if (!tourBot) {
+      recordRest(4, 'BLOCKED_ENV', tourBlocked);
+      report.status = reportStatusFromSteps(report.steps);
+      // Hold until the acceptance window ends (or spectator page connects), then let finally forceCleanup.
       await waitForAcceptance(options, tools, children);
+      return report;
     }
+    report.tourLogin = botSessions[0].login.loginName;
+    await runTour({
+      options, tools, record, log, report, evidence, children, env, password,
+      ds, dsReady: boot.ready, dsExe, bootConfigs, bootLogDirs, runConfig, tourBot, fleet,
+      tourLogin: botSessions[0].login.loginName,
+      bot: { dotnet, botDll, engineNative, kernelConfigPath, configDir, gameplay, voxelConfig, scenarioDll },
+    });
+    report.status = reportStatusFromSteps(report.steps);
     return report;
   } catch (error) {
     report.status = error?.code === 'BLOCKED_ENV' || String(error?.message).startsWith('BLOCKED_ENV:')

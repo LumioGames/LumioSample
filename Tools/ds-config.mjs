@@ -1,4 +1,6 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, resolve } from 'node:path';
+import { blocked } from './engine-tools.mjs';
 /**
  * Operator-fillable DS config (R-00520 / S1).
  *
@@ -86,4 +88,81 @@ export function writeKernelConfigForRun(configPath, outputPath) {
   }
   writeFileSync(outputPath, `${JSON.stringify(kernelConfig, null, 2)}\n`);
   return outputPath;
+}
+
+/** Fields lumio-ds resolves against its config file's own directory (LumioServer `ds` read_config). */
+const TOP_PATH_FIELDS = Object.freeze(['store_path', 'config_dir', 'voxel_catalog', 'base_map_path']);
+const CLR_PATH_FIELDS = Object.freeze([
+  'engine_native', 'hostfxr', 'runtime_config', 'assembly', 'replication_assembly', 'ecs_assembly', 'registry_assembly',
+]);
+
+/**
+ * The machine-specific CLR inputs of one launcher run. Each comes from its variable, else from the
+ * operator's DS config (resolved against that file), and must be a file either way: a missing one is
+ * BLOCKED_ENV naming the variable, never a path baked into a script. Variable names are the ones
+ * `test-server-host.mjs` already uses for the same artefacts, plus LUMIO_HOSTFXR (the name Engine's
+ * clr-host test fixture reads).
+ */
+export const DS_CLR_INPUTS = Object.freeze([
+  { field: 'engine_native', env: 'LUMIO_ENGINE_NATIVE' },
+  { field: 'hostfxr', env: 'LUMIO_HOSTFXR' },
+  { field: 'assembly', env: 'LUMIO_SERVER_HOSTENTRY_DLL' },
+  { field: 'runtime_config', env: 'LUMIO_SERVER_HOSTENTRY_DLL', fromEnv: (dll) => dll.replace(/\.dll$/i, '.runtimeconfig.json') },
+  { field: 'replication_assembly', env: 'LUMIO_RUNTIME_REPLICATION_DLL' },
+  { field: 'ecs_assembly', env: 'LUMIO_RUNTIME_ECS_DLL' },
+  { field: 'registry_assembly', env: 'LUMIO_SAMPLE_GAMEPLAY_DLL' },
+]);
+
+function present(value) {
+  return value != null && String(value).trim() !== '';
+}
+
+/**
+ * One run's DS config, derived from the operator template (committed `server.json` or
+ * `LUMIO_DS_CONFIG`) and written somewhere else, so every relative path is made absolute against the
+ * template first. The run owns a fresh store and its own log directory (steps 05 and 14 read both).
+ * `debug` is required: step 07 counts `host.operation_result` lines, which lumio-ds logs at debug.
+ * The six allocation claims come from the Platform launch response when it carries them — the
+ * committed block is a local stand-in, and a real ticket bound to other claims dies pre-admission.
+ */
+export function deriveRunDsConfig(template, {
+  templatePath, env = {}, storePath, logDir, launch, checkpointSeconds,
+} = {}) {
+  const base = dirname(resolve(templatePath));
+  const absolute = (value) => (present(value) && !isAbsolute(String(value)) ? resolve(base, String(value)) : value);
+  const config = structuredClone(template);
+  for (const field of TOP_PATH_FIELDS) {
+    if (field in config) config[field] = absolute(config[field]);
+  }
+  config.clr = { ...config.clr };
+  for (const field of CLR_PATH_FIELDS) {
+    if (field in config.clr) config.clr[field] = absolute(config.clr[field]);
+  }
+  for (const input of DS_CLR_INPUTS) {
+    const value = env[input.env];
+    if (!present(value)) continue;
+    const path = resolve(String(value).trim());
+    config.clr[input.field] = input.fromEnv ? input.fromEnv(path) : path;
+  }
+  if (present(env.LUMIO_PLATFORM_ADMISSION_KEY)) {
+    config.admission_public_key_hex = String(env.LUMIO_PLATFORM_ADMISSION_KEY).trim();
+  }
+  if (launch && ALLOCATION_KEYS.every((key) => present(launch[key]))) {
+    config.allocation = Object.fromEntries(ALLOCATION_KEYS.map((key) => [key, String(launch[key])]));
+  }
+  config.store_path = storePath;
+  config.logging = { ...config.logging, dir: logDir, min_level: 'debug' };
+  if (checkpointSeconds != null) config.checkpoint_seconds = checkpointSeconds;
+  return config;
+}
+
+/** Every CLR input is a file, or BLOCKED_ENV names the variable and the config field that were both empty. */
+export function assertDsClrInputs(config) {
+  for (const input of DS_CLR_INPUTS) {
+    const path = config?.clr?.[input.field];
+    if (!present(path) || !existsSync(path)) {
+      throw blocked(`${input.env} is not set and DS config clr.${input.field} is not a file (${present(path) ? path : 'unset'}).`);
+    }
+  }
+  return config;
 }
