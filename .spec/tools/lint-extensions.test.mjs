@@ -2,13 +2,15 @@
 // 运行:node --test .spec/tools/lint-extensions.test.mjs (需要 Workflow API 1 插件)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync } from 'node:fs'
+import { join, dirname, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const LINT = join(dirname(fileURLToPath(import.meta.url)), 'lint-extensions.mjs')
+// 定位架构仓检出的副本(R-00739);lint-extensions.mjs 从它导入,fixture 里两份都要放。
+const LOCATOR = join(dirname(fileURLToPath(import.meta.url)), 'engine-checkout.mjs')
 
 // fixture 根 → 清理时要删的目录(repoName 形态下是它的父临时目录,同级的假 LumioGameEngine 一起删)。
 const CLEANUP = new Map()
@@ -24,6 +26,7 @@ function fixture(overrides = {}, { repoName } = {}) {
   CLEANUP.set(root, base)
   const files = {
     '.spec/tools/lint-extensions.mjs': readFileSync(LINT, 'utf8'),
+    '.spec/tools/engine-checkout.mjs': readFileSync(LOCATOR, 'utf8'),
     'CLAUDE.md': '# CLAUDE.md\n\n@.spec/AGENTS.md\n\n@.spec/knowledge/README.md\n',
     '.spec/AGENTS.md': '# 中心文档\n\n| 名称 | 职责 |\n|------|------|\n| `coder` | 写代码 |\n',
     '.spec/knowledge/README.md': [
@@ -243,4 +246,52 @@ test('非 Lumio 检出(临时 fixture)跳过目录契约,不报 BLOCKED_ENV', ()
   assert.equal(code, 0, output)
   assert.match(output, /lumio-repo-layout 跳过/)
   assert.doesNotMatch(output, /BLOCKED_ENV/)
+})
+
+// ---- R-00739:HEAD 溯源不冒名;engine-checkout.mjs 与架构仓权威文本逐字节相同 ----
+
+const GIT_IDENTITY = ['-c', 'user.name=r739', '-c', 'user.email=r739@example.invalid', '-c', 'commit.gpgsign=false']
+
+/** 在 dir 建一个带一个空提交的 git 仓,返回它的 HEAD。 */
+function gitRepoWithCommit(dir) {
+  mkdirSync(dir, { recursive: true })
+  execFileSync('git', ['init', '-q'], { cwd: dir })
+  execFileSync('git', [...GIT_IDENTITY, 'commit', '-q', '--allow-empty', '-m', 'r739'], { cwd: dir })
+  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim()
+}
+
+test('HEAD 只认架构仓检出自身:解包在别的 git 工作区里时报 unknown,不冒名外层仓(R-00739)', () => {
+  const root = fixture({}, { repoName: 'LumioSample' })
+  // 形态同 `git archive` 解到某个工作区的 .build/ 下:目录本身不是检出,往上找得到外层 git 仓。
+  const outer = join(dirname(root), 'host')
+  const outerHead = gitRepoWithCommit(outer)
+  const unpacked = stubEngine(join(outer, '.build', 'LumioGameEngine'), { marker: 'ENV' })
+  const { output } = lint(root, ['--strict'], { LUMIO_ENGINE_ROOT: unpacked })
+  assert.match(output, /ENV 委托给架构仓:LumioSample/)
+  assert.match(output, /@ LumioGameEngine HEAD unknown \(not a git checkout\)/)
+  assert.doesNotMatch(output, new RegExp(outerHead))
+})
+
+test('HEAD 溯源:架构仓检出自身是 git 工作区顶层时写出它的 HEAD(R-00739)', () => {
+  const root = fixture({}, { repoName: 'LumioSample' })
+  const engine = stubEngine(join(dirname(root), 'elsewhere'), { marker: 'ENV' })
+  const head = gitRepoWithCommit(engine)
+  const { output } = lint(root, ['--strict'], { LUMIO_ENGINE_ROOT: engine })
+  assert.match(output, new RegExp(`@ LumioGameEngine HEAD ${head}\n`))
+})
+
+// 四份定位副本的机械守卫:本仓这份与架构仓 `.spec/tools/engine-checkout.mjs`(权威文本)逐字节比对,
+// 架构仓检出用这份副本自己的定位逻辑找——LUMIO_ENGINE_ROOT → 同后缀 worktree → 同级主检出。
+// 找不到或权威文本缺失是 BLOCKED_ENV:测试失败,不跳过、不静默通过。
+test('engine-checkout.mjs 与架构仓权威文本逐字节相同(四份副本的机械守卫,R-00739)', async () => {
+  const { engineCheckout, ENGINE_REPO } = await import(LOCATOR)
+  const repoRoot = resolve(dirname(LOCATOR), '..', '..')
+  const { base, invalid } = engineCheckout(repoRoot)
+  assert.ok(!invalid, invalid)
+  assert.ok(base, `BLOCKED_ENV:找不到 ${ENGINE_REPO} 检出,无法与权威文本比对——放一个同级检出或设 LUMIO_ENGINE_ROOT;不静默通过`)
+  const authority = join(base, '.spec', 'tools', 'engine-checkout.mjs')
+  assert.ok(existsSync(authority), `BLOCKED_ENV:${base} 没有 .spec/tools/engine-checkout.mjs(早于 R-00739)——把该检出更新到 origin/main`)
+  const lf = text => text.replace(/\r\n/g, '\n')
+  assert.equal(lf(readFileSync(LOCATOR, 'utf8')), lf(readFileSync(authority, 'utf8')),
+    `${LOCATOR} 与权威文本 ${authority} 不一致:先改架构仓那份,再 LumioServer、LumioGameRuntime、LumioClient、LumioSample 四处同改`)
 })

@@ -6,10 +6,10 @@
  * directory contract check is imported from a LumioGameEngine checkout (see below).
  * Run: node .spec/tools/lint-extensions.mjs [root] [--strict] [--json]
  */
-import { spawnSync } from 'node:child_process'
 import { existsSync, lstatSync, realpathSync } from 'node:fs'
-import { basename, dirname, join, resolve, sep } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { join, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { delegatedRepoLayoutCheck } from './engine-checkout.mjs'
 
 export const api = 1
 export const config = {
@@ -42,70 +42,15 @@ export const checks = [{
 /**
  * ADR-115 directory contract. This repository keeps **no implementation** of it: the only JS
  * implementation is `repoLayoutCheck`, exported by the architecture repository's
- * `.spec/tools/lint-extensions.mjs` (repository-layout.md §6, R-00700). It is imported from the
- * `LumioGameEngine` checkout that also holds `repo-layout.json`, looked up in the same order the
- * check itself uses for the JSON: LUMIO_ENGINE_ROOT → same-suffix worktree (`LumioX-y` →
- * `LumioGameEngine-y`) → sibling main checkout. An explicit LUMIO_ENGINE_ROOT is the only
- * candidate when set: if it holds no `repo-layout.json` that is BLOCKED_ENV, not a quiet fall-back
- * to a sibling checkout on whatever branch it happens to be. A missing or pre-R-00700 checkout is
- * BLOCKED_ENV too, never silently passed. Every run names the JSON it used and that checkout's HEAD
- * on stderr, so a pass says what it passed against.
- * This locator cannot itself be imported from the architecture repository — it is what finds that
- * checkout — so LumioServer, LumioGameRuntime, LumioClient and LumioSample each carry this block
- * with identical code; change all four together (R-00719).
+ * `.spec/tools/lint-extensions.mjs` (repository-layout.md §6, R-00700). `./engine-checkout.mjs`
+ * finds that checkout (an explicit LUMIO_ENGINE_ROOT that holds no repo-layout.json is BLOCKED_ENV,
+ * never a fall-back to a sibling checkout), names the JSON and HEAD it used on stderr, and
+ * delegates to it. That file is a byte-identical copy of the architecture repository's authority,
+ * carried by LumioServer, LumioGameRuntime, LumioClient and LumioSample alike: change the authority
+ * and all four copies together. lint-extensions.test.mjs fails when this copy differs from the
+ * authority it finds (R-00719, R-00739).
  */
-const ENGINE_REPO = 'LumioGameEngine'
-const LAYOUT_JSON = join('.spec', 'tools', 'repo-layout.json')
-const ENGINE_EXTENSION = join('.spec', 'tools', 'lint-extensions.mjs')
-
-function engineCheckout(root) {
-  const env = process.env.LUMIO_ENGINE_ROOT
-  if (env) {
-    const base = resolve(env)
-    return existsSync(join(base, LAYOUT_JSON))
-      ? { base }
-      : { invalid: `BLOCKED_ENV:LUMIO_ENGINE_ROOT=${env} 下没有 ${LAYOUT_JSON}——显式指定的检出无效,不回落到同级检出;修正或清空该变量` }
-  }
-  const parent = dirname(root)
-  const name = basename(root)
-  const dash = name.indexOf('-')
-  const base = [
-    ...(dash > 0 ? [join(parent, ENGINE_REPO + name.slice(dash))] : []),
-    join(parent, ENGINE_REPO),
-  ].find(candidate => existsSync(join(candidate, LAYOUT_JSON)))
-  return base ? { base } : {}
-}
-
-function checkoutHead(base) {
-  const result = spawnSync('git', ['-C', base, 'rev-parse', 'HEAD'], { encoding: 'utf8' })
-  return result.status === 0 ? result.stdout.trim() : 'unknown (not a git checkout)'
-}
-
-checks.push({
-  id: 'lumio-repo-layout',
-  async run(ctx) {
-    // Only decides "skip vs BLOCKED_ENV" when no checkout is found; with one, the imported
-    // check does the real identification (checkout name → repos / appliesTo / outOfScope key).
-    if (!basename(ctx.root).startsWith('Lumio')) return { skipped: `${basename(ctx.root)} 不是 Lumio 仓检出,ADR-115 目录契约不适用` }
-    const { base, invalid } = engineCheckout(ctx.root)
-    if (invalid) {
-      ctx.report(join(ctx.root, LAYOUT_JSON), invalid)
-      return undefined
-    }
-    if (!base) {
-      ctx.report(join(ctx.root, LAYOUT_JSON), `BLOCKED_ENV:同级 ${ENGINE_REPO} checkout 缺失,读不到 ${LAYOUT_JSON} 与目录契约检查——放一个同级检出或设 LUMIO_ENGINE_ROOT;不静默通过`)
-      return undefined
-    }
-    // stderr, not stdout: `--json` owns stdout.
-    process.stderr.write(`lumio-repo-layout: ${join(base, LAYOUT_JSON)} @ ${ENGINE_REPO} HEAD ${checkoutHead(base)}\n`)
-    const { repoLayoutCheck } = await import(pathToFileURL(join(base, ENGINE_EXTENSION)).href)
-    if (typeof repoLayoutCheck?.run !== 'function') {
-      ctx.report(join(base, ENGINE_EXTENSION), `BLOCKED_ENV:${base} 早于 R-00700,没有导出 repoLayoutCheck——把该检出更新到 origin/main;本仓不留回落实现`)
-      return undefined
-    }
-    return repoLayoutCheck.run(ctx)
-  },
-})
+checks.push(delegatedRepoLayoutCheck)
 
 // Preserve the former CLI without executing it when the plugin imports us.
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
