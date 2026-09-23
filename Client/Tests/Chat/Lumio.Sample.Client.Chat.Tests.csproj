@@ -10,7 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../UI/Chat/Lumio.Sample.Client.Chat.csproj" />
-    <Reference Include="Lumio.Client.Replica" HintPath="$(LumioClientReplicaAssembly)" Private="true" />
+    <Reference Include="Lumio.Client.Gameplay.ECS" HintPath="$(LumioClientGameplayEcsAssembly)" Private="true" />
     <Reference Include="Lumio.Engine.NativeLoader" HintPath="$(LumioNativeLoaderAssembly)" Private="true" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Testing.Platform" />

@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using Lumio.Client.Application;
-using Lumio.Client.Session;
+using Lumio.Client.Gameplay.Session;
 using Lumio.Sample.Client.Chat;
 
 namespace Lumio.Sample.Client.Application;
@@ -22,10 +22,10 @@ public sealed class SampleClientInstance
         _onLine = onLine;
     }
 
-    internal Lumio.Client.Replica.ReplicaRpcHooks CreateHooks()
+    internal Lumio.Client.Gameplay.ECS.ReplicaRpcHooks CreateHooks()
     {
         _adapter = new ChatRpcAdapter(_onLine);
-        return new Lumio.Client.Replica.ReplicaRpcHooks(_adapter, _adapter);
+        return new Lumio.Client.Gameplay.ECS.ReplicaRpcHooks(_adapter, _adapter);
     }
 
     internal void Attach(ClientInstance client) => _client = client;

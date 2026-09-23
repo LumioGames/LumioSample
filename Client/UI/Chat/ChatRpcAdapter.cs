@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Lumio.Client.Replica;
+using Lumio.Client.Gameplay.ECS;
 using Lumio.GameRuntime.Ecs;
 
 namespace Lumio.Sample.Client.Chat

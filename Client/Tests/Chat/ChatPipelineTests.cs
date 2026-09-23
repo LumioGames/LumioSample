@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading;
-using Lumio.Client.Replica;
+using Lumio.Client.Gameplay.ECS;
 using Lumio.Engine.NativeLoader;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Simulation;

@@ -32,13 +32,13 @@ The only direct project reference is Sample's own Gameplay. Client is an explici
 prebuilt assembly reference; no private Client source project is referenced and no
 fallback search is performed. Build Client first with the settled Runtime/Engine
 roots, then query its `TargetPath` using `dotnet msbuild -getProperty:TargetPath`.
-Pass that exact netstandard2.1 artifact as `LumioClientReplicaAssembly`.
+Pass that exact netstandard2.1 artifact as `LumioClientGameplayEcsAssembly`.
 
 Use these properties for **restore and build**, including from a net10 test host:
 
 ```text
 -p:LumioEcsSide=client -p:LumioBrowserReplica=true
--p:LumioClientReplicaAssembly=<exact prebuilt Lumio.Client.Replica.dll>
+-p:LumioClientGameplayEcsAssembly=<exact prebuilt Lumio.Client.Gameplay.ECS.dll>
 ```
 
 NuGet restore does not propagate `ProjectReference.AdditionalProperties`; omitting

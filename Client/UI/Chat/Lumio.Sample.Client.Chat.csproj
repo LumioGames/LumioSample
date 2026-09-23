@@ -6,11 +6,11 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../Gameplay/Lumio.Sample.Gameplay.csproj" />
-    <Reference Include="Lumio.Client.Replica" HintPath="$(LumioClientReplicaAssembly)" Private="true" />
+    <Reference Include="Lumio.Client.Gameplay.ECS" HintPath="$(LumioClientGameplayEcsAssembly)" Private="true" />
   </ItemGroup>
-  <Target Name="RequireClientReplicaArtifact" BeforeTargets="PrepareForBuild;ResolveAssemblyReferences">
-    <Error Condition="'$(LumioClientReplicaAssembly)' == '' or !Exists('$(LumioClientReplicaAssembly)')"
-           Text="SAMPLE_CHAT_REPLICA_MISSING: set LumioClientReplicaAssembly to the exact prebuilt netstandard2.1 Lumio.Client.Replica.dll." />
+  <Target Name="RequireClientGameplayEcsArtifact" BeforeTargets="PrepareForBuild;ResolveAssemblyReferences">
+    <Error Condition="'$(LumioClientGameplayEcsAssembly)' == '' or !Exists('$(LumioClientGameplayEcsAssembly)')"
+           Text="SAMPLE_CHAT_CLIENT_ECS_MISSING: set LumioClientGameplayEcsAssembly to the exact prebuilt netstandard2.1 Lumio.Client.Gameplay.ECS.dll." />
   </Target>
   <!-- NuGet restore does not propagate ProjectReference.AdditionalProperties.
        Require global selection so restore and compilation use the same client graph. -->
