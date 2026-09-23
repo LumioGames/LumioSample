@@ -42,6 +42,7 @@ import {
   redactCdpEvidence,
   selectCdpPageTarget,
   missingLiveReason,
+  mintTickets,
   preflightLiveTopology,
   probeMoved,
   probePlatformHealth,
@@ -49,6 +50,8 @@ import {
   runSpectator100,
   SHA_REPOS,
   spectator100ExitCode,
+  STRESS_PREFIX_ENV,
+  TICKET_PREFIX,
   uniqueTicketReport,
   validateBrowserEvidence,
   WAVE_B_STAGGER_MS,
@@ -1676,5 +1679,240 @@ test('runLiveTopology refuses Bot.Host spawn when lumio-ds already cadence-lags'
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(evidence, { recursive: true, force: true });
+  }
+});
+
+// Stand-in for the sibling LumioPlatform/eng/stress-tickets.mjs: records argv, mints nothing.
+function writeRecordingIssuer(base) {
+  const eng = join(base, 'LumioPlatform', 'eng');
+  mkdirSync(eng, { recursive: true });
+  const log = join(eng, 'argv.jsonl');
+  writeFileSync(join(eng, 'stress-tickets.mjs'), [
+    "import { appendFileSync } from 'node:fs';",
+    `appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n');`,
+    'process.exit(3);',
+  ].join('\n'));
+  return () => (existsSync(log)
+    ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line))
+    : []);
+}
+
+const prefixArg = (argv) => argv[argv.indexOf('--prefix') + 1];
+
+test('mintTickets signs with one prefix whether the issuer is the real script or injected', async () => {
+  const base = mkdtempSync(join(tmpdir(), 'lumio-stress-prefix-'));
+  try {
+    const root = join(base, 'LumioSample');
+    mkdirSync(root, { recursive: true });
+    const issuerCalls = writeRecordingIssuer(base);
+    const sources = [
+      { name: STRESS_PREFIX_ENV, env: { [STRESS_PREFIX_ENV]: 'night7' }, options: { stressPrefix: 'opt5' }, expected: 'night7' },
+      { name: 'options.stressPrefix', env: {}, options: { stressPrefix: 'opt5' }, expected: 'opt5' },
+      { name: 'default', env: {}, options: {}, expected: TICKET_PREFIX },
+    ];
+    for (const [index, source] of sources.entries()) {
+      const env = { LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080', ...source.env };
+      await assert.rejects(
+        mintTickets({ env, root, options: { ...source.options }, evidence: join(base, `real-${index}`) }),
+        /stress-tickets exited 3/,
+      );
+      let injected;
+      await assert.rejects(
+        mintTickets({
+          env,
+          root,
+          evidence: join(base, `injected-${index}`),
+          options: {
+            ...source.options,
+            mintTickets: async (request) => {
+              injected = request.prefix;
+              throw new Error('issuer recorded');
+            },
+          },
+        }),
+        /issuer recorded/,
+      );
+      assert.equal(prefixArg(issuerCalls()[index]), source.expected, `real issuer --prefix (${source.name})`);
+      assert.equal(injected, source.expected, `injected issuer prefix (${source.name})`);
+    }
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('runLiveTopology signs a bot retry ticket with the first round prefix', async () => {
+  const base = mkdtempSync(join(tmpdir(), 'lumio-retry-prefix-'));
+  try {
+    const root = join(base, 'LumioSample');
+    const dir = join(base, 'artifacts');
+    const { nativePath } = writeNativePair(dir);
+    const harness = liveTopologyHarness({ dir, nativePath });
+    // A sandbox root so the retry reaches the recording issuer, not the real sibling Platform.
+    const maps = join(root, 'Server', 'Assets', 'Maps');
+    mkdirSync(maps, { recursive: true });
+    writeFileSync(join(maps, 'sample.voxel'), 'LUMIOSNP1 test capture');
+    const clientRoot = join(base, 'LumioClient');
+    const framework = join(clientRoot, 'Client', 'UI', 'Spectator', '_framework');
+    mkdirSync(framework, { recursive: true });
+    writeFileSync(join(framework, 'dotnet.js'), 'export{};');
+    writeFileSync(join(framework, 'Lumio.Client.Spectator.test.wasm'), `${SPECTATOR_WASM_CONNECTION_STATE_MARKER} ${SPECTATOR_WASM_APPLY_ERROR_MARKER}`);
+    const issuerCalls = writeRecordingIssuer(base);
+    const { ticketManifest, ...options } = harness.options;
+    const firstRound = [];
+    const result = await runLiveTopology({
+      root,
+      evidence: join(base, 'evidence'),
+      document: createSpectatorDocument(),
+      env: {
+        LIVE_BOTS: '0',
+        LUMIO_WAVE_B_LIVE: '1',
+        LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080',
+        [STRESS_PREFIX_ENV]: 'night7',
+      },
+      options: {
+        ...options,
+        clientRoot,
+        staggerMs: 0,
+        dsCadenceLagSettleMs: 0,
+        mintTickets: async (request) => {
+          firstRound.push(request.prefix);
+          return ticketManifest;
+        },
+        // No bot writes admission evidence, so bot-1 is the first slot the runner re-tickets.
+        waitForAdmissions: async () => ({ admitted: 99, rejected: 0, faulted: 1 }),
+      },
+    });
+    assert.equal(result.status, 'FAIL', result.error);
+    assert.match(String(result.error), /bot-1 retry ticket minting failed/);
+    assert.deepEqual(firstRound, ['night7']);
+    const retries = issuerCalls();
+    assert.equal(retries.length, 1);
+    assert.equal(prefixArg(retries[0]), 'night7');
+    assert.equal(retries[0][retries[0].indexOf('--count') + 1], '1');
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+function voxelGateArtifacts(dir) {
+  const { nativePath } = writeNativePair(dir);
+  const gameplay = join(dir, 'Lumio.Sample.Gameplay.dll');
+  writeFileSync(gameplay, 'gameplay');
+  writeUtf16Dll(join(dir, 'Lumio.Engine.NativeLoader.dll'), MATCHING_ABI);
+  const botDll = join(dir, 'Lumio.Client.Bot.Host.dll');
+  writeFileSync(botDll, 'bot');
+  const dsExe = join(dir, 'lumio-ds.exe');
+  // Detached Engine ABI: once past the voxel budget gate, runLiveTopology stops at
+  // sdk_version_mismatch before minting tickets or starting any process.
+  writeFileSync(dsExe, `stale-consumer ${DS_TIMER_OWNER_MARKER} ${STALE_ABI}`);
+  const budget = join(dir, 'bot-voxel-budget.json');
+  writeFileSync(budget, '{}');
+  const writeDsConfig = (name, worldProfile) => {
+    const path = join(dir, name);
+    writeFileSync(path, JSON.stringify({
+      world_profile: worldProfile,
+      clr: { kernel_config: KERNEL_CONFIG },
+      allocation: {
+        serverAudience: 'game-fleet-local',
+        gameId: 'sample',
+        gameReleaseId: 'sample-0.1.0',
+        contractId: 'lumio.gameplay-envelope.v1',
+        roomId: 'room-sample-1',
+        allocationId: 'alloc-sample-1',
+      },
+      admission_public_key_hex: '9593f57065df3c7303d67a27a458cd4ec8c55de7c5e6c6153b80c5a32ef19cd7',
+    }));
+    return path;
+  };
+  return { nativePath, gameplay, botDll, dsExe, budget, writeDsConfig };
+}
+
+test('missingLiveReason and runLiveTopology give one bot voxel budget verdict, decided by world_profile', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lumio-voxel-gate-'));
+  try {
+    const { nativePath, gameplay, botDll, dsExe, budget, writeDsConfig } = voxelGateArtifacts(dir);
+    const cases = [
+      { worldProfile: 'runtime-only', voxelConfig: undefined, blocked: false },
+      { worldProfile: 'runtime+voxel', voxelConfig: undefined, blocked: true },
+      { worldProfile: 'runtime+voxel', voxelConfig: budget, blocked: false },
+    ];
+    for (const [index, item] of cases.entries()) {
+      const label = `world_profile=${item.worldProfile}, budget ${item.voxelConfig ? 'set' : 'unset'}`;
+      const dsConfig = writeDsConfig(`server-${index}.json`, item.worldProfile);
+      const preGate = missingLiveReason({
+        LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080',
+        LUMIO_DS_EXE: dsExe,
+        LUMIO_DS_CONFIG: dsConfig,
+        LUMIO_BOT_DLL: botDll,
+        LUMIO_GAMEPLAY: gameplay,
+        LUMIO_ENGINE_NATIVE: nativePath,
+        ...(item.voxelConfig ? { LUMIO_BOT_VOXEL_CONFIG: item.voxelConfig } : {}),
+        LIVE_BOTS: '0',
+      });
+      let mintCalled = false;
+      const live = await runLiveTopology({
+        root: SAMPLE_ROOT,
+        evidence: join(dir, `evidence-${index}`),
+        document: createSpectatorDocument(),
+        env: { LIVE_BOTS: '0', LUMIO_WAVE_B_LIVE: '1', LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080' },
+        options: {
+          authorizeLive: true,
+          attachLive: true,
+          origin: 'http://127.0.0.1:8080',
+          dsExe,
+          dsConfig,
+          botDll,
+          gameplay,
+          engineNative: nativePath,
+          voxelConfig: item.voxelConfig,
+          chrome: join(dir, 'chrome.exe'),
+          mintTickets: async () => {
+            mintCalled = true;
+            throw new Error('a gate test mints no tickets');
+          },
+        },
+      });
+      assert.equal(mintCalled, false, label);
+      if (item.blocked) {
+        assert.match(String(preGate), /^LUMIO_BOT_VOXEL_CONFIG .*world_profile=runtime\+voxel/, label);
+        assert.equal(live.status, 'BLOCKED_ENV', label);
+        assert.equal(live.error, `BLOCKED_ENV: ${preGate}`, label);
+      } else {
+        assert.equal(preGate, null, label);
+        assert.equal(live.status, 'FAIL', label);
+        assert.match(String(live.error), /sdk_version_mismatch/, label);
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('runSpectator100 pre-gate judges the voxel budget runLiveTopology would use', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lumio-voxel-pregate-'));
+  try {
+    const { nativePath, gameplay, botDll, dsExe, budget, writeDsConfig } = voxelGateArtifacts(dir);
+    const dsConfig = writeDsConfig('server.json', 'runtime+voxel');
+    const run = (extra) => runSpectator100({
+      root: SAMPLE_ROOT,
+      env: { LIVE_BOTS: '0', LUMIO_WAVE_B_LIVE: '1' },
+      evidenceDir: join(dir, `evidence-${extra.voxelConfig ? 'budget' : 'none'}`),
+      shas: {},
+      origin: 'http://127.0.0.1:8080',
+      dsExe,
+      dsConfig,
+      botDll,
+      gameplay,
+      engineNative: nativePath,
+      authorizeLive: true,
+      attachLive: true,
+      liveRun: () => ({ status: 'BLOCKED_ENV', error: 'reached the live runner' }),
+      ...extra,
+    });
+    // --voxel-config arrives as options.voxelConfig, which runLiveTopology reads first.
+    assert.equal((await run({ voxelConfig: budget })).error, 'reached the live runner');
+    assert.match(String((await run({})).error), /^BLOCKED_ENV: LUMIO_BOT_VOXEL_CONFIG /);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
