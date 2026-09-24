@@ -1,6 +1,10 @@
 # Config export
 
 Sources live beside this file (`repository.yaml`, `schemas/`, `tables/`, `registry/`).
+This directory (`Gameplay/Tables`) is the config source root other repos look up by
+reading the architecture repo's `repo-layout.json` field `repos.GameWorkspace.configSourceRoot`
+(repository-layout.md §5, R-00767) instead of hardcoding this path — `Tools/config-source-root.test.mjs`
+checks the two stay in sync. Moving this directory again means updating that field too.
 Per-end export roots (`Client/Config/Tables`, `Server/Config/Tables`) are compiler output.
 Use the sibling LumioConfig checkout or set `LUMIO_CONFIG_ROOT` to its root.
 Python 3.11+ is required (`py -3` on Windows, or set `LUMIO_PYTHON`).
