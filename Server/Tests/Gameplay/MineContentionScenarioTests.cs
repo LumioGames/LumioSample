@@ -82,10 +82,12 @@ public sealed class MineContentionScenarioTests : IDisposable
     {
         using var world = new ContentionWorld(miners: 2, movers: 0);
         VeinReserveComponent first = world.Veins[0], second = world.Veins[1];
-        ulong section = first.SectionKey.Value;
+        VeinLocationTestSupport.VeinLocation firstLoc = VeinLocationTestSupport.Locate(world.World, first.Entity);
+        VeinLocationTestSupport.VeinLocation secondLoc = VeinLocationTestSupport.Locate(world.World, second.Entity);
+        ulong section = firstLoc.Section;
         // Both veins are destroyed by their own settlement, so keep the cells as values, not components.
-        int firstCell = first.CellOffset.Value, secondCell = second.CellOffset.Value;
-        Assert.Equal(section, second.SectionKey.Value);
+        int firstCell = firstLoc.Offset, secondCell = secondLoc.Offset;
+        Assert.Equal(section, secondLoc.Section);
         Assert.NotEqual(firstCell, secondCell);
 
         world.WearDownToTheLastHit(0, first);
@@ -111,8 +113,9 @@ public sealed class MineContentionScenarioTests : IDisposable
         // This is the failure R-00654 is measuring the frequency of: anything that still expects the
         // revision it validated on loses to the section's own bump, even for a cell nobody touched.
         VeinReserveComponent untouched = world.Veins[2];
-        int untouchedCell = untouched.CellOffset.Value;
-        Assert.Equal(section, untouched.SectionKey.Value);
+        VeinLocationTestSupport.VeinLocation untouchedLoc = VeinLocationTestSupport.Locate(world.World, untouched.Entity);
+        int untouchedCell = untouchedLoc.Offset;
+        Assert.Equal(section, untouchedLoc.Section);
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageMutation(
             new[] { new VoxelWriteEntry(section, untouchedCell, 0, validatedOn) },
             Array.Empty<VoxelBindingOp>(), "record-validated-on-the-old-revision").Status);
@@ -137,8 +140,9 @@ public sealed class MineContentionScenarioTests : IDisposable
     {
         using var world = new ContentionWorld(miners: 2, movers: 0);
         VeinReserveComponent contested = world.Veins[0];
-        ulong section = contested.SectionKey.Value;
-        int offset = contested.CellOffset.Value;
+        VeinLocationTestSupport.VeinLocation contestedLoc = VeinLocationTestSupport.Locate(world.World, contested.Entity);
+        ulong section = contestedLoc.Section;
+        int offset = contestedLoc.Offset;
         world.PlaceAt(1, contested);
 
         world.WearDownToTheLastHit(0, contested);
@@ -190,8 +194,9 @@ public sealed class MineContentionScenarioTests : IDisposable
     {
         using var world = new ContentionWorld(miners: 1, movers: 3);
         VeinReserveComponent vein = world.Veins[0];
-        ulong section = vein.SectionKey.Value;
-        int cell = vein.CellOffset.Value;
+        VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.Locate(world.World, vein.Entity);
+        ulong section = loc.Section;
+        int cell = loc.Offset;
         world.WearDownToTheLastHit(0, vein);
         ulong revision = world.Adapter.Read(section, cell).SectionRevision;
 
@@ -246,10 +251,18 @@ public sealed class MineContentionScenarioTests : IDisposable
             for (int tick = 0; tick < 4; tick++) _manager.Tick();
             _miners = queued.Take(miners).Select(order => order.AssignedId).ToArray();
             _movers = queued.Skip(miners).Select(order => order.AssignedId).ToArray();
+            // ADR-119 B6: veins arrive through the scan's create→bind round trip, not synchronously —
+            // wait it out before reading any vein's Section/cell (VeinLocationTestSupport.Locate is the
+            // only place that can answer now).
+            VeinLocationTestSupport.TickUntilScanSettles(_manager);
             // Veins are authored per cell; one section holding several of them is what this workload needs.
-            Veins = World.Each<VeinReserveComponent>().Where(vein => vein.HasCell.Value)
-                .GroupBy(vein => vein.SectionKey.Value).OrderByDescending(group => group.Count())
-                .First().OrderBy(vein => vein.CellOffset.Value).ToArray();
+            Veins = World.Each<VeinReserveComponent>()
+                .Where(vein => VeinLocationTestSupport.TryLocate(World, vein.Entity, out _))
+                .GroupBy(vein => VeinLocationTestSupport.Locate(World, vein.Entity).Section)
+                .OrderByDescending(group => group.Count())
+                .First()
+                .OrderBy(vein => VeinLocationTestSupport.Locate(World, vein.Entity).Offset)
+                .ToArray();
             Assert.True(Veins.Length >= miners + 1, "The map must author more veins in one section than there are miners.");
             for (int index = 0; index < miners; index++) PlaceAt(index, Veins[index]);
         }
@@ -276,7 +289,8 @@ public sealed class MineContentionScenarioTests : IDisposable
         }
 
         internal void PlaceAt(int miner, VeinReserveComponent vein) =>
-            PlayerLifecycleTests.PlaceFixturePlayer(World, _miners[miner], vein.CellCenter);
+            PlayerLifecycleTests.PlaceFixturePlayer(World, _miners[miner],
+                VeinLocationTestSupport.Locate(World, vein.Entity).CellCenter);
 
         internal AbilityActivateResult Mine(int miner, VeinReserveComponent vein)
         {

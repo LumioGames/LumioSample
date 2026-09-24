@@ -28,6 +28,34 @@
     "visibility": "aoi-scoped"
   },
   {
+    "attributeId": "BoxComponent.name",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "utf8-string",
+    "visibility": "aoi-scoped"
+  },
+  {
+    "attributeId": "BoxComponent.locked",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "bool",
+    "visibility": "aoi-scoped"
+  },
+  {
+    "attributeId": "BoxComponent.inventory",
+    "persistence": "persistent",
+    "replication": "replicated",
+    "valueType": "list",
+    "visibility": "claim-scoped"
+  },
+  {
+    "attributeId": "BoxComponent.openers",
+    "persistence": "ephemeral",
+    "replication": "not-replicated",
+    "valueType": "list",
+    "visibility": "server-only"
+  },
+  {
     "attributeId": "ChatComponent.lastMessageText",
     "persistence": "persistent",
     "replication": "not-replicated",
@@ -147,52 +175,10 @@
     "visibility": "server-only"
   },
   {
-    "attributeId": "VeinReserveComponent.cellOffset",
-    "persistence": "persistent",
-    "replication": "replicated",
-    "valueType": "i32",
-    "visibility": "room-public"
-  },
-  {
-    "attributeId": "VeinReserveComponent.cellX",
-    "persistence": "persistent",
-    "replication": "replicated",
-    "valueType": "i32",
-    "visibility": "room-public"
-  },
-  {
-    "attributeId": "VeinReserveComponent.cellY",
-    "persistence": "persistent",
-    "replication": "replicated",
-    "valueType": "i32",
-    "visibility": "room-public"
-  },
-  {
-    "attributeId": "VeinReserveComponent.cellZ",
-    "persistence": "persistent",
-    "replication": "replicated",
-    "valueType": "i32",
-    "visibility": "room-public"
-  },
-  {
-    "attributeId": "VeinReserveComponent.hasCell",
-    "persistence": "persistent",
-    "replication": "replicated",
-    "valueType": "bool",
-    "visibility": "room-public"
-  },
-  {
     "attributeId": "VeinReserveComponent.remaining",
     "persistence": "persistent",
     "replication": "replicated",
     "valueType": "i32",
-    "visibility": "room-public"
-  },
-  {
-    "attributeId": "VeinReserveComponent.sectionKey",
-    "persistence": "persistent",
-    "replication": "replicated",
-    "valueType": "u64",
-    "visibility": "room-public"
+    "visibility": "aoi-scoped"
   }
 ]

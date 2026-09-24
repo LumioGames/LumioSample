@@ -12,11 +12,10 @@ namespace Lumio.Sample.Gameplay.EntityTypes;
 
 internal sealed class VeinEntityTemplate
 {
-    internal static readonly int ComponentCount = 2;
-    internal static readonly int ObserverIndex = 0;
+    internal static readonly int ComponentCount = 1;
+    internal static readonly int ObserverIndex = -1;
     internal static Component[] CreateComponents() => new Component[]
     {
-        new ObserverComponent(),
         new VeinReserveComponent()
     };
 }

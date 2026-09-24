@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Ecs.Annotations;
 using Lumio.Sample.Gameplay;
+using Lumio.Sample.Gameplay.Components.Box;
 using Lumio.Sample.Gameplay.Components.Chat;
 using Lumio.Sample.Gameplay.Components.Fx;
 using Lumio.Sample.Gameplay.Components.Identity;
@@ -92,6 +93,9 @@ public sealed class GeneratedRegistry : EcsRegistry
     public override ulong DeclaredTickRateHz => 20UL;
 
     /// <inheritdoc />
+    public override IReadOnlyList<Type> BlockEntityTypes { get; } = new Type[] { typeof(BoxEntity), typeof(VeinEntity) };
+
+    /// <inheritdoc />
     public override IReadOnlyList<FieldAttributeDeclaration> AttributeDeclarations { get; } = BuildAttributes();
 
     /// <inheritdoc />
@@ -103,6 +107,10 @@ public sealed class GeneratedRegistry : EcsRegistry
         if (entityType == typeof(BotEntity))
         {
             return BotEntityTemplate.CreateComponents();
+        }
+        if (entityType == typeof(BoxEntity))
+        {
+            return BoxEntityTemplate.CreateComponents();
         }
         if (entityType == typeof(MiningSparkEntity))
         {
@@ -141,6 +149,11 @@ public sealed class GeneratedRegistry : EcsRegistry
             if (componentType == typeof(EffectComponent)) return 6;
             return -1;
         }
+        if (entityType == typeof(BoxEntity))
+        {
+            if (componentType == typeof(BoxComponent)) return 0;
+            return -1;
+        }
         if (entityType == typeof(MiningSparkEntity))
         {
             if (componentType == typeof(MiningSparkComponent)) return 0;
@@ -167,8 +180,7 @@ public sealed class GeneratedRegistry : EcsRegistry
         }
         if (entityType == typeof(VeinEntity))
         {
-            if (componentType == typeof(ObserverComponent)) return 0;
-            if (componentType == typeof(VeinReserveComponent)) return 1;
+            if (componentType == typeof(VeinReserveComponent)) return 0;
             return -1;
         }
         if (entityType == typeof(WorldEntity))
@@ -192,6 +204,11 @@ public sealed class GeneratedRegistry : EcsRegistry
             if (string.Equals(componentName, "AbilityComponent", StringComparison.Ordinal)) return 4;
             if (string.Equals(componentName, "AttributeComponent", StringComparison.Ordinal)) return 5;
             if (string.Equals(componentName, "EffectComponent", StringComparison.Ordinal)) return 6;
+            return -1;
+        }
+        if (entityType == typeof(BoxEntity))
+        {
+            if (string.Equals(componentName, "BoxComponent", StringComparison.Ordinal)) return 0;
             return -1;
         }
         if (entityType == typeof(MiningSparkEntity))
@@ -220,8 +237,7 @@ public sealed class GeneratedRegistry : EcsRegistry
         }
         if (entityType == typeof(VeinEntity))
         {
-            if (string.Equals(componentName, "ObserverComponent", StringComparison.Ordinal)) return 0;
-            if (string.Equals(componentName, "VeinReserveComponent", StringComparison.Ordinal)) return 1;
+            if (string.Equals(componentName, "VeinReserveComponent", StringComparison.Ordinal)) return 0;
             return -1;
         }
         if (entityType == typeof(WorldEntity))
@@ -238,6 +254,7 @@ public sealed class GeneratedRegistry : EcsRegistry
     {
         if (entityType is null) throw new ArgumentNullException(nameof(entityType));
         if (entityType == typeof(BotEntity)) return "bot";
+        if (entityType == typeof(BoxEntity)) return "box";
         if (entityType == typeof(MiningSparkEntity)) return "miningSpark";
         if (entityType == typeof(OreDropEntity)) return "oreDrop";
         if (entityType == typeof(PlayerEntity)) return "player";
@@ -252,6 +269,8 @@ public sealed class GeneratedRegistry : EcsRegistry
         entityType = null!;
         if (string.Equals(name, "bot", StringComparison.Ordinal) || string.Equals(name, "BotEntity", StringComparison.Ordinal))
         { entityType = typeof(BotEntity); return true; }
+        if (string.Equals(name, "box", StringComparison.Ordinal) || string.Equals(name, "BoxEntity", StringComparison.Ordinal))
+        { entityType = typeof(BoxEntity); return true; }
         if (string.Equals(name, "miningSpark", StringComparison.Ordinal) || string.Equals(name, "MiningSparkEntity", StringComparison.Ordinal))
         { entityType = typeof(MiningSparkEntity); return true; }
         if (string.Equals(name, "oreDrop", StringComparison.Ordinal) || string.Equals(name, "OreDropEntity", StringComparison.Ordinal))
@@ -286,6 +305,10 @@ public sealed class GeneratedRegistry : EcsRegistry
             new FieldAttributeDeclaration("AttributeComponent.OreCurrent", "i64", "ephemeral", "replicated", "aoi-scoped"),
             new FieldAttributeDeclaration("AttributeComponent.StaminaBase", "i64", "persistent", "replicated", "room-public"),
             new FieldAttributeDeclaration("AttributeComponent.StaminaCurrent", "i64", "ephemeral", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("BoxComponent.name", "utf8-string", "persistent", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("BoxComponent.locked", "bool", "persistent", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("BoxComponent.inventory", "list", "persistent", "replicated", "claim-scoped"),
+            new FieldAttributeDeclaration("BoxComponent.openers", "list", "ephemeral", "not-replicated", "server-only"),
             new FieldAttributeDeclaration("IdentityComponent.colorHue", "i32", "ephemeral", "replicated", "room-public"),
             new FieldAttributeDeclaration("IdentityComponent.name", "utf8-string", "persistent", "replicated", "room-public"),
             new FieldAttributeDeclaration("OrePileComponent.amount", "i32", "persistent", "replicated", "room-public"),
@@ -300,13 +323,7 @@ public sealed class GeneratedRegistry : EcsRegistry
             new FieldAttributeDeclaration("PendingDigComponent.staminaCost", "u64", "persistent", "not-replicated", "server-only"),
             new FieldAttributeDeclaration("PendingDigComponent.transaction", "utf8-string", "persistent", "not-replicated", "server-only"),
             new FieldAttributeDeclaration("PendingDigComponent.veinHex", "utf8-string", "persistent", "not-replicated", "server-only"),
-            new FieldAttributeDeclaration("VeinReserveComponent.cellOffset", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.cellX", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.cellY", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.cellZ", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.hasCell", "bool", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.sectionKey", "u64", "persistent", "replicated", "room-public")
+            new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "aoi-scoped")
         };
     }
 

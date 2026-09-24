@@ -77,7 +77,12 @@ public sealed class SampleMiningScenario : BotScenario
             else _lastReject = chat.Reason;
         }
 
-        SampleBotCommand command = _plan.Advance(world.HasSelf, world.Self.NetEntityId, ReadCensus(in world));
+        // ADR-119: a block-entity vein can leave the census on a Section subscription change
+        // (left_aoi) without dying. R-00723 (LumioClient) gives scenarios that reason per-id
+        // (world.Departures[netEntityId].Vanished is true only for terminated); the closure only
+        // captures world, a local copy already taken this call, and each lookup is O(1).
+        SampleBotCommand command = _plan.Advance(world.HasSelf, world.Self.NetEntityId, ReadCensus(in world),
+            hex => world.Departures[hex].Vanished);
         switch (command.Act)
         {
             case SampleBotAct.Mine:

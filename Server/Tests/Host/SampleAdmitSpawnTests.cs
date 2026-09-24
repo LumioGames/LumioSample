@@ -54,9 +54,13 @@ public sealed class SampleAdmitSpawnTests : IDisposable
         Assert.True(result.GetProperty("ok").GetBoolean(), raw);
     }
 
-    /// <summary>The interest set travels with the profile; a runtime-only world may not carry one.</summary>
-    private const string VoxelProfileFields =
-        ",\"worldProfile\":\"runtime+voxel\",\"voxelBaselineRegion\":{\"minX\":0,\"minY\":0,\"minZ\":0,\"maxX\":1,\"maxY\":0,\"maxZ\":1}";
+    /// <summary>
+    /// ADR-119 (SH/R-00733): the fixed admission-baseline region this boot request used to carry is
+    /// retired — first delivery and release are now driven entirely by Runtime's per-connection Section
+    /// subscription table (taken every tick), not by a Section box named at boot. Sending the old
+    /// <c>voxelBaselineRegion</c> field here would now be rejected as an unknown/retired field.
+    /// </summary>
+    private const string VoxelProfileFields = ",\"worldProfile\":\"runtime+voxel\"";
 
     private static (string Replication, string Ecs) RequireRuntime() => (
         HostEntryBridge.Require("LUMIO_RUNTIME_REPLICATION_DLL", "the host wires Runtime from the named three-path"),

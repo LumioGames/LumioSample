@@ -200,8 +200,17 @@ public sealed class SampleMiningPlan
     /// One tick. <paramref name="visible"/> is this frame's census; <paramref name="selfHex"/>
     /// seeds the per-bot sweep and target choice so two bots in one world do not queue behind the
     /// same vein (the authority admits one unsettled dig per vein).
+    /// <para>
+    /// <paramref name="isVanished"/> answers, for one net-entity id the plan is currently tracking,
+    /// whether it left the census because it was actually destroyed (<c>terminated</c>) rather than
+    /// merely because this connection's Section subscription changed (<c>left_aoi</c> — block
+    /// entities, ADR-119, can leave the census that way without dying, and the number may come back
+    /// under the same id). Omitting it (<c>null</c>) keeps the old, coarser "gone from the census at
+    /// all" reading, so a caller that cannot yet tell the two apart still compiles and runs.
+    /// </para>
     /// </summary>
-    public SampleBotCommand Advance(bool hasSelf, string? selfHex, IReadOnlyList<SampleBotEntity>? visible)
+    public SampleBotCommand Advance(bool hasSelf, string? selfHex, IReadOnlyList<SampleBotEntity>? visible,
+        Func<string, bool>? isVanished = null)
     {
         IReadOnlyList<SampleBotEntity> census = visible ?? Array.Empty<SampleBotEntity>();
         if (Phase == SampleMiningPhase.Complete) return SampleBotCommand.Done;
@@ -216,15 +225,20 @@ public sealed class SampleMiningPlan
             Phase = SampleMiningPhase.Mining;
         }
 
-        return Phase == SampleMiningPhase.Mining ? AdvanceMining(census) : AdvanceCollecting(census);
+        return Phase == SampleMiningPhase.Mining ? AdvanceMining(census, isVanished) : AdvanceCollecting(census, isVanished);
     }
 
-    private SampleBotCommand AdvanceMining(IReadOnlyList<SampleBotEntity> census)
+    private SampleBotCommand AdvanceMining(IReadOnlyList<SampleBotEntity> census, Func<string, bool>? isVanished)
     {
         if (_target.Length != 0)
         {
             if (!Holds(census, _target, VeinEntityType))
             {
+                // Only a real dig-through (terminated) ends the mining leg. A block-entity vein that
+                // merely left this connection's Section subscription (left_aoi) is not gone — it may
+                // return under the same id — so the plan keeps waiting on it rather than declaring
+                // victory and wandering off to look for a drop that was never made.
+                if (isVanished is not null && !isVanished(_target)) return SampleBotCommand.Wait;
                 TargetVeinGone = true;
                 Phase = SampleMiningPhase.Collecting;
                 _target = string.Empty;
@@ -252,12 +266,13 @@ public sealed class SampleMiningPlan
         return SampleBotCommand.Mine(picked);
     }
 
-    private SampleBotCommand AdvanceCollecting(IReadOnlyList<SampleBotEntity> census)
+    private SampleBotCommand AdvanceCollecting(IReadOnlyList<SampleBotEntity> census, Func<string, bool>? isVanished)
     {
         if (_target.Length != 0)
         {
             if (!Holds(census, _target, OreDropEntityType))
             {
+                if (isVanished is not null && !isVanished(_target)) return SampleBotCommand.Wait;
                 TargetDropGone = true;
                 Phase = SampleMiningPhase.Complete;
                 _target = string.Empty;

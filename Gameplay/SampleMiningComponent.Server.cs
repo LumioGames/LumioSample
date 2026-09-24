@@ -46,6 +46,50 @@ public sealed partial class SampleMiningComponent
     private bool _initialized;
     private ulong _serial;
 
+    /// <summary>
+    /// A live vein's binding-table position (ADR-119: "位置只有一个来源：绑定表"). Populated only by
+    /// <see cref="ScanSection"/>/<see cref="CompletePendingBind"/>, both authority-only — a predicting
+    /// client's own <see cref="SampleMiningComponent"/> instance never runs the scan (no
+    /// <c>SampleMiningSystem</c> registration on that side), so <see cref="TryLocate"/> always misses
+    /// there and callers must treat a miss as "unknown", never as "not bound" (ADR-106 §8).
+    /// </summary>
+    private readonly record struct VeinLocation(ulong SectionKey, int CellOffset, int WorldX, int WorldZ)
+    {
+        public Vector3 CellCenter => new(WorldX + 0.5f, 0.5f, WorldZ + 0.5f);
+    }
+
+    private readonly Dictionary<NetEntityId, VeinLocation> _location = new();
+    // Section readiness last observed, to fire B6's scan on the *rising* edge only (a Section that was
+    // already ready last tick is not scanned again just because it is still ready this tick).
+    private readonly Dictionary<ulong, bool> _sectionReady = new();
+    private readonly Queue<ulong> _scanQueue = new();
+    private List<ulong>? _candidateSections;
+    // One create→bind round trip in flight at a time, so the freshly-live veins a tick later can be
+    // correlated to the offsets that were queued for them purely by creation order — no coordinate
+    // field on the entity to match them back up with (ADR-119).
+    private ulong? _pendingSection;
+    private List<int>? _pendingOffsets;
+
+    /// <summary>
+    /// Reverse-looks-up a live vein's Section/cell/world-space center from this side's own binding-table
+    /// bookkeeping. False means "unknown to this side" — not bound at all, or (always, on a predicting
+    /// client) this side never scans; callers must not treat a miss as proof the vein is unbound.
+    /// </summary>
+    public bool TryLocate(NetEntityId vein, out ulong sectionKey, out int cellOffset, out Vector3 cellCenter)
+    {
+        if (_location.TryGetValue(vein, out VeinLocation loc))
+        {
+            sectionKey = loc.SectionKey;
+            cellOffset = loc.CellOffset;
+            cellCenter = loc.CellCenter;
+            return true;
+        }
+        sectionKey = 0UL;
+        cellOffset = 0;
+        cellCenter = default;
+        return false;
+    }
+
     internal void Advance()
     {
         HostVoxelWorldAdapter? current = VoxelGameplayBinding.Resolve(World.Manager);
@@ -57,7 +101,8 @@ public sealed partial class SampleMiningComponent
         }
         if (current is null) return;
         Settle(current);
-        if (!_initialized) Initialize(current);
+        if (!_initialized) SetupBindingPolicy(current);
+        ContinueScanning(current);
     }
 
     /// <summary>
@@ -144,7 +189,10 @@ public sealed partial class SampleMiningComponent
     internal bool CanMine(AbilityComponent owner, VeinReserveComponent vein)
     {
         HostVoxelWorldAdapter? adapter = VoxelGameplayBinding.Resolve(World.Manager);
-        if (adapter is null || !vein.HasCell.Value || !_initialized) return false;
+        if (adapter is null || !_initialized) return false;
+        // Position comes only from this side's own binding-table bookkeeping (ADR-119); a vein this
+        // scan has not (yet) bound to a cell cannot be mined.
+        if (!TryLocate(vein.Entity, out ulong sectionKey, out int cellOffset, out _)) return false;
         // "Who digs owns the cell": one unsettled dig per player and one per vein. Two players may
         // order digs on two veins of one section in one frame through one physical batch.
         // Each logical result settles its own miner; a refusal pays nothing.
@@ -160,9 +208,9 @@ public sealed partial class SampleMiningComponent
         }
         // Refuse the activation rather than let unsettled work grow without bound (R-00650).
         if (owned >= PendingDigComponent.MaxPerPlayer || inflight >= PendingDigComponent.MaxPerWorld) return false;
-        VoxelCellQuery cell = adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
+        VoxelCellQuery cell = adapter.Read(sectionKey, cellOffset);
         return cell.HasBlockId && cell.BlockId != 0
-            && adapter.BindingGet(vein.SectionKey.Value, vein.CellOffset.Value) == target;
+            && adapter.BindingGet(sectionKey, cellOffset) == target;
     }
 
     /// <summary>
@@ -175,28 +223,33 @@ public sealed partial class SampleMiningComponent
     {
         if (!CanMine(owner, vein)) return false;
         HostVoxelWorldAdapter adapter = VoxelGameplayBinding.Resolve(World.Manager)!;
-        VoxelCellQuery cell = adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value);
+        // CanMine already proved this lookup succeeds; nothing between there and here can invalidate
+        // it (both run inside the same synchronous ability activation).
+        VeinLocation loc = _location[vein.Entity];
+        ulong sectionKey = loc.SectionKey;
+        int cellOffset = loc.CellOffset;
+        VoxelCellQuery cell = adapter.Read(sectionKey, cellOffset);
         string transaction = $"{HostVoxelWorldAdapter.LogicalDigPrefix}{World.InstanceId:x16}:{World.Tick:x16}:{++_serial:x16}";
         ISampleConfig config = SampleConfigBinding.For(World);
         PendingDigComponent record = World.Get<PendingDigComponent>(owner.Entity);
         record.Transaction.Value = transaction;
         record.VeinHex.Value = vein.Entity.ToHex();
-        record.SectionKey.Value = vein.SectionKey.Value;
-        record.CellOffset.Value = vein.CellOffset.Value;
-        record.CellX.Value = vein.CellX.Value;
-        record.CellY.Value = vein.CellY.Value;
-        record.CellZ.Value = vein.CellZ.Value;
+        record.SectionKey.Value = sectionKey;
+        record.CellOffset.Value = cellOffset;
+        record.CellX.Value = loc.WorldX;
+        record.CellY.Value = 0;
+        record.CellZ.Value = loc.WorldZ;
         record.Amount.Value = config.Mining.OrePerVein;
         record.StaminaCost.Value = unchecked((ulong)config.Mining.StaminaCost);
         record.Serial.Value = _serial;
         record.Active.Value = true;
         _awaiting.Add(transaction);
-        VoxelStageResult result = adapter.TryStageCoalescibleDigThrough(vein.SectionKey.Value, vein.CellOffset.Value,
+        VoxelStageResult result = adapter.TryStageCoalescibleDigThrough(sectionKey, cellOffset,
             cell.SectionRevision, transaction);
         if (result.Status == VoxelStageStatus.Staged)
         {
-            LogStage(Log, transaction, vein.SectionKey.Value, vein.CellOffset.Value,
-                adapter.BindingGet(vein.SectionKey.Value, vein.CellOffset.Value), null);
+            LogStage(Log, transaction, sectionKey, cellOffset,
+                adapter.BindingGet(sectionKey, cellOffset), null);
             LogBefore(Log, transaction, cell.BlockId, cell.SectionRevision, null);
             return true;
         }
@@ -258,56 +311,162 @@ public sealed partial class SampleMiningComponent
         record.VeinHex.Value = string.Empty;
     }
 
-    private void Initialize(HostVoxelWorldAdapter adapter)
+    /// <summary>
+    /// Declares the block-type → block-entity-type binding policy once (R4/ADR-119 决策 1). Runtime
+    /// derives the live candidate list itself from every entity of a declared type from here on
+    /// (<c>RefreshBindingContext</c>) — Sample no longer assembles or replaces that list by hand.
+    /// </summary>
+    private void SetupBindingPolicy(HostVoxelWorldAdapter adapter)
     {
         ISampleConfig config = SampleConfigBinding.For(World);
+        adapter.SetBindingPolicy(new[]
+        {
+            new VoxelBindingPolicyEntry(config.Map.OreBlockType, World.Registry.WireName(typeof(VeinEntity))),
+        });
+        _initialized = true;
+    }
+
+    /// <summary>
+    /// One scan step per tick (ADR-119 §4 B6): first finishes any create→bind round trip a previous
+    /// tick started, otherwise polls every candidate Section's residency-readiness edge and, on a
+    /// newly-ready Section, scans its unbound ore cells. One step at a time keeps the
+    /// freshly-created-veins ↔ requested-offsets correlation in <see cref="CompletePendingBind"/>
+    /// unambiguous — nothing else in this component creates <see cref="VeinReserveComponent"/> entities.
+    /// </summary>
+    private void ContinueScanning(HostVoxelWorldAdapter adapter)
+    {
+        if (!_initialized) return;
+        ISampleConfig config = SampleConfigBinding.For(World);
+        PollSectionReadiness(adapter, config);
+        if (_pendingSection is ulong pendingSection)
+        {
+            CompletePendingBind(adapter, pendingSection);
+            return;
+        }
+        if (_scanQueue.Count == 0) return;
+        ScanSection(adapter, _scanQueue.Dequeue(), config);
+    }
+
+    /// <summary>
+    /// Every Section the authored map spans, computed once. A Section becoming newly readable
+    /// (<see cref="HostVoxelWorldAdapter.TryReadSectionBindings"/> false→true) is this side's only
+    /// signal that it "entered residency" — from the base map on first boot, or from its partition
+    /// record after a reload; both look identical here, which is exactly B6's point.
+    /// </summary>
+    private List<ulong> CandidateSections(ISampleConfig config)
+    {
+        if (_candidateSections is not null) return _candidateSections;
+        var sections = new List<ulong>();
+        var seen = new HashSet<ulong>();
+        int width = config.Map.Width;
+        int depth = config.Map.Depth;
+        for (int z = 0; z < depth; z += 16)
+        for (int x = 0; x < width; x += 16)
+        {
+            ulong section = ((ulong)(x >> 4) << 36) | (uint)(z >> 4);
+            if (seen.Add(section)) sections.Add(section);
+        }
+        _candidateSections = sections;
+        return sections;
+    }
+
+    private void PollSectionReadiness(HostVoxelWorldAdapter adapter, ISampleConfig config)
+    {
+        List<ulong> candidates = CandidateSections(config);
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            ulong section = candidates[i];
+            bool ready = adapter.TryReadSectionBindings(section, out _, out _);
+            bool wasReady = _sectionReady.TryGetValue(section, out bool prior) && prior;
+            _sectionReady[section] = ready;
+            if (ready && !wasReady) _scanQueue.Enqueue(section);
+        }
+    }
+
+    /// <summary>
+    /// Scans one Section's ore cells for ones the committed binding table does not yet name (ADR-119
+    /// §4 B6): an already-bound cell only refreshes this side's own location cache (so a restart, not
+    /// just a Section reload, re-learns where every live vein already is); an unbound one queues a new
+    /// vein. No "first load" flag is kept — idempotency is the binding-table check itself.
+    /// </summary>
+    private void ScanSection(HostVoxelWorldAdapter adapter, ulong section, ISampleConfig config)
+    {
+        if (!adapter.TryReadSectionBindings(section, out IReadOnlyList<SectionBindingEntry> entries, out _))
+            return; // No longer ready; the next false→true edge re-queues it.
+
+        var bound = new Dictionary<int, NetEntityId>(entries.Count);
+        for (int i = 0; i < entries.Count; i++) bound[entries[i].CellOffset] = entries[i].Entity;
+
+        int sectionOriginX = (int)(section >> 36) << 4;
+        int sectionOriginZ = (int)(section & 0xFFFFFFFFUL) << 4;
         int width = config.Map.Width;
         int depth = config.Map.Depth;
         uint oreType = config.Map.OreBlockType;
-        var veins = World.Each<VeinReserveComponent>().Where(v => v.HasCell.Value).ToList();
-        bool created = false;
-        var bindings = new List<VoxelBindingOp>();
-        for (int z = 0; z < depth; z++)
-        for (int x = 0; x < width; x++)
+
+        var toCreate = new List<int>();
+        for (int zOff = 0; zOff < 16; zOff++)
+        for (int xOff = 0; xOff < 16; xOff++)
         {
-            // Authored floor cells use the wire section/cell encoding, never a transform fallback.
-            ulong section = ((ulong)(x >> 4) << 36) | (uint)(z >> 4);
-            int offset = (z & 15) * 16 + (x & 15);
+            int worldX = sectionOriginX + xOff;
+            int worldZ = sectionOriginZ + zOff;
+            if (worldX >= width || worldZ >= depth) continue; // Section straddles the map edge.
+            int offset = zOff * 16 + xOff;
             VoxelCellQuery cell = adapter.Read(section, offset);
-            if (!cell.HasBlockId) return;
-            if ((cell.BlockId >> 8) != oreType) continue;
-            VeinReserveComponent? vein = veins.SingleOrDefault(v => v.SectionKey.Value == section && v.CellOffset.Value == offset);
-            if (vein is null)
+            if (!cell.HasBlockId || (cell.BlockId >> 8) != oreType) continue;
+            if (bound.TryGetValue(offset, out NetEntityId existing))
             {
-                if (adapter.BindingGet(section, offset) is not null)
-                    throw new InvalidOperationException("Restored ore binding has no matching live vein.");
-                EntityOrder order = SampleVein.Queue(World);
-                vein = order.Get<VeinReserveComponent>();
-                vein.HasCell.Value = true;
-                vein.SectionKey.Value = section;
-                vein.CellOffset.Value = offset;
-                vein.CellX.Value = x;
-                vein.CellY.Value = 0;
-                vein.CellZ.Value = z;
-                created = true;
+                _location[existing] = new VeinLocation(section, offset, worldX, worldZ);
                 continue;
             }
-            string? bound = adapter.BindingGet(section, offset);
-            if (bound == vein.Entity.ToHex()) continue;
-            if (bound is not null) throw new InvalidOperationException("Ore cell belongs to another entity.");
-            bindings.Add(new VoxelBindingOp(section, offset, vein.Entity.ToHex()) { ExpectedSectionRevision = cell.SectionRevision });
+            toCreate.Add(offset);
         }
-        if (created) return; // Binding metadata may only name entities made live by normal command-buffer commit.
-        adapter.ReplaceBindingContext(new[] { new VoxelBindingPolicyEntry(oreType, World.Registry.WireName(typeof(VeinEntity))) },
-            veins.Select(v => v.Entity).ToArray());
-        if (bindings.Count != 0)
+        if (toCreate.Count == 0) return;
+        // Ascending offset order matches the ascending-counter order CompletePendingBind zips these
+        // against next tick — command-buffer creates are issued, and therefore numbered, in order.
+        for (int i = 0; i < toCreate.Count; i++) SampleVein.Queue(World);
+        _pendingSection = section;
+        _pendingOffsets = toCreate;
+    }
+
+    /// <summary>
+    /// Finishes a create→bind round trip a previous tick's <see cref="ScanSection"/> started: the
+    /// veins it queued are now live (command-buffer creates commit between Ticks), so it correlates
+    /// them to the requested offsets by ascending <see cref="NetEntityId.Counter"/> — the same order
+    /// they were queued in — refreshes the binding candidate list so Native accepts naming them, and
+    /// stages their bindings. A count mismatch is a framework invariant break (something else created
+    /// a <see cref="VeinReserveComponent"/>), not a business refusal, and faults loudly.
+    /// </summary>
+    private void CompletePendingBind(HostVoxelWorldAdapter adapter, ulong section)
+    {
+        List<int> offsets = _pendingOffsets!;
+        var fresh = new List<VeinReserveComponent>();
+        foreach (VeinReserveComponent vein in World.Each<VeinReserveComponent>())
+            if (!_location.ContainsKey(vein.Entity)) fresh.Add(vein);
+        fresh.Sort(static (a, b) => a.Entity.Counter.CompareTo(b.Entity.Counter));
+        if (fresh.Count != offsets.Count)
+            throw new InvalidOperationException(
+                $"SampleMiningComponent expected {offsets.Count} freshly-created veins for Section {section:x16}, found {fresh.Count}.");
+
+        adapter.RefreshBindingContext();
+        int sectionOriginX = (int)(section >> 36) << 4;
+        int sectionOriginZ = (int)(section & 0xFFFFFFFFUL) << 4;
+        var bindings = new List<VoxelBindingOp>(offsets.Count);
+        for (int i = 0; i < offsets.Count; i++)
         {
-            VoxelStageResult result = adapter.TryStageMutation(
-                Array.Empty<VoxelWriteEntry>(), bindings, NextTransaction("bind"));
-            if (result.Status != VoxelStageStatus.Staged) return;
-            return; // Observe the published bindings next tick; Staged is not initialization success.
+            int offset = offsets[i];
+            NetEntityId entity = fresh[i].Entity;
+            int worldX = sectionOriginX + offset % 16;
+            int worldZ = sectionOriginZ + offset / 16;
+            _location[entity] = new VeinLocation(section, offset, worldX, worldZ);
+            VoxelCellQuery cell = adapter.Read(section, offset);
+            bindings.Add(new VoxelBindingOp(section, offset, entity.ToHex()) { ExpectedSectionRevision = cell.SectionRevision });
         }
-        _initialized = true;
+        // Fire-and-forget like the old Initialize: a refusal here (e.g. a revision race) simply leaves
+        // these offsets unbound, and the next false→true readiness edge (or a later poll noticing the
+        // cell still unbound) is not re-armed automatically today — a known limitation, see the PR notes.
+        adapter.TryStageMutation(Array.Empty<VoxelWriteEntry>(), bindings, NextTransaction("bind"));
+        _pendingSection = null;
+        _pendingOffsets = null;
     }
 
     private string NextTransaction(string kind) => $"sample-{kind}-{World.InstanceId}-{World.Tick}-{++_serial}";
@@ -320,6 +479,15 @@ public sealed partial class SampleMiningComponent
         // a fresh restored adapter supplies its durable results before unavailable records are cleared.
         _awaiting.Clear();
         _initialized = false;
+        // Every one of these is this-process bookkeeping over the old adapter's binding table, not
+        // world state: rebuilding it from the fresh adapter is exactly SetupBindingPolicy + a full
+        // re-poll (idempotent — ScanSection only ever fills gaps the committed table doesn't already
+        // have bound), never a second copy of anything durable.
+        _location.Clear();
+        _sectionReady.Clear();
+        _scanQueue.Clear();
+        _pendingSection = null;
+        _pendingOffsets = null;
     }
 
     protected override void OnDestroy() => Detach();
