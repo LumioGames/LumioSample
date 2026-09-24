@@ -60,28 +60,28 @@
       "chunks": [
         {
           "id": 0,
-          "packageFingerprint": "f6d5bf199d83d0b5c8f65b0843a8bd183d60d06671808718367c5778d9e21320",
+          "packageFingerprint": "b78dd85ebac657905eeaa040bdc3d7fc8d204f24ebcee312a089832e73fb55c5",
           "path": "server/mining.json"
         }
       ],
-      "contentFingerprint": "97b5df7e9c2319ef3184bd9eb084aa9cf41af681d6c71799c66128afa92a19a9",
-      "packageFingerprint": "f6d5bf199d83d0b5c8f65b0843a8bd183d60d06671808718367c5778d9e21320",
+      "contentFingerprint": "a310a9f63a25f0a0bf38e900762e087163b88834ad1d2a952ec9c2e11f634216",
+      "packageFingerprint": "b78dd85ebac657905eeaa040bdc3d7fc8d204f24ebcee312a089832e73fb55c5",
       "path": "server/mining.json",
-      "sourceFingerprint": "a8e61bf2677b1e08ca592e330f05e0d10c2785825584371e36ad7f5fe98982e4",
+      "sourceFingerprint": "6040f58c4e3432c5c69f59ebdcde9b3a8e6a9fad3ceb37c3dfbf2c1e4fd37ba2",
       "table": "mining"
     },
     {
       "chunks": [
         {
           "id": 0,
-          "packageFingerprint": "39aafbfc91edba7a53c6ef99d0ee7ae1cefd5eb80c2c632ea8b0cd4aa1c6b879",
+          "packageFingerprint": "3da4d0f9b8162dfa7f81e4eb44f6269c26317fc4c2a53a75b9e2ec4c906e611d",
           "path": "server/movement.json"
         }
       ],
-      "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
-      "packageFingerprint": "39aafbfc91edba7a53c6ef99d0ee7ae1cefd5eb80c2c632ea8b0cd4aa1c6b879",
+      "contentFingerprint": "15521920e3f3740715b31dd8d2bce1b455b4d7619a0b696401fb7590e540438a",
+      "packageFingerprint": "3da4d0f9b8162dfa7f81e4eb44f6269c26317fc4c2a53a75b9e2ec4c906e611d",
       "path": "server/movement.json",
-      "sourceFingerprint": "923ea0373d6071141748b66727a693d0e83e95e45738a266e7798350f1af32bd",
+      "sourceFingerprint": "52ee9bddfe016869f003cbf71dd32a4a6026aec0fe7feb018787af9335b44bbf",
       "table": "movement"
     },
     {
