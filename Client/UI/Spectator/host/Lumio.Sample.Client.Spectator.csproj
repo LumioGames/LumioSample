@@ -1,0 +1,172 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <!-- Spectator wasm host (the published game page). Not in LumioSample.slnx; publishing needs the
+       wasm-tools workload, so CI compiles the shared sources through ../tests instead. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Lumio.Sample.Client.Spectator</AssemblyName>
+    <RootNamespace>Lumio.Sample.Client.Spectator</RootNamespace>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!--
+      Fingerprint the wasm runtime (`_framework/`, bridged by the import map the
+      SDK writes into index.html) but not the page's own files. index.html
+      reaches main.js through `<script src>` and spectator.css through
+      `<link href>`, and an import map covers neither — it only rewrites ES
+      module specifiers. With content fingerprinting on, both would be published
+      as `main.<fingerprint>.js` / `spectator.<fingerprint>.css` and the page
+      would 404 on itself. Plain names also keep the published tree byte-for-byte
+      servable by the game bundle static host, which reads no asset manifest.
+    -->
+    <StaticWebAssetsFingerprintContent>false</StaticWebAssetsFingerprintContent>
+    <!-- Development host only: keep the .NET 10 browser agent enabled and
+         avoid AOT/trimming so supported C# deltas can be applied in place. -->
+    <WasmEnableHotReload>true</WasmEnableHotReload>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <PublishTrimmed>false</PublishTrimmed>
+    <DebugType>portable</DebugType>
+    <Optimize>false</Optimize>
+    <!-- LumioClientRoot / LumioClientSpectatorParts are resolved once in ../Directory.Build.props. -->
+    <LumioBrowserReplica>true</LumioBrowserReplica>
+    <_SpectatorCfg Condition="'$(Configuration)' != ''">$(Configuration)</_SpectatorCfg>
+    <_SpectatorCfg Condition="'$(_SpectatorCfg)' == ''">Debug</_SpectatorCfg>
+    <_SpectatorReplicaDir>$(LumioClientRoot)/Client/Gameplay/ECS/src/bin/$(_SpectatorCfg)/netstandard2.1/</_SpectatorReplicaDir>
+    <_SpectatorGameplayDir>$(LumioSampleRepoRoot)Gameplay/bin/$(_SpectatorCfg)/net10.0-browser/</_SpectatorGameplayDir>
+    <_SpectatorReplicaDll>$(_SpectatorReplicaDir)Lumio.Client.Gameplay.ECS.dll</_SpectatorReplicaDll>
+    <_SpectatorGameplayDll>$(_SpectatorGameplayDir)Lumio.Sample.Gameplay.dll</_SpectatorGameplayDll>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\SpectatorDump.cs" Link="SpectatorDump.cs" />
+    <Compile Include="..\SpectatorReplicaHost.cs" Link="SpectatorReplicaHost.cs" />
+    <!-- Engine parts, compiled from the LumioClient checkout (R-00710): not copied here. -->
+    <Compile Include="$(LumioClientSpectatorParts)tests/SpectatorSectionFrame.cs" Link="LumioClient/SpectatorSectionFrame.cs" />
+    <Compile Include="$(LumioClientSpectatorParts)tests/ReplicaApplyTickLoop.cs" Link="LumioClient/ReplicaApplyTickLoop.cs" />
+  </ItemGroup>
+  <!--
+    The page is the deliverable, so it has to be in the publish output. It lives
+    one level up (shared with the source tree that `dotnet watch` serves), and
+    this project has no `wwwroot/` of its own, so the files enter as linked
+    content: `ResolveProjectStaticWebAssets` matches `@(Content)` against
+    `wwwroot/**` by link path, which is what puts them next to the `_framework/`
+    the same publish produces. Without this, `publish/wwwroot/` held only
+    `_framework/` and the deployer had to hand-assemble the page around it.
+    `*.test.mjs` are node test files, never part of the bundle.
+
+    The page's own files come from this directory. The ES modules `main.js`
+    imports by relative name (`./connect-ds.mjs`, `./voxel-grid.mjs`,
+    `./ds-close-codes.mjs`, `./not-serving-retry.mjs`, `./dev-hot-reload.mjs`)
+    are engine parts: they are linked straight from the LumioClient checkout into
+    `wwwroot/` beside `main.js` (R-00710). The two generated ones stay generated
+    by LumioClient's own generators and `--check`; this repository has no copy.
+  -->
+  <ItemGroup>
+    <Content Include="..\index.html" Link="wwwroot\index.html" />
+    <Content Include="..\main.js" Link="wwwroot\main.js" />
+    <Content Include="..\spectator.css" Link="wwwroot\spectator.css" />
+    <Content Include="$(LumioClientSpectatorParts)*.mjs" Exclude="$(LumioClientSpectatorParts)*.test.mjs" Link="wwwroot\%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+  </ItemGroup>
+  <!-- Reference already-built ns2.1 Replica + browser Gameplay output. A
+       ProjectReference graph from this net10.0 wasm host unifies Runtime onto
+       net10.0 and NativeLoader enters _framework. -->
+  <ItemGroup>
+    <Reference Include="Lumio.Client.Log">
+      <HintPath>$(_SpectatorReplicaDir)Lumio.Client.Log.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.Client.Gameplay.ECS">
+      <HintPath>$(_SpectatorReplicaDll)</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.Sample.Gameplay">
+      <HintPath>$(_SpectatorGameplayDll)</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Command">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Command.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Config">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Config.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Coordination">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Coordination.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Ecs">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Ecs.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Gas">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Gas.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Observability">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Observability.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Persistence">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Persistence.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Primitives">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Primitives.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Replication">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Replication.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.GameRuntime.Simulation">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Simulation.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Lumio.Engine.NativeLoader.Hfsm">
+      <HintPath>$(_SpectatorGameplayDir)Lumio.Engine.NativeLoader.Hfsm.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="RequireBrowserReplicaAssemblies" BeforeTargets="ResolveAssemblyReferences">
+    <Error
+      Condition="!Exists('$(_SpectatorReplicaDll)')"
+      Text="SPECTATOR_REPLICA_DLL_MISSING build Replica ns2.1 first: $(_SpectatorReplicaDll)" />
+    <Error
+      Condition="!Exists('$(_SpectatorGameplayDll)')"
+      Text="SPECTATOR_GAMEPLAY_DLL_MISSING build Sample gameplay with -p:LumioEcsSide=client -p:LumioBrowserReplica=true first: $(_SpectatorGameplayDll)" />
+    <Error
+      Condition="Exists('$(_SpectatorGameplayDir)Lumio.Engine.NativeLoader.dll')"
+      Text="SPECTATOR_GAMEPLAY_NATIVELOADER gameplay browser output still contains NativeLoader.dll: $(_SpectatorGameplayDir)" />
+  </Target>
+  <!--
+    Browser voxel .wasm. ADR-078 决策 1: the voxel code the page runs is
+    VoxelEngine's own Rust built for wasm32-unknown-unknown, so it is a build
+    input here, never something this repo reimplements or vendors. It is not
+    committed (a build output belongs in neither repo): the publish copies it
+    next to the page, beside the `_framework/` the same publish produces, and
+    fails closed when it was not built. `main.js` fetches it as
+    `./lumio_voxel_wasm.wasm`, relative to index.html.
+  -->
+  <Target Name="CopyVoxelWasmToSpectator" AfterTargets="Build;Publish">
+    <Error
+      Condition="'$(LumioVoxelWasm)' == '' OR !Exists('$(LumioVoxelWasm)')"
+      Text="SPECTATOR_VOXEL_WASM_MISSING build it first: cargo build -p lumio-voxel-wasm --release --target wasm32-unknown-unknown (in $(LumioVoxelRoot); set LUMIO_VOXEL_ROOT when LumioVoxelEngine is not a sibling checkout). Expected: $(LumioVoxelWasm)" />
+    <Copy SourceFiles="$(LumioVoxelWasm)" DestinationFolder="$(LumioSpectatorRoot)" SkipUnchangedFiles="true" />
+    <Copy Condition="Exists('$(PublishDir)wwwroot')" SourceFiles="$(LumioVoxelWasm)" DestinationFolder="$(PublishDir)wwwroot" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="ForbidNativeLoaderInBrowserPublish" AfterTargets="Build;Publish">
+    <PropertyGroup>
+      <_SpectatorFramework Condition="Exists('$(PublishDir)wwwroot\_framework')">$(PublishDir)wwwroot\_framework</_SpectatorFramework>
+      <_SpectatorFramework Condition="'$(_SpectatorFramework)' == '' AND Exists('$(OutDir)wwwroot\_framework')">$(OutDir)wwwroot\_framework</_SpectatorFramework>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_SpectatorFramework)' != ''">
+      <_ForbiddenNativeLoaderWasm Include="$(_SpectatorFramework)\Lumio.Engine.NativeLoader.*.wasm"
+                                  Exclude="$(_SpectatorFramework)\Lumio.Engine.NativeLoader.Hfsm.*.wasm" />
+    </ItemGroup>
+    <Error
+      Condition="'@(_ForbiddenNativeLoaderWasm)' != ''"
+      Text="SPECTATOR_NATIVELOADER_WASM NativeLoader must not enter browser _framework: @(_ForbiddenNativeLoaderWasm). Browser wasm TypeLoadException on RuntimeInformation leaves dump stub empty." />
+  </Target>
+</Project>
+
