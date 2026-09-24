@@ -44,6 +44,7 @@ public sealed partial class SampleMiningComponent
     // records whose result is unavailable; this set only tracks work staged by this process.
     private readonly HashSet<string> _awaiting = new(StringComparer.Ordinal);
     private bool _initialized;
+    private bool _bindingPolicySet;
     private ulong _serial;
 
     internal void Advance()
@@ -298,8 +299,15 @@ public sealed partial class SampleMiningComponent
             bindings.Add(new VoxelBindingOp(section, offset, vein.Entity.ToHex()) { ExpectedSectionRevision = cell.SectionRevision });
         }
         if (created) return; // Binding metadata may only name entities made live by normal command-buffer commit.
-        adapter.ReplaceBindingContext(new[] { new VoxelBindingPolicyEntry(oreType, World.Registry.WireName(typeof(VeinEntity))) },
-            veins.Select(v => v.Entity).ToArray());
+        // ADR-119 (R-00727): gameplay only supplies the policy; Runtime derives the candidate list from the
+        // live World and pushes it at once. Set it once per adapter, here: every vein is committed and live
+        // by now, this pass creates none, and no mutation is pending yet (digs wait for _initialized and the
+        // bind below is staged after this call), which SetBindingPolicy requires.
+        if (!_bindingPolicySet)
+        {
+            adapter.SetBindingPolicy(new[] { new VoxelBindingPolicyEntry(oreType, World.Registry.WireName(typeof(VeinEntity))) });
+            _bindingPolicySet = true;
+        }
         if (bindings.Count != 0)
         {
             VoxelStageResult result = adapter.TryStageMutation(
@@ -320,6 +328,7 @@ public sealed partial class SampleMiningComponent
         // a fresh restored adapter supplies its durable results before unavailable records are cleared.
         _awaiting.Clear();
         _initialized = false;
+        _bindingPolicySet = false;
     }
 
     protected override void OnDestroy() => Detach();

@@ -92,6 +92,9 @@ public sealed class GeneratedRegistry : EcsRegistry
     public override ulong DeclaredTickRateHz => 20UL;
 
     /// <inheritdoc />
+    public override IReadOnlyList<Type> BlockEntityTypes { get; } = new Type[] { typeof(VeinEntity) };
+
+    /// <inheritdoc />
     public override IReadOnlyList<FieldAttributeDeclaration> AttributeDeclarations { get; } = BuildAttributes();
 
     /// <inheritdoc />
@@ -158,8 +161,7 @@ public sealed class GeneratedRegistry : EcsRegistry
         }
         if (entityType == typeof(VeinEntity))
         {
-            if (componentType == typeof(ObserverComponent)) return 0;
-            if (componentType == typeof(VeinReserveComponent)) return 1;
+            if (componentType == typeof(VeinReserveComponent)) return 0;
             return -1;
         }
         if (entityType == typeof(WorldEntity))
@@ -206,8 +208,7 @@ public sealed class GeneratedRegistry : EcsRegistry
         }
         if (entityType == typeof(VeinEntity))
         {
-            if (string.Equals(componentName, "ObserverComponent", StringComparison.Ordinal)) return 0;
-            if (string.Equals(componentName, "VeinReserveComponent", StringComparison.Ordinal)) return 1;
+            if (string.Equals(componentName, "VeinReserveComponent", StringComparison.Ordinal)) return 0;
             return -1;
         }
         if (entityType == typeof(WorldEntity))
@@ -286,13 +287,13 @@ public sealed class GeneratedRegistry : EcsRegistry
             new FieldAttributeDeclaration("PendingDigComponent.staminaCost", "u64", "persistent", "not-replicated", "server-only"),
             new FieldAttributeDeclaration("PendingDigComponent.transaction", "utf8-string", "persistent", "not-replicated", "server-only"),
             new FieldAttributeDeclaration("PendingDigComponent.veinHex", "utf8-string", "persistent", "not-replicated", "server-only"),
-            new FieldAttributeDeclaration("VeinReserveComponent.cellOffset", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.cellX", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.cellY", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.cellZ", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.hasCell", "bool", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "room-public"),
-            new FieldAttributeDeclaration("VeinReserveComponent.sectionKey", "u64", "persistent", "replicated", "room-public")
+            new FieldAttributeDeclaration("VeinReserveComponent.cellOffset", "i32", "persistent", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("VeinReserveComponent.cellX", "i32", "persistent", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("VeinReserveComponent.cellY", "i32", "persistent", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("VeinReserveComponent.cellZ", "i32", "persistent", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("VeinReserveComponent.hasCell", "bool", "persistent", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("VeinReserveComponent.remaining", "i32", "persistent", "replicated", "aoi-scoped"),
+            new FieldAttributeDeclaration("VeinReserveComponent.sectionKey", "u64", "persistent", "replicated", "aoi-scoped")
         };
     }
 
