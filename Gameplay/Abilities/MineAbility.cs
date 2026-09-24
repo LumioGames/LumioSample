@@ -72,19 +72,27 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
     }
 
     /// <summary>
-    /// Melee reach is the movement step from config. The target is the authored cell center.
+    /// Melee reach is the movement step from config. The target is the cell this side's own
+    /// binding-table bookkeeping (<see cref="SampleMiningComponent.TryLocate"/>) has the vein bound to
+    /// — never a field on the vein itself (ADR-119: "位置只有一个来源：绑定表").
+    /// <para>
+    /// A miss (position unknown to this side) admits rather than refuses: on the authority that only
+    /// ever happens in the one-tick window before <c>CompletePendingBind</c> lands, and on a predicting
+    /// client it is <em>always</em> a miss — that side's own <see cref="SampleMiningComponent"/> never
+    /// runs the scan — so treating it as "out of reach" would make every client-side activation refuse
+    /// locally and never reach the authority. ADR-106 §8's "unknown 不是 air" rule applies the same way
+    /// to distance: unknown is not "too far", it is "ask the authority".
+    /// </para>
     /// </summary>
     public static bool WithinReach(AbilityComponent owner, NetEntityId veinId)
     {
         if (owner is null) return false;
-        Vector3 player = owner.Get<LogicTransform>().LocalPosition;
         if (!owner.World.IsLive(veinId) || !owner.World.TypeOf(veinId).Is<VeinEntity>()) return false;
-        VeinReserveComponent reserve = owner.Get<VeinReserveComponent>(veinId);
-        if (!reserve.HasCell.Value) return false;
-        Vector3 vein = reserve.CellCenter;
-
+        if (!owner.World.Single<SampleMiningComponent>().TryLocate(veinId, out _, out _, out Vector3 cellCenter))
+            return true;
+        Vector3 player = owner.Get<LogicTransform>().LocalPosition;
         float reach = (float)SampleConfigBinding.For(owner.World).Movement.StepMeters;
-        Vector3 delta = player - vein;
+        Vector3 delta = player - cellCenter;
         return delta.LengthSquared() <= reach * reach;
     }
 

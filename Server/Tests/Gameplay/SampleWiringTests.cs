@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Numerics;
 using System.Reflection;
 using System.Linq;
 using System.Threading;
@@ -94,23 +95,12 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(SampleConfigBinding.For(world.World).Mining.VeinHitsToBreak, reserve.Remaining.Value);
     }
 
-    [Fact]
-    public void SparseBindIsFalseWithoutAHostPort()
-    {
-        using SampleWorldHarness world = SampleWorldHarness.Boot();
-        Assert.False(SampleVein.TryBind(world.Vein, binding: null, sectionKey: 1, cellOffset: 1));
-    }
-
-    [Fact]
-    public void SparseBindDelegatesToTheHostPort()
-    {
-        using SampleWorldHarness world = SampleWorldHarness.Boot();
-        var port = new RecordingVoxelBinding();
-        Assert.True(SampleVein.TryBind(world.Vein, port, sectionKey: 1, cellOffset: 2));
-        Assert.Equal(world.Vein, port.VeinId);
-        Assert.Equal(1UL, port.SectionKey);
-        Assert.Equal(2, port.CellOffset);
-    }
+    // ADR-119 retires the sparse-ref host port (ISampleVoxelBinding/SampleVein.TryBind, R-00469 era):
+    // binding is no longer something Sample requests through a host-injected writer —
+    // SampleMiningComponent stages it directly through HostVoxelWorldAdapter (B6's scan-then-bind).
+    // VeinPostAttributeSeedsRemainingFromMiningTable and every mining test below already exercise a
+    // vein that SampleWorldHarness.Boot proves is bound (MineAbility.WithinReach succeeds), so that
+    // coverage is not lost, only moved off the deleted port.
 
     [Fact]
     public void CanActivateRejectsUnparsedHexAndMissingOwner()
@@ -141,9 +131,9 @@ public sealed class SampleWiringTests : IDisposable
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         long stamina = world.StaminaBase;
         long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
-        VeinReserveComponent vein = world.World.Get<VeinReserveComponent>(world.Vein);
-        ulong section = vein.SectionKey.Value;
-        int offset = vein.CellOffset.Value;
+        VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.Locate(world.World, world.Vein);
+        ulong section = loc.Section;
+        int offset = loc.Offset;
         VoxelCellQuery cell = world.Adapter.Read(section, offset);
         // A foreign write to the same section commits first, so the dig carries a stale section revision.
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageWrite(
@@ -178,11 +168,14 @@ public sealed class SampleWiringTests : IDisposable
     {
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
-        VeinReserveComponent first = world.World.Get<VeinReserveComponent>(world.Vein);
+        ulong firstSection = VeinLocationTestSupport.Locate(world.World, world.Vein).Section;
         VeinReserveComponent second = world.World.Each<VeinReserveComponent>()
-            .First(vein => vein.Entity != world.Vein && vein.SectionKey.Value == first.SectionKey.Value);
+            .First(vein => vein.Entity != world.Vein
+                && VeinLocationTestSupport.TryLocate(world.World, vein.Entity, out VeinLocationTestSupport.VeinLocation loc)
+                && loc.Section == firstSection);
+        VeinLocationTestSupport.VeinLocation secondLoc = VeinLocationTestSupport.Locate(world.World, second.Entity);
         NetEntityId other = world.AdmitPlayer("same-section");
-        PlayerLifecycleTests.PlaceFixturePlayer(world.World, other, second.CellCenter);
+        PlayerLifecycleTests.PlaceFixturePlayer(world.World, other, secondLoc.CellCenter);
         AbilityComponent otherAbilities = world.World.Get<AbilityComponent>(other);
         long otherStamina = world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina");
         long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
@@ -228,9 +221,11 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Single(world.World.Each<OrePileComponent>());
 
         // Per world: fill the ceiling with other players' records and the next activation is refused.
-        VeinReserveComponent vein = world.World.Each<VeinReserveComponent>().First(value => value.HasCell.Value);
+        VeinReserveComponent vein = world.World.Each<VeinReserveComponent>()
+            .First(value => VeinLocationTestSupport.TryLocate(world.World, value.Entity, out _));
+        Vector3 veinCellCenter = VeinLocationTestSupport.Locate(world.World, vein.Entity).CellCenter;
         NetEntityId miner = world.AdmitPlayer("bounded-miner");
-        PlayerLifecycleTests.PlaceFixturePlayer(world.World, miner, vein.CellCenter);
+        PlayerLifecycleTests.PlaceFixturePlayer(world.World, miner, veinCellCenter);
         var input = new MineAbility.Input { TargetHex = vein.Entity.ToHex() };
         AbilityComponent abilities = world.World.Get<AbilityComponent>(miner);
         var fillers = new List<NetEntityId>();
@@ -454,8 +449,8 @@ public sealed class SampleWiringTests : IDisposable
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
         NetEntityId rival = world.AdmitPlayer("rival-miner");
-        VeinReserveComponent vein = world.World.Get<VeinReserveComponent>(world.Vein);
-        PlayerLifecycleTests.PlaceFixturePlayer(world.World, rival, vein.CellCenter);
+        Vector3 veinCellCenter = VeinLocationTestSupport.Locate(world.World, world.Vein).CellCenter;
+        PlayerLifecycleTests.PlaceFixturePlayer(world.World, rival, veinCellCenter);
         AbilityComponent rivalAbilities = world.World.Get<AbilityComponent>(rival);
         Assert.True(MineAbility.WithinReach(rivalAbilities, world.Vein));
         long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
@@ -563,21 +558,6 @@ public sealed class SampleWiringTests : IDisposable
     }
 }
 
-internal sealed class RecordingVoxelBinding : ISampleVoxelBinding
-{
-    public NetEntityId VeinId { get; private set; }
-    public ulong SectionKey { get; private set; }
-    public int CellOffset { get; private set; }
-
-    public bool TryBind(NetEntityId veinId, ulong sectionKey, int cellOffset)
-    {
-        VeinId = veinId;
-        SectionKey = sectionKey;
-        CellOffset = cellOffset;
-        return true;
-    }
-}
-
 internal sealed class SucceedingVoxelWriter : ISampleVoxelWriter
 {
     public bool TryWriteAir(NetEntityId veinId)
@@ -681,9 +661,12 @@ internal sealed class SampleWorldHarness : IDisposable
         manager.Start(Thread.CurrentThread);
         WorldTickBinding.Bind(manager);
         EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
-        for (int i = 0; i < 4; i++) manager.Tick();
-        VeinReserveComponent vein = manager.World.Each<VeinReserveComponent>().First();
-        PlayerLifecycleTests.PlaceFixturePlayer(manager.World, player.AssignedId, vein.CellCenter);
+        // ADR-119 B6: the vein is no longer created synchronously — wait out the scan's create→bind
+        // round trip rather than guess a fixed tick count (VeinLocationTestSupport).
+        NetEntityId veinId = VeinLocationTestSupport.TickUntilFirstVeinExists(manager);
+        VeinLocationTestSupport.VeinLocation location = VeinLocationTestSupport.TickUntilBound(manager, veinId);
+        VeinReserveComponent vein = manager.World.Get<VeinReserveComponent>(veinId);
+        PlayerLifecycleTests.PlaceFixturePlayer(manager.World, player.AssignedId, location.CellCenter);
         AbilityComponent abilities = manager.World.Get<AbilityComponent>(player.AssignedId);
         Assert.True(MineAbility.WithinReach(abilities, vein.Entity));
         Assert.True(MineAbility.AdmitTarget(abilities, vein.Entity));

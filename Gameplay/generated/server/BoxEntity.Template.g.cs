@@ -4,7 +4,6 @@ using Lumio.GameRuntime.Ecs;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Box;
 using Lumio.Sample.Gameplay.Components.Chat;
-using Lumio.Sample.Gameplay.Components.Fx;
 using Lumio.Sample.Gameplay.Components.Identity;
 using Lumio.Sample.Gameplay.Components.Mining;
 using Lumio.Sample.Gameplay.Components.Ore;
@@ -12,13 +11,12 @@ using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.EntityTypes;
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
-internal sealed class WorldEntityTemplate
+internal sealed class BoxEntityTemplate
 {
-    internal static readonly int ComponentCount = 2;
+    internal static readonly int ComponentCount = 1;
     internal static readonly int ObserverIndex = -1;
     internal static Component[] CreateComponents() => new Component[]
     {
-        new WorldSaveComponent(),
-        new SampleMiningComponent()
+        new BoxComponent()
     };
 }

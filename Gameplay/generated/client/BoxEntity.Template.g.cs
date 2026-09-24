@@ -12,13 +12,12 @@ using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.EntityTypes;
 namespace Lumio.Sample.Gameplay.EntityTypes;
 
-internal sealed class WorldEntityTemplate
+internal sealed class BoxEntityTemplate
 {
-    internal static readonly int ComponentCount = 2;
+    internal static readonly int ComponentCount = 1;
     internal static readonly int ObserverIndex = -1;
     internal static Component[] CreateComponents() => new Component[]
     {
-        new WorldSaveComponent(),
-        new SampleMiningComponent()
+        new BoxComponent()
     };
 }

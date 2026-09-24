@@ -48,8 +48,7 @@ public sealed class ProductionMiningTests
                 manager.World.Get<LogicTransform>(player.AssignedId).LocalPosition);
             manager.Tick();
         }
-        VeinReserveComponent vein = manager.World.Each<VeinReserveComponent>()
-            .Single(value => value.CellX.Value == 2 && value.CellZ.Value == 2);
+        VeinReserveComponent vein = VeinLocationTestSupport.TickUntilVeinBoundAt(manager, 2, 2);
         Assert.True(MineAbility.WithinReach(owner, vein.Entity));
         var mine = new MineAbility.Input { TargetHex = vein.Entity.ToHex() };
         for (int hit = 0; hit < SampleConfigBinding.For(manager.World).Mining.VeinHitsToBreak; hit++)
@@ -72,8 +71,7 @@ public sealed class ProductionMiningTests
                 File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "sample.voxel"))));
         manager.Start(Thread.CurrentThread);
         WorldTickBinding.Bind(manager);
-        manager.Tick();
-        manager.Tick();
+        VeinLocationTestSupport.TickUntilScanSettles(manager);
         Assert.Equal(4, manager.World.Each<VeinReserveComponent>().Count());
     }
 
@@ -94,9 +92,8 @@ public sealed class ProductionMiningTests
         uint ore = SampleConfigBinding.For(manager.World).Map.OreBlockType << 8;
         Assert.Equal(VoxelStageStatus.Staged, adapter.TryStageWrite(
             new[] { new VoxelWriteEntry(0, offset, ore, cell.SectionRevision) }, "ore-outside-authoring-rectangle").Status);
-        for (int tick = 0; tick < 5; tick++) manager.Tick();
-        VeinReserveComponent vein = Assert.Single(manager.World.Each<VeinReserveComponent>(),
-            value => value.CellX.Value == 10 && value.CellZ.Value == 10);
+        VeinReserveComponent vein = VeinLocationTestSupport.TickUntilVeinBoundAt(manager, 10, 10);
+        VeinLocationTestSupport.TickUntilScanSettles(manager);
         Assert.Equal(5, manager.World.Each<VeinReserveComponent>().Count());
         Assert.Equal(vein.Entity.ToHex(), adapter.BindingGet(0, offset));
         Assert.Equal(ore, adapter.Read(0, offset).BlockId);
@@ -110,8 +107,9 @@ public sealed class ProductionMiningTests
         long cost = SampleConfigBinding.For(world.World).Mining.StaminaCost;
         world.World.Get<AttributeComponent>(world.Player).SetBaseValue("Stamina", cost * hits);
         VeinReserveComponent vein = world.World.Get<VeinReserveComponent>(world.Vein);
-        ulong section = vein.SectionKey.Value;
-        int offset = vein.CellOffset.Value;
+        VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.Locate(world.World, world.Vein);
+        ulong section = loc.Section;
+        int offset = loc.Offset;
         for (int hit = 1; hit < hits; hit++)
         {
             Assert.True(world.Mine().Succeeded);
@@ -209,7 +207,7 @@ public sealed class ProductionMiningTests
         source.FlushCreates();
         int remaining = source.Remaining;
         long stamina = source.StaminaBase;
-        System.Numerics.Vector3 center = source.World.Get<VeinReserveComponent>(source.Vein).CellCenter;
+        System.Numerics.Vector3 center = VeinLocationTestSupport.Locate(source.World, source.Vein).CellCenter;
         DualCutCaptureResult capture = source.Host.Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
@@ -223,12 +221,14 @@ public sealed class ProductionMiningTests
         source.Host.Dispose();
         manager.Start(Thread.CurrentThread);
         WorldTickBinding.Bind(manager);
-        manager.Tick();
+        // A restored world's SampleMiningComponent starts with an empty location cache — it must
+        // re-scan the (already-bound) Section to relearn where the live vein is (ADR-119 §4 B6).
+        VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.TickUntilBound(manager, source.Vein);
         VeinReserveComponent vein = manager.World.Get<VeinReserveComponent>(source.Vein);
-        ulong section = vein.SectionKey.Value;
-        int offset = vein.CellOffset.Value;
+        ulong section = loc.Section;
+        int offset = loc.Offset;
         Assert.Equal(remaining, vein.Remaining.Value);
-        Assert.Equal(center, vein.CellCenter);
+        Assert.Equal(center, loc.CellCenter);
         Assert.Equal(source.Vein.ToHex(), VoxelGameplayBinding.Resolve(manager)!.BindingGet(section, offset));
         AttributeComponent attributes = manager.World.Get<AttributeComponent>(source.Player);
         Assert.Equal(stamina, attributes.GetBaseValue("Stamina"));
@@ -283,7 +283,7 @@ public sealed class ProductionMiningTests
         using SampleWorldHarness source = SampleWorldHarness.Boot();
         long stamina = source.StaminaBase;
         int remaining = source.Remaining;
-        Vector3 center = source.World.Get<VeinReserveComponent>(source.Vein).CellCenter;
+        Vector3 center = VeinLocationTestSupport.Locate(source.World, source.Vein).CellCenter;
         using DedicatedServerHostBinding host = ColdRestore(source);
         WorldManager manager = host.Manager;
 
@@ -312,10 +312,10 @@ public sealed class ProductionMiningTests
         using SampleWorldHarness source = SampleWorldHarness.Boot();
         long stamina = source.StaminaBase;
         long cost = SampleConfigBinding.For(source.World).Mining.StaminaCost;
-        VeinReserveComponent vein = source.World.Get<VeinReserveComponent>(source.Vein);
-        ulong section = vein.SectionKey.Value;
-        int offset = vein.CellOffset.Value;
-        Vector3 center = vein.CellCenter;
+        VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.Locate(source.World, source.Vein);
+        ulong section = loc.Section;
+        int offset = loc.Offset;
+        Vector3 center = loc.CellCenter;
 
         Assert.True(source.Mine().Succeeded);
         source.FlushCreates(); // phase 8 publishes the cell; the settlement is one frame away
@@ -373,9 +373,9 @@ public sealed class ProductionMiningTests
         using SampleWorldHarness source = SampleWorldHarness.Boot();
         long stamina = source.StaminaBase;
         long cost = SampleConfigBinding.For(source.World).Mining.StaminaCost;
-        VeinReserveComponent vein = source.World.Get<VeinReserveComponent>(source.Vein);
-        ulong section = vein.SectionKey.Value;
-        int offset = vein.CellOffset.Value;
+        VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.Locate(source.World, source.Vein);
+        ulong section = loc.Section;
+        int offset = loc.Offset;
         VoxelCellQuery cell = source.Adapter.Read(section, offset);
         Assert.Equal(VoxelStageStatus.Staged, source.Adapter.TryStageWrite(
             new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").Status);
@@ -411,9 +411,9 @@ public sealed class ProductionMiningTests
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness source = SampleWorldHarness.Boot();
         long stamina = source.StaminaBase;
-        VeinReserveComponent vein = source.World.Get<VeinReserveComponent>(source.Vein);
-        ulong section = vein.SectionKey.Value;
-        int offset = vein.CellOffset.Value;
+        VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.Locate(source.World, source.Vein);
+        ulong section = loc.Section;
+        int offset = loc.Offset;
         VoxelCellQuery cell = source.Adapter.Read(section, offset);
         Assert.Equal(VoxelStageStatus.Staged, source.Adapter.TryStageDigThrough(
             section, offset, cell.SectionRevision, "foreign-dig-before-player").Status);

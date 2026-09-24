@@ -27,8 +27,10 @@ public sealed class MiningRpcBatchingTests
         using var fixture = new RpcWorld();
         World world = fixture.Manager.World;
         VeinReserveComponent a = fixture.Veins[0], b = fixture.Veins[1];
-        ulong sectionA = a.SectionKey.Value, sectionB = b.SectionKey.Value;
-        int cellA = a.CellOffset.Value, cellB = b.CellOffset.Value;
+        VeinLocationTestSupport.VeinLocation locA = VeinLocationTestSupport.Locate(world, a.Entity);
+        VeinLocationTestSupport.VeinLocation locB = VeinLocationTestSupport.Locate(world, b.Entity);
+        ulong sectionA = locA.Section, sectionB = locB.Section;
+        int cellA = locA.Offset, cellB = locB.Offset;
         int hits = SampleConfigBinding.For(world).Mining.VeinHitsToBreak;
         Assert.Equal(6, hits);
         long cost = SampleConfigBinding.For(world).Mining.StaminaCost;
@@ -123,7 +125,8 @@ public sealed class MiningRpcBatchingTests
         using TempConfig config = TempConfig.WithHits(1);
         using var fixture = new RpcWorld();
         VeinReserveComponent vein = fixture.Veins[0];
-        PlayerLifecycleTests.PlaceFixturePlayer(fixture.Manager.World, fixture.B, vein.CellCenter);
+        PlayerLifecycleTests.PlaceFixturePlayer(fixture.Manager.World, fixture.B,
+            VeinLocationTestSupport.Locate(fixture.Manager.World, vein.Entity).CellCenter);
         long before = fixture.Stamina(fixture.A);
         fixture.SendPair(1, vein.Entity, vein.Entity, reverseArrival);
         fixture.Manager.Tick();
@@ -145,9 +148,10 @@ public sealed class MiningRpcBatchingTests
         using TempConfig config = TempConfig.WithHits(1);
         using var fixture = new RpcWorld();
         VeinReserveComponent vein = fixture.Veins[0];
-        ulong revision = fixture.Adapter.Read(vein.SectionKey.Value, vein.CellOffset.Value).SectionRevision;
-        Assert.Equal(VoxelStageStatus.Staged, fixture.Adapter.TryStageDigThrough(vein.SectionKey.Value,
-            vein.CellOffset.Value, revision, "external-same-cell").Status);
+        VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.Locate(fixture.Manager.World, vein.Entity);
+        ulong revision = fixture.Adapter.Read(loc.Section, loc.Offset).SectionRevision;
+        Assert.Equal(VoxelStageStatus.Staged, fixture.Adapter.TryStageDigThrough(loc.Section,
+            loc.Offset, revision, "external-same-cell").Status);
         long before = fixture.Stamina(fixture.A);
         fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.A, vein.Entity, "miner-a"));
         fixture.Manager.Tick();
@@ -194,8 +198,9 @@ public sealed class MiningRpcBatchingTests
         using var fixture = new RpcWorld(third: true);
         World world = fixture.Manager.World;
         NetEntityId rejectedVein = fixture.Veins[1].Entity;
-        ulong section = fixture.Veins[1].SectionKey.Value;
-        int cell = fixture.Veins[1].CellOffset.Value;
+        VeinLocationTestSupport.VeinLocation rejectedLoc = VeinLocationTestSupport.Locate(world, rejectedVein);
+        ulong section = rejectedLoc.Section;
+        int cell = rejectedLoc.Offset;
         long before = fixture.Stamina(fixture.A);
         Assert.True(world.TryReserveDestroyBatch(new[] { rejectedVein }, out WorldDestroyReservation? held));
         using (held)
@@ -273,11 +278,21 @@ public sealed class MiningRpcBatchingTests
             Assert.True(_connections.TryResolveConnectionState("miner-b", out B, out ulong gb));
             Assert.Equal(1UL, ga); Assert.Equal(1UL, gb);
             if (third) Assert.True(_connections.TryResolveConnectionState("miner-c", out C, out _));
-            Veins = Manager.World.Each<VeinReserveComponent>().GroupBy(row => row.SectionKey.Value)
-                .First(group => group.Count() >= (third ? 3 : 2)).Take(third ? 3 : 2).ToArray();
-            PlayerLifecycleTests.PlaceFixturePlayer(Manager.World, A, Veins[0].CellCenter);
-            PlayerLifecycleTests.PlaceFixturePlayer(Manager.World, B, Veins[1].CellCenter);
-            if (third) PlayerLifecycleTests.PlaceFixturePlayer(Manager.World, C, Veins[2].CellCenter);
+            // ADR-119 B6: veins arrive through the scan's create→bind round trip, not synchronously at
+            // Attach — wait it out before grouping by Section (VeinLocationTestSupport.Locate is the
+            // only place a vein's cell/Section can be read from now on).
+            VeinLocationTestSupport.TickUntilScanSettles(Manager);
+            var located = Manager.World.Each<VeinReserveComponent>()
+                .Select(v => (Vein: v, Loc: VeinLocationTestSupport.Locate(Manager.World, v.Entity)))
+                .ToList();
+            Veins = located.GroupBy(pair => pair.Loc.Section)
+                .First(group => group.Count() >= (third ? 3 : 2))
+                .Take(third ? 3 : 2)
+                .Select(pair => pair.Vein)
+                .ToArray();
+            PlayerLifecycleTests.PlaceFixturePlayer(Manager.World, A, VeinLocationTestSupport.Locate(Manager.World, Veins[0].Entity).CellCenter);
+            PlayerLifecycleTests.PlaceFixturePlayer(Manager.World, B, VeinLocationTestSupport.Locate(Manager.World, Veins[1].Entity).CellCenter);
+            if (third) PlayerLifecycleTests.PlaceFixturePlayer(Manager.World, C, VeinLocationTestSupport.Locate(Manager.World, Veins[2].Entity).CellCenter);
             Assert.IsNotType<RecordingAbilityPhysicsPort>(Manager.World.Get<AbilityComponent>(A).Physics);
             Manager.DrainOutbox();
         }
