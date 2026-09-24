@@ -638,6 +638,16 @@ function collectCadenceLagLogPaths(logPath) {
  * Cadence_lag is emitted into DS `logging.dir` (ADR-081 post office), not
  * the runner's captured lumio-ds stdout. Scan stdout, the capture log, and
  * any extra operator log dirs/files (typically logging.dir).
+ *
+ * ADR-118 decision 7: cadence accounting only exists inside "服务中" — the
+ * single moment `DS_READY` fires, admission opens and the cadence baseline is
+ * set, all at once. The DS no longer emits cadence_lag before that moment, so
+ * there is no pre-world line to tell apart from a runtime one; every
+ * host.drop cadence_lag line this gate sees is a real service-time drop and
+ * counts. (This used to split into a runtime bucket that failed the gate and
+ * an excluded pre-world boot bucket, working around the DS recording cadence
+ * before a world — and therefore a connection — existed. ADR-118 step 2
+ * (LumioServer #150) removed that root cause, so the split is gone.)
  */
 export function dsCadenceLagEvidence(logPath, stdout, extraLogPaths = []) {
   const chunks = [];
@@ -653,27 +663,17 @@ export function dsCadenceLagEvidence(logPath, stdout, extraLogPaths = []) {
       chunks.push(readFileSync(path, 'utf8'));
     } catch { /* log still being written */ }
   }
-  // 2026-09-22: the current-main DS emits cadence_lag during the pre-world CLR boot
-  // (tick=0 world=- conn=-, before DS_READY). No connection exists there, so no handshake
-  // can fault — the gate's stated purpose. Only provably pre-world lines are excluded;
-  // runtime drops keep the zero-tolerance baseline, and the excluded count is reported.
-  const isPreWorldLine = line => /msg="cadence_lag world=- conn=-"/.test(line) && /\btick=0\b/.test(line);
   let dropped = 0;
-  let bootDropped = 0;
   for (const text of chunks) {
     for (const line of String(text).split(/\r?\n/)) {
       if (!/target=host\.drop/.test(line) || !/msg="cadence_lag/.test(line)) continue;
       const match = line.match(/dropped=(\d+)/);
       const n = match ? Number(match[1]) : NaN;
       if (!Number.isFinite(n)) continue;
-      if (isPreWorldLine(line)) {
-        if (n > bootDropped) bootDropped = n;
-      } else if (n > dropped) {
-        dropped = n;
-      }
+      if (n > dropped) dropped = n;
     }
   }
-  return { dropped, bootDropped, marker: DS_CADENCE_LAG_MARKER, paths };
+  return { dropped, marker: DS_CADENCE_LAG_MARKER, paths };
 }
 
 /** The DS config both prerequisite gates read: explicit value, else the committed startup config. */

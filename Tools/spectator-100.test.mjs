@@ -1696,29 +1696,25 @@ function liveTopologyHarness({ dir, nativePath, dsStdout = 'DS_READY {"pid":1,"e
   };
 }
 
-test('dsCadenceLagEvidence separates pre-world boot drops from runtime drops', () => {
+test('dsCadenceLagEvidence counts every host.drop cadence_lag line (ADR-118: no boot/runtime split)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'lumio-cadence-lag-parse-'));
   try {
     const logPath = join(dir, 'lumio-ds.log');
     writeFileSync(logPath, [
-      // 2026-09-22 current-main DS: pre-CLR-boot overruns, no connection can fault.
-      'ts=t0 level=WARN tick=0 world=0 lang=rs target=host.drop msg="cadence_lag world=- conn=-" generation=0 bytes=0 dropped=3 suppressed=0',
-      'ts=t1 level=WARN tick=0 world=0 lang=rs target=host.drop msg="cadence_lag world=- conn=-" generation=0 bytes=0 dropped=12 suppressed=0',
-      // A runtime drop still fails the gate whatever the boot did.
+      // ADR-118: cadence is only ever accounted inside "服务中" (from DS_READY
+      // onward), so every host.drop cadence_lag line the gate sees is real.
       'ts=t2 level=WARN tick=4102 world=sample lang=rs target=host.drop msg="cadence_lag world=sample conn=conn-1" generation=0 bytes=0 dropped=2 suppressed=0',
       'ts=t3 level=INFO tick=1 world=0 lang=rs target=host.admit msg="admitted" dropped=99',
     ].join('\n'));
     const evidence = dsCadenceLagEvidence(logPath, '');
     assert.equal(evidence.dropped, 2);
-    assert.equal(evidence.bootDropped, 12);
     assert.equal(evidence.marker, DS_CADENCE_LAG_MARKER);
     assert.equal(dsCadenceLagEvidence(join(dir, 'missing.log'), 'no lag here').dropped, 0);
     const loggingDir = join(dir, 'ds-logs');
     mkdirSync(loggingDir, { recursive: true });
     writeFileSync(join(loggingDir, '2026-09-15_000.log'), CADENCE_LAG_LINE);
     const fromDir = dsCadenceLagEvidence(join(dir, 'empty-capture.log'), '', [loggingDir]);
-    assert.equal(fromDir.bootDropped, 12, 'must read host.drop cadence_lag from DS logging.dir');
-    assert.equal(fromDir.dropped, 0);
+    assert.equal(fromDir.dropped, 12, 'must read host.drop cadence_lag from DS logging.dir');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
