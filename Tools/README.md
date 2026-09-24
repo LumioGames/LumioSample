@@ -132,6 +132,26 @@ node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll <Lumio.Sample.B
 5-minute run is `BLOCKED_ENV` until Platform + Bot Activate + NativeCore
 clock exist. Do not treat the schema file as a passed gate.
 
+## 100-bot spectator gate (Wave B, `spectator-100.mjs`)
+
+`spectator-100.mjs` runs 100 Bot.Host processes plus two headed Chrome
+spectators (102 tickets). The page it opens is this repository's published
+spectator bundle, the same one the launcher serves: `--spectator-root` /
+`LUMIO_SPECTATOR_ROOT`, default
+`Client/UI/Spectator/host/bin/Release/net10.0/publish/wwwroot` (the launcher's
+`DEFAULT_SPECTATOR_ROOT`; this tool keeps no second default). It serves that
+directory on `http://127.0.0.1:<--spectator-static-port|4173>/` and each
+Chrome gets its own ticket as `window.__lumioLaunch` over CDP before the page
+loads, so the served `index.html` holds no ticket. The source directory
+`Client/UI/Spectator/` is not servable (the engine `.mjs` parts and the filled
+import map exist only in the publish output), and LumioClient no longer has a
+page (R-00710). No bundle is `BLOCKED_ENV` before any ticket is minted; there is
+no fallback. A bundle that is there but stale is `FAIL`: the published
+`index.html` import map must map `./_framework/dotnet.js` to a file in
+`_framework/`, `Lumio.Sample.Client.Spectator*.wasm` must carry
+`ConnectionState` and `LastApplyError`, and no non-Hfsm NativeLoader wasm may be
+published.
+
 ## World assertions (R-00568)
 
 `world-assert.mjs` compares per-cell block types and `oreCount`. An empty
