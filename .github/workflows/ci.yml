@@ -107,6 +107,9 @@ jobs:
       LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
       LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
       LUMIO_CONFIG_ROOT: ${{ github.workspace }}/LumioConfig
+      # The spectator page (Client/UI/Spectator, R-00710) is assembled from engine parts
+      # LumioClient ships; its node tests and C# guard read them from this checkout.
+      LUMIO_CLIENT_ROOT: ${{ github.workspace }}/LumioClient
       # Distinct names so provision-engine-native.sh can ln -sfn them next to Engine.
       LUMIO_NATIVE_CORE_ROOT: ${{ github.workspace }}/native-core-src
       LUMIO_VOXEL_ROOT: ${{ github.workspace }}/voxel-engine-src
@@ -154,6 +157,18 @@ jobs:
           path: LumioConfig
           token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
+      # R-00710: the spectator page moved here from LumioClient, but its engine parts
+      # (connect-ds / voxel-grid / generated close-code and not_serving tables,
+      # SpectatorSectionFrame, ReplicaApplyTickLoop, the ns2.1 Replica) stay there and
+      # are taken from this checkout, never copied. Same job, no new job: this public
+      # repository does not add another LUMIO_CI_PAT consumer.
+      - name: Checkout LumioClient
+        uses: actions/checkout@v7
+        with:
+          repository: LumioGames/LumioClient
+          path: LumioClient
+          token: ${{ secrets.LUMIO_CI_PAT }}
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@1.98.0
       - uses: Swatinem/rust-cache@v2
         with:
@@ -168,6 +183,13 @@ jobs:
       - name: Provide committed Native scene fixtures
         run: echo "LUMIO_RT_FIXTURES=${{ github.workspace }}/LumioGameRuntime/modules/coordination/tests/fixtures/voxel-native" >> "$GITHUB_ENV"
       - run: dotnet test LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine -- --minimum-expected-tests 1
+      # Cross-repo compile guard for the spectator (moved from LumioClient's build job by
+      # R-00710): both game sources and both LumioClient C# parts against this game's
+      # client gameplay. Compile only, as before; the wasm host needs wasm-tools.
+      - name: Build spectator shared sources against LumioClient
+        run: dotnet build Client/UI/Spectator/tests/Lumio.Sample.Client.Spectator.Tests.csproj -c Release -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine
+      - name: Spectator page (node)
+        run: node --test Client/UI/Spectator/main.test.mjs
       - run: node --test Tools/verify-evidence.mjs
       - run: node --test Tools/build-local-sdk.test.mjs
       - run: node --test Tools/account-client.test.mjs

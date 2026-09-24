@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Spectator dump / replica-host tests. Not in LumioSample.slnx. Compiles the two
+    game-side sources one level up plus the two engine parts linked from the
+    LumioClient checkout ($(LumioClientSpectatorParts), see ../Directory.Build.props).
+    CI builds this project as the cross-repo compile guard (test job in ci.yml).
+  -->
+  <PropertyGroup>
+    <LumioProduction>false</LumioProduction>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Lumio.Sample.Client.Spectator.Tests</RootNamespace>
+    <AssemblyName>Lumio.Sample.Client.Spectator.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../SpectatorDump.cs" Link="Spectator/SpectatorDump.cs" />
+    <Compile Include="../SpectatorReplicaHost.cs" Link="Spectator/SpectatorReplicaHost.cs" />
+    <Compile Include="$(LumioClientSpectatorParts)tests/SpectatorSectionFrame.cs" Link="LumioClient/SpectatorSectionFrame.cs" />
+    <Compile Include="$(LumioClientSpectatorParts)tests/ReplicaApplyTickLoop.cs" Link="LumioClient/ReplicaApplyTickLoop.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Same graph the LumioClient-side guard compiled before R-00710, with the sides
+         flipped: the engine Replica comes from the LumioClient checkout, the gameplay
+         is this repository's own. -->
+    <ProjectReference Include="$(LumioClientRoot)/Client/Gameplay/ECS/src/Lumio.Client.Gameplay.ECS.csproj" />
+    <ProjectReference Include="$(LumioRuntimeRoot)/modules/ecs/src/Lumio.GameRuntime.Ecs/Lumio.GameRuntime.Ecs.csproj" />
+    <ProjectReference Include="$(LumioRuntimeRoot)/modules/replication/src/Lumio.GameRuntime.Replication/Lumio.GameRuntime.Replication.csproj" />
+    <ProjectReference Include="$(LumioRuntimeRoot)/modules/simulation/src/Lumio.GameRuntime.Simulation/Lumio.GameRuntime.Simulation.csproj">
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+    </ProjectReference>
+    <ProjectReference Include="$(LumioSampleRepoRoot)Gameplay/Lumio.Sample.Gameplay.csproj">
+      <Properties>LumioEcsSide=client</Properties>
+    </ProjectReference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lumio Spectator</title>
+  <link rel="stylesheet" href="./spectator.css">
+  <!--
+    .NET 10 fingerprints the wasm runtime files: `_framework/` holds
+    `dotnet.<fingerprint>.js`, never a plain `dotnet.js`. The unfingerprinted
+    name exists only as a route in the StaticWebAssets endpoint manifest, which
+    a plain static file server does not read — so `main.js`'s
+    `import("./_framework/dotnet.js")` can only resolve through an import map.
+    These two elements are the SDK's markers: `OverrideHtmlAssetPlaceholders`
+    rewrites the preload link and fills the empty import map at build/publish
+    with `"./_framework/dotnet.js" -> "./_framework/dotnet.<fingerprint>.js"`.
+    Leave them empty here; the published copy carries the real values.
+  -->
+  <link rel="preload" id="webassembly" />
+  <script type="importmap"></script>
+</head>
+<body>
+  <h1>Lumio Spectator</h1>
+  <p id="status">starting</p>
+  <button id="enter" type="button">Enter game</button>
+  <canvas id="field" width="640" height="480"></canvas>
+  <!-- Block id -> swatch, built at runtime from the ids actually on screen. -->
+  <div id="legend"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
