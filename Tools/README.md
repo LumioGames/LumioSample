@@ -81,6 +81,24 @@ that was already running), stops the DS, reboots it on the same store and
 re-admits the same account under `SampleRestoreVerifyScenario`. Bots 2..N and
 the spectator are the fleet and are stopped before the restart.
 
+`--spectator` mints one more `loginAndLaunch` ticket and starts no Bot.Host
+for it. Once step 04 passes, the launcher serves the published spectator
+bundle (`--spectator-root` / `LUMIO_SPECTATOR_ROOT`, default
+`Client/UI/Spectator/host/bin/Release/net10.0/publish/wwwroot`) on
+`http://127.0.0.1:<port>/` (`--spectator-static-port` /
+`LUMIO_SPECTATOR_STATIC_PORT`, default any free port) and prints
+`spectator-url=`. Every `index.html` it serves carries that ticket as
+`window.__lumioLaunch` (the page's local test mode, see
+[`Client/UI/Spectator/README.md`](../Client/UI/Spectator/README.md)), with the
+DS endpoint the bots were given as `wsUrl`; the URL never carries the ticket.
+The page is served from loopback, which is what lets it dial the loopback DS
+over plaintext `ws:`. The ticket is single-use, so a reload after the page
+entered the game needs a new run. No published bundle means no page:
+`verification.json` records `spectatorPage.status=BLOCKED_ENV` and the
+fourteen steps are unaffected. `--spectator-url` only prints a page the
+launcher does not serve and cannot inject into; such a page has to be the
+Platform's own `/games/<slug>/` on an origin the browser is logged in to.
+
 `server.json` (or `LUMIO_DS_CONFIG`) is a template: each run writes
 `server.boot-1.json` / `server.boot-2.json` into its evidence directory with
 absolute paths, a fresh store, one debug log directory per boot and the

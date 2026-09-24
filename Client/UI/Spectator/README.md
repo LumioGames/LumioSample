@@ -141,7 +141,9 @@ from here.
   there is no default game to fall back to.
 - **Local test mode.** Whoever loads the page (node tests, a Playwright probe, a local
   harness) injects the launch as `window.__lumioLaunch` before `main.js` runs. That
-  needs no `/games/<slug>/` path. `?ws=<loopback url>` may then override only the
+  needs no `/games/<slug>/` path. `node Tools/launcher.mjs --spectator` is such a
+  harness: it serves the published bundle on `http://127.0.0.1:<port>/` and writes the
+  spectator ticket into the served `index.html` (see `Tools/README.md`). `?ws=<loopback url>` may then override only the
   injected launch's address; `?ws=` without an injected launch is refused.
 - **Plaintext `ws:`** is accepted only to a loopback DS, and only when the page itself
   was loaded from a loopback host (`127.0.0.1`, `localhost`, `[::1]`): a developer
