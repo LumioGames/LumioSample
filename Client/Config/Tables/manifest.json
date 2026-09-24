@@ -1,24 +1,29 @@
 {
   "baselineId": "LGE-V1.4-2026-08-27",
-  "compilerHash": "afae84f135c65e3f66053ab1a26c467bafe9c6ae4869459fbc0a51db4eacfdb2",
-  "contentFingerprint": "742501d909217966a274b0fa9de676284c4103c6249a00ef1ce2dbeec1eeb5ac",
+  "compilerHash": "63b8c3f3be42e28b9730e46f377a2ed1193e9d6f3b46e5fe33fac91c53c13ff0",
+  "contentFingerprint": "9eb25e93d787f5e98771c5e8c73b41fe7b93a2dd5a013c4ca69d8afed7755a92",
   "endpoint": "client",
   "formatVersion": 1,
-  "inputHash": "995eba7e634854e837ee998710e1b498cf06c788badfe110368f9ee420d5713c",
-  "outputHash": "5122193936562650982b47d28dfe5e24760a9babedb3ad7ad536900eaf4d2fdf",
-  "packageFingerprint": "e4135eaf50361fcbb38672956d8c6f76cbf82cd55e45326231091a86e39f40d6",
+  "inputHash": "94d1cf1e73dfac193dc09d0137f0a6133d7af9462ca794e9ee3b7e17b7a3eca2",
+  "outputHash": "bb2609feb87ea3a8551601b72cb99b33a7b83712562eb5216b48e43e9abc58a7",
+  "packageFingerprint": "44cdf87c319d6dec3ae96d4da98844a6513949400e1472bc62b2ea971ca33384",
   "projectionRoots": {
     "C": "client/manifest.json"
   },
-  "publicRoot": "e4135eaf50361fcbb38672956d8c6f76cbf82cd55e45326231091a86e39f40d6",
-  "releaseFingerprint": "951719b41951360f76e358cbde4ffd8291919ebe08155c41e28ec8e2433668d1",
-  "revisionId": "742501d909217966a274b0fa9de676284c4103c6249a00ef1ce2dbeec1eeb5ac",
+  "publicRoot": "44cdf87c319d6dec3ae96d4da98844a6513949400e1472bc62b2ea971ca33384",
+  "releaseFingerprint": "606cec181b2724dc4ca106f9b92dcf9d6363ed59303c34f2ac575ea7b6b12473",
+  "revisionId": "9eb25e93d787f5e98771c5e8c73b41fe7b93a2dd5a013c4ca69d8afed7755a92",
   "sharedPrediction": {
-    "columns": [],
-    "fingerprint": "697d43dfa016bcd44630c7a35d8460f0bfb45c701afa0b106251d28d891a53eb",
+    "columns": [
+      "mining.cooldown_ticks",
+      "mining.stamina_cost",
+      "movement.step_meters",
+      "movement.sweep_radius_meters"
+    ],
+    "fingerprint": "8e526dea15af4d974edf7f3485587605628183e4eaab65c25868cd8058721ec9",
     "specVersion": "split-export/1"
   },
-  "sourceFingerprint": "7d27fefa6452ae453e2cfba0b1f2cc0ea377d836cf5fd22d6359aebbaae4a3aa",
+  "sourceFingerprint": "0b22ce8fcdb51480da4229f987fb3b912d7c813bee6ade07713aa9d1af9c7ec6",
   "specVersion": "split-export/1",
   "tables": [
     {
@@ -42,13 +47,13 @@
       "table": "map"
     },
     {
-      "contentFingerprint": "97b5df7e9c2319ef3184bd9eb084aa9cf41af681d6c71799c66128afa92a19a9",
-      "sourceFingerprint": "a8e61bf2677b1e08ca592e330f05e0d10c2785825584371e36ad7f5fe98982e4",
+      "contentFingerprint": "a310a9f63a25f0a0bf38e900762e087163b88834ad1d2a952ec9c2e11f634216",
+      "sourceFingerprint": "6040f58c4e3432c5c69f59ebdcde9b3a8e6a9fad3ceb37c3dfbf2c1e4fd37ba2",
       "table": "mining"
     },
     {
-      "contentFingerprint": "77d22b3c3b914789fba6f8eb2da236a3efa7d4848b06820a36d0e53b3ccef2bb",
-      "sourceFingerprint": "923ea0373d6071141748b66727a693d0e83e95e45738a266e7798350f1af32bd",
+      "contentFingerprint": "15521920e3f3740715b31dd8d2bce1b455b4d7619a0b696401fb7590e540438a",
+      "sourceFingerprint": "52ee9bddfe016869f003cbf71dd32a4a6026aec0fe7feb018787af9335b44bbf",
       "table": "movement"
     },
     {

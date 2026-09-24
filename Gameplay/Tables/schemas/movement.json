@@ -22,7 +22,8 @@
       "type": "f64",
       "required": true,
       "minimum": 0,
-      "visibility": "CS"
+      "visibility": "CS",
+      "sharedPrediction": true
     },
     {
       "name": "sweep_radius_meters",
@@ -30,7 +31,8 @@
       "type": "f64",
       "required": true,
       "minimum": 0,
-      "visibility": "CS"
+      "visibility": "CS",
+      "sharedPrediction": true
     }
   ]
 }
