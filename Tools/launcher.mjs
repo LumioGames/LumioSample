@@ -16,10 +16,13 @@
  * is FAIL for every step that reads it. Bots 2..N and the spectator are the fleet: they stay up
  * for the acceptance window (--duration-ms, else --timeout-ms) before forceCleanup.
  * forceCleanup is never treated as proof.
- * --spectator mints one extra loginAndLaunch ticket and prints the spectator page
- * URL; it does not start a Bot.Host for that ticket.
+ * --spectator mints one extra loginAndLaunch ticket; it does not start a Bot.Host for that
+ * ticket. Once step 04 passes, the launcher serves the published spectator bundle on loopback
+ * and writes that ticket into the served index.html as `window.__lumioLaunch` (the page's
+ * local test mode), then prints the page URL. The URL never carries the ticket.
  */
 
+import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,8 +49,14 @@ const DEFAULT_STAGGER_MS = 250;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_ACCOUNT = 'Bot1';
 const DEFAULT_SPECTATOR_LOGIN = 'Spectator1';
-const DEFAULT_SPECTATOR_PATH = '/Client/UI/Spectator/';
-const DEFAULT_SPECTATOR_ORIGIN = 'http://127.0.0.1';
+/**
+ * The deployable spectator page is the publish output, not the source directory: only the
+ * published index.html carries the filled import map that resolves `_framework/dotnet.js`
+ * (Client/UI/Spectator/README.md "Static host").
+ */
+const DEFAULT_SPECTATOR_ROOT = 'Client/UI/Spectator/host/bin/Release/net10.0/publish/wwwroot';
+/** The page accepts a plaintext ws: DS only when it was itself loaded from loopback. */
+const SPECTATOR_HOST = '127.0.0.1';
 const BOOLEAN_FLAGS = new Set(['spectator']);
 /** Owner frames the tour bot gets for the mining scenario (Bot.Host --ticks; ~16 ms each). */
 const DEFAULT_TOUR_TICKS = 15_000;
@@ -134,7 +143,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     evidenceDir: environment.LUMIO_LAUNCH_EVIDENCE_DIR,
     spectator: envFlag(environment.LUMIO_SPECTATOR),
     spectatorUrl: environment.LUMIO_SPECTATOR_URL || undefined,
-    spectatorOrigin: environment.LUMIO_SPECTATOR_ORIGIN || undefined,
+    spectatorRoot: environment.LUMIO_SPECTATOR_ROOT || undefined,
     spectatorLogin: environment.LUMIO_SPECTATOR_LOGIN || DEFAULT_SPECTATOR_LOGIN,
     spectatorStaticPort: environment.LUMIO_SPECTATOR_STATIC_PORT || undefined,
     scenarioDll: environment.LUMIO_SCENARIO_DLL || undefined,
@@ -162,7 +171,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     'evidence-dir': 'evidenceDir',
     spectator: 'spectator',
     'spectator-url': 'spectatorUrl',
-    'spectator-origin': 'spectatorOrigin',
+    'spectator-root': 'spectatorRoot',
     'spectator-login': 'spectatorLogin',
     'spectator-static-port': 'spectatorStaticPort',
     'scenario-dll': 'scenarioDll',
@@ -204,6 +213,12 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
   if (!LOGIN_NAME_PATTERN.test(`${options.loginPrefix}1`)) throw new UsageError('--login-prefix must make valid login names (letter first, [A-Za-z0-9_-]).');
   options.spectatorLogin = String(options.spectatorLogin || DEFAULT_SPECTATOR_LOGIN).trim();
   if (!options.spectatorLogin) throw new UsageError('--spectator-login must be a non-empty login name.');
+  if (options.spectatorStaticPort != null && String(options.spectatorStaticPort).trim() !== '') {
+    const port = Number(options.spectatorStaticPort);
+    if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+      throw new UsageError('--spectator-static-port must be an integer between 0 and 65535.');
+    }
+  }
   if (options.spectatorUrl) options.spectator = true;
   return options;
 }
@@ -220,40 +235,117 @@ export function planLaunchLogins(bots, {
   return [...logins, name];
 }
 
-export function resolveSpectatorPageUrl({
-  spectatorUrl,
-  spectatorOrigin,
-  spectatorStaticPort,
-  env = {},
-} = {}) {
-  if (spectatorUrl != null && String(spectatorUrl).trim() !== '') {
-    return normalizeSpectatorPageUrl(String(spectatorUrl).trim());
-  }
-  const originRaw = spectatorOrigin
-    || env.LUMIO_SPECTATOR_ORIGIN
-    || DEFAULT_SPECTATOR_ORIGIN;
-  const origin = new URL(String(originRaw).includes('://') ? originRaw : `http://${originRaw}`);
-  const port = spectatorStaticPort || env.LUMIO_SPECTATOR_STATIC_PORT;
-  if (port != null && String(port).trim() !== '') {
-    origin.port = String(port).trim();
-  }
-  origin.pathname = DEFAULT_SPECTATOR_PATH;
-  origin.search = '';
-  origin.hash = '';
-  origin.username = '';
-  origin.password = '';
-  return origin.href;
-}
-
-function normalizeSpectatorPageUrl(value) {
-  const url = new URL(value);
+/**
+ * `--spectator-url` names a page this launcher does not serve, so it cannot inject a launch
+ * into it: such a page only works in Platform mode, i.e. at `/games/<slug>/` on a Platform
+ * origin the browser is logged in to. The URL is printed without userinfo, query or fragment.
+ */
+export function normalizeSpectatorPageUrl(value) {
+  const url = new URL(String(value).trim());
   url.search = '';
   url.hash = '';
   url.username = '';
   url.password = '';
   if (!url.pathname.endsWith('/')) url.pathname = `${url.pathname}/`;
-  if (url.pathname === '/') url.pathname = DEFAULT_SPECTATOR_PATH;
   return url.href;
+}
+
+/**
+ * Local test mode of the spectator page (Client/UI/Spectator/README.md): whoever loads the
+ * page injects the launch as `window.__lumioLaunch` before main.js runs. The launcher is that
+ * loader. The script goes in front of the first <script> (the import map), so it has run
+ * before the module script is even fetched. `<` is escaped so no value can close the element.
+ */
+export function injectSpectatorLaunch(html, launch) {
+  if (!launch || typeof launch !== 'object') throw new TypeError('spectator launch is required.');
+  const payload = JSON.stringify({
+    wsUrl: launch.wsUrl,
+    subprotocol: launch.subprotocol,
+    admissionCredential: launch.admissionCredential,
+  }).replace(/</g, '\\u003c');
+  const script = `<script>window.__lumioLaunch = ${payload};</script>\n`;
+  const text = String(html);
+  const at = text.search(/<script\b/i);
+  if (at < 0) throw new Error('spectator index.html has no <script> to inject the launch in front of.');
+  return `${text.slice(0, at)}${script}${text.slice(at)}`;
+}
+
+const SPECTATOR_MIME = Object.freeze({
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.wasm': 'application/wasm',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+});
+
+/**
+ * Serve the published spectator bundle at `http://127.0.0.1:<port>/` (port 0 = any free one).
+ * Every index.html response carries the injected launch and `cache-control: no-store`; every
+ * other file is served as is. Loopback only: the served page holds an admission credential.
+ */
+export function startSpectatorHost({ root, port = 0, launch }) {
+  const absoluteRoot = resolve(root);
+  const indexPath = join(absoluteRoot, 'index.html');
+  const page = injectSpectatorLaunch(readFileSync(indexPath, 'utf8'), launch);
+  const server = createServer((request, response) => {
+    try {
+      let pathname = decodeURIComponent(new URL(request.url ?? '/', `http://${SPECTATOR_HOST}`).pathname);
+      if (pathname.endsWith('/')) pathname += 'index.html';
+      const file = resolve(absoluteRoot, `.${pathname}`);
+      if (!file.startsWith(`${absoluteRoot}/`) && !file.startsWith(`${absoluteRoot}\\`)) {
+        response.writeHead(403); response.end(); return;
+      }
+      if (file === indexPath) {
+        response.writeHead(200, { 'content-type': SPECTATOR_MIME['.html'], 'cache-control': 'no-store' });
+        response.end(page);
+        return;
+      }
+      if (!existsSync(file) || !statSync(file).isFile()) { response.writeHead(404); response.end('not found'); return; }
+      response.writeHead(200, { 'content-type': SPECTATOR_MIME[extname(file).toLowerCase()] ?? 'application/octet-stream' });
+      response.end(readFileSync(file));
+    } catch {
+      response.writeHead(400); response.end('bad request');
+    }
+  });
+  const listenPort = port == null || String(port).trim() === '' ? 0 : Number(port);
+  if (!Number.isInteger(listenPort) || listenPort < 0 || listenPort > 65_535) {
+    throw new UsageError('--spectator-static-port must be an integer between 0 and 65535.');
+  }
+  return new Promise((resolvePromise, reject) => {
+    server.once('error', reject);
+    server.listen(listenPort, SPECTATOR_HOST, () => {
+      resolvePromise({ server, url: `http://${SPECTATOR_HOST}:${server.address().port}/` });
+    });
+  });
+}
+
+/**
+ * Called once step 04 passed, so the DS the page dials is up. The injected address is the
+ * DS endpoint the bots were given (DS_READY / --endpoint), not a second guess at it; the
+ * credential is the spectator's own Platform launch ticket.
+ */
+async function hostSpectatorPage({ options, root, endpoint, spectatorSession, report, log }) {
+  const pageRoot = resolve(root, options.spectatorRoot ?? DEFAULT_SPECTATOR_ROOT);
+  report.spectatorRoot = pageRoot;
+  if (!existsSync(join(pageRoot, 'index.html'))) {
+    const reason = `spectator bundle not found: ${join(pageRoot, 'index.html')} (dotnet publish Client/UI/Spectator/host, or --spectator-root)`;
+    report.spectatorPage = { status: 'BLOCKED_ENV', reason };
+    log(`spectator page BLOCKED_ENV: ${reason}`);
+    return null;
+  }
+  const launch = spectatorSession.launch;
+  const host = await startSpectatorHost({
+    root: pageRoot,
+    port: options.spectatorStaticPort,
+    launch: { wsUrl: endpoint, subprotocol: launch.subprotocol, admissionCredential: launch.admissionCredential },
+  });
+  report.spectatorUrl = host.url;
+  report.spectatorPage = { status: 'HOSTED' };
+  log(`spectator-url=${host.url}`);
+  return host.server;
 }
 
 function assertSpectatorUrlHasNoSecret(url, sessions = []) {
@@ -649,7 +741,10 @@ function usage() {
     '  LUMIO_SERVER_HOSTENTRY_DLL, LUMIO_RUNTIME_REPLICATION_DLL, LUMIO_RUNTIME_ECS_DLL,',
     '  LUMIO_SAMPLE_GAMEPLAY_DLL, LUMIO_ENGINE_NATIVE, else from the template; a missing one is BLOCKED_ENV.',
     '  LUMIO_PLATFORM_ADMISSION_KEY replaces the template\'s stand-in admission key.',
-    'Spectator page origin defaults to LUMIO_SPECTATOR_ORIGIN or http://127.0.0.1/Client/UI/Spectator/.',
+    'Spectator: after step 04 the launcher serves the published page (--spectator-root, default',
+    `  ${DEFAULT_SPECTATOR_ROOT}) on http://127.0.0.1:<--spectator-static-port|any>/`,
+    '  with the spectator ticket injected as window.__lumioLaunch; --spectator-url only prints a page',
+    '  it does not serve (Platform mode: /games/<slug>/ on a logged-in Platform origin).',
     'Missing prerequisites exit 2 with VERIFICATION_STATUS=BLOCKED_ENV.',
   ].join('\n');
 }
@@ -684,6 +779,7 @@ export async function runLauncher(options = {}) {
   };
 
   let tools;
+  let spectatorServer = null;
   const children = [];
   try {
     const botCount = options.bots ?? 2;
@@ -706,18 +802,16 @@ export async function runLauncher(options = {}) {
     );
     report.plannedLogins = logins;
 
+    const externalSpectatorPage = spectatorMode
+      && options.spectatorUrl != null && String(options.spectatorUrl).trim() !== '';
     if (spectatorMode) {
-      const spectatorUrl = assertSpectatorUrlHasNoSecret(
-        resolveSpectatorPageUrl({
-          spectatorUrl: options.spectatorUrl,
-          spectatorOrigin: options.spectatorOrigin,
-          spectatorStaticPort: options.spectatorStaticPort,
-          env,
-        }),
-      );
-      report.spectatorUrl = spectatorUrl;
       report.spectatorLogin = options.spectatorLogin || DEFAULT_SPECTATOR_LOGIN;
-      log(`spectator-url=${spectatorUrl}`);
+      if (externalSpectatorPage) {
+        const spectatorUrl = assertSpectatorUrlHasNoSecret(normalizeSpectatorPageUrl(options.spectatorUrl));
+        report.spectatorUrl = spectatorUrl;
+        report.spectatorPage = { status: 'EXTERNAL' };
+        log(`spectator-url=${spectatorUrl}`);
+      }
     }
 
     try {
@@ -943,6 +1037,12 @@ export async function runLauncher(options = {}) {
     record('04', 'PASS', spectatorMode
       ? `${admit.admitted} bots admitted; spectator ticket held without Bot.Host`
       : `${admit.admitted} bots admitted with unique tickets`);
+    if (spectatorMode && !externalSpectatorPage) {
+      spectatorServer = await hostSpectatorPage({
+        options, root, endpoint, spectatorSession: sessions[botCount], report, log,
+      });
+      if (report.spectatorUrl) assertSpectatorUrlHasNoSecret(report.spectatorUrl, sessions);
+    }
     if (!tourBot) {
       recordRest(4, 'BLOCKED_ENV', tourBlocked);
       report.status = reportStatusFromSteps(report.steps);
@@ -970,6 +1070,11 @@ export async function runLauncher(options = {}) {
     }
     throw error;
   } finally {
+    if (spectatorServer) {
+      // An open browser tab keeps its connection alive; close() alone would wait for it.
+      spectatorServer.closeAllConnections?.();
+      await new Promise((resolvePromise) => spectatorServer.close(() => resolvePromise()));
+    }
     if (tools) {
       for (const child of children.reverse()) {
         await tools.forceCleanup(child);
@@ -1002,7 +1107,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 export {
   DEFAULT_ACCOUNT,
   DEFAULT_SPECTATOR_LOGIN,
-  DEFAULT_SPECTATOR_PATH,
+  DEFAULT_SPECTATOR_ROOT,
   TOUR_STEPS,
   formatStep,
   planBotLogins,

@@ -8,12 +8,14 @@ import { candidateEngineRoots, resolveProcessToolsPath } from './engine-tools.mj
 import {
   collectLaunchTickets,
   DEFAULT_SPECTATOR_LOGIN,
+  injectSpectatorLaunch,
+  normalizeSpectatorPageUrl,
   parseBotAdmit,
   parseLaunchArgs,
   planLaunchLogins,
   resolveBotVoxelConfig,
-  resolveSpectatorPageUrl,
   runLauncher,
+  startSpectatorHost,
 } from './launcher.mjs';
 import { DS_CLR_INPUTS } from './ds-config.mjs';
 import {
@@ -152,6 +154,21 @@ function voxelBudgetFiles(isolated) {
   return join(maps, 'bot-voxel-budget.json');
 }
 
+const SPECTATOR_INDEX = [
+  '<!doctype html><html><head>',
+  '<script type="importmap">{"imports":{}}</script>',
+  '</head><body><script type="module" src="./main.js"></script></body></html>',
+].join('\n');
+
+/** A stand-in for the published spectator bundle (publish/wwwroot). */
+function spectatorBundle(isolated) {
+  const root = join(isolated, 'spectator-wwwroot');
+  mkdirSync(root, { recursive: true });
+  writeFileSync(join(root, 'index.html'), SPECTATOR_INDEX);
+  writeFileSync(join(root, 'main.js'), 'export {};\n');
+  return root;
+}
+
 function launchFiles(isolated) {
   const dsConfig = join(isolated, 'server.json');
   writeFileSync(dsConfig, `${JSON.stringify(runnableDsConfig())}\n`);
@@ -220,20 +237,25 @@ test('CLI parses --spectator as a boolean flag without a value', () => {
   assert.equal(options.spectatorLogin, DEFAULT_SPECTATOR_LOGIN);
 });
 
-test('CLI parses --spectator-url and LUMIO_SPECTATOR_ORIGIN', () => {
+test('CLI parses --spectator-url, --spectator-root and the static port', () => {
   const flagged = parseLaunchArgs(
-    ['--spectator-url', 'http://127.0.0.1:8765/Client/UI/Spectator/'],
+    ['--spectator-url', 'http://127.0.0.1:8080/games/sample/'],
     {},
   );
   assert.equal(flagged.spectator, true);
-  assert.equal(flagged.spectatorUrl, 'http://127.0.0.1:8765/Client/UI/Spectator/');
+  assert.equal(flagged.spectatorUrl, 'http://127.0.0.1:8080/games/sample/');
   const fromEnv = parseLaunchArgs(['--spectator'], {
-    LUMIO_SPECTATOR_ORIGIN: 'http://127.0.0.1:9090',
+    LUMIO_SPECTATOR_ROOT: 'out/wwwroot',
+    LUMIO_SPECTATOR_STATIC_PORT: '9410',
     LUMIO_SPECTATOR_LOGIN: 'Spectator1',
   });
   assert.equal(fromEnv.spectator, true);
-  assert.equal(fromEnv.spectatorOrigin, 'http://127.0.0.1:9090');
+  assert.equal(fromEnv.spectatorRoot, 'out/wwwroot');
+  assert.equal(fromEnv.spectatorStaticPort, '9410');
   assert.equal(fromEnv.spectatorLogin, 'Spectator1');
+  assert.equal(parseLaunchArgs(['--spectator-root', 'cli/wwwroot'], { LUMIO_SPECTATOR_ROOT: 'env' }).spectatorRoot, 'cli/wwwroot');
+  assert.throws(() => parseLaunchArgs(['--spectator-static-port', 'x'], {}), /--spectator-static-port/);
+  assert.throws(() => parseLaunchArgs(['--spectator-origin', 'http://127.0.0.1:9090'], {}), /unknown option/);
   assert.throws(() => parseLaunchArgs(['--not-a-flag'], {}), /unknown option/);
 });
 
@@ -250,23 +272,61 @@ test('spectator login is appended after Bot1..BotN and does not collide', () => 
   );
 });
 
-test('default spectator URL is origin + /Client/UI/Spectator/ without credentials', () => {
+test('an external spectator URL is printed without credentials', () => {
   assert.equal(
-    resolveSpectatorPageUrl({}),
-    'http://127.0.0.1/Client/UI/Spectator/',
+    normalizeSpectatorPageUrl('http://user:ticket-secret@127.0.0.1:8/games/sample?admission=ticket-secret#x'),
+    'http://127.0.0.1:8/games/sample/',
   );
-  assert.equal(
-    resolveSpectatorPageUrl({ env: { LUMIO_SPECTATOR_ORIGIN: 'http://127.0.0.1:8080' } }),
-    'http://127.0.0.1:8080/Client/UI/Spectator/',
-  );
-  assert.equal(
-    resolveSpectatorPageUrl({ spectatorStaticPort: '9410' }),
-    'http://127.0.0.1:9410/Client/UI/Spectator/',
-  );
-  assert.equal(
-    resolveSpectatorPageUrl({ spectatorUrl: 'http://user:ticket-secret@127.0.0.1:8/Client/UI/Spectator?admission=ticket-secret' }),
-    'http://127.0.0.1:8/Client/UI/Spectator/',
-  );
+  assert.equal(normalizeSpectatorPageUrl('http://127.0.0.1:8080/'), 'http://127.0.0.1:8080/');
+});
+
+test('the launch is injected as window.__lumioLaunch in front of the first script', () => {
+  const html = injectSpectatorLaunch(SPECTATOR_INDEX, {
+    wsUrl: 'ws://127.0.0.1:9110/session',
+    subprotocol: 'lumio.mvp.v0',
+    admissionCredential: 'ticket-</script><b>',
+    extra: 'dropped',
+  });
+  const injectAt = html.indexOf('window.__lumioLaunch');
+  assert.ok(injectAt > 0);
+  assert.ok(injectAt < html.indexOf('type="importmap"'));
+  assert.ok(injectAt < html.indexOf('src="./main.js"'));
+  assert.doesNotMatch(html, /ticket-<\/script>/);
+  assert.doesNotMatch(html, /dropped/);
+  const payload = html.slice(html.indexOf('= ', injectAt) + 2, html.indexOf(';</script>', injectAt));
+  assert.deepEqual(JSON.parse(payload), {
+    wsUrl: 'ws://127.0.0.1:9110/session',
+    subprotocol: 'lumio.mvp.v0',
+    admissionCredential: 'ticket-</script><b>',
+  });
+  assert.throws(() => injectSpectatorLaunch('<html></html>', { wsUrl: 'ws://x' }), /no <script>/);
+});
+
+test('the spectator host serves the bundle on loopback with the launch in index.html only', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-spec-host-'));
+  const root = spectatorBundle(isolated);
+  writeFileSync(join(isolated, 'outside.txt'), 'outside');
+  const launch = { wsUrl: 'ws://127.0.0.1:9110/session', subprotocol: 'lumio.mvp.v0', admissionCredential: 'ticket-spec' };
+  const { server, url } = await startSpectatorHost({ root, port: 0, launch });
+  try {
+    assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/$/);
+    assert.doesNotMatch(url, /ticket-spec/);
+    for (const path of ['', 'index.html']) {
+      const page = await fetch(new URL(path, url));
+      assert.equal(page.status, 200);
+      assert.equal(page.headers.get('cache-control'), 'no-store');
+      assert.match(await page.text(), /window\.__lumioLaunch = \{"wsUrl":"ws:\/\/127\.0\.0\.1:9110\/session".*"admissionCredential":"ticket-spec"\}/);
+    }
+    const script = await fetch(new URL('main.js', url));
+    assert.equal(script.status, 200);
+    assert.match(script.headers.get('content-type'), /javascript/);
+    assert.doesNotMatch(await script.text(), /ticket-spec/);
+    assert.equal((await fetch(new URL('missing.js', url))).status, 404);
+    assert.equal((await fetch(`${url}%2e%2e%2foutside.txt`)).status, 403);
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((resolvePromise) => server.close(() => resolvePromise()));
+  }
 });
 
 test('process-tools resolution is Engine-root only and does not invent a helper', () => {
@@ -550,10 +610,11 @@ test('100 bots + spectator mint 101 unique tickets and start 100 Bot.Host proces
   const lines = [];
   const report = await runLauncher({
     root: isolated,
-    env: { LUMIO_SPECTATOR_ORIGIN: 'http://127.0.0.1:8080' },
+    env: {},
     origin: 'http://127.0.0.1:1',
     bots: 100,
     spectator: true,
+    spectatorRoot: spectatorBundle(isolated),
     staggerMs: 0,
     durationMs: 5_000,
     timeoutMs: 5_000,
@@ -579,7 +640,8 @@ test('100 bots + spectator mint 101 unique tickets and start 100 Bot.Host proces
   assert.equal(report.admittedBots, 100);
   assert.equal(report.botHostsStarted, 100);
   assert.equal(report.spectatorLogin, 'Spectator1');
-  assert.equal(report.spectatorUrl, 'http://127.0.0.1:8080/Client/UI/Spectator/');
+  assert.equal(report.spectatorPage.status, 'HOSTED');
+  assert.match(report.spectatorUrl, /^http:\/\/127\.0\.0\.1:\d+\/$/);
 
   const starts = tools.events.filter((event) => event.kind === 'start');
   assert.equal(starts.length, 101, '1 lumio-ds + 100 Bot.Host');
@@ -591,7 +653,7 @@ test('100 bots + spectator mint 101 unique tickets and start 100 Bot.Host proces
   assert.ok(!startedArgs.some((value) => String(value).includes('ticket-Spectator1')));
 
   const urlLine = lines.find((line) => line.startsWith('spectator-url='));
-  assert.equal(urlLine, 'spectator-url=http://127.0.0.1:8080/Client/UI/Spectator/');
+  assert.equal(urlLine, `spectator-url=${report.spectatorUrl}`);
   assert.doesNotMatch(urlLine, /ticket-|admissionCredential|Spectator1-ticket/);
   for (const name of minted) {
     assert.doesNotMatch(urlLine, new RegExp(`ticket-${name}`));
@@ -621,7 +683,7 @@ test('injected 100 bot + spectator tickets stay unique and still skip a 101st Bo
     env: {},
     bots: 100,
     spectator: true,
-    spectatorUrl: 'http://127.0.0.1:8080/Client/UI/Spectator/',
+    spectatorUrl: 'http://127.0.0.1:8080/games/sample/',
     staggerMs: 0,
     durationMs: 5_000,
     timeoutMs: 5_000,
@@ -635,7 +697,9 @@ test('injected 100 bot + spectator tickets stay unique and still skip a 101st Bo
   assert.equal(report.loginAndLaunchCount, 101);
   assert.equal(report.botHostsStarted, 100);
   assert.equal(tools.events.filter((event) => event.kind === 'start').length, 101);
+  assert.equal(report.spectatorPage.status, 'EXTERNAL');
   const urlLine = lines.find((line) => line.startsWith('spectator-url='));
+  assert.equal(urlLine, 'spectator-url=http://127.0.0.1:8080/games/sample/');
   assert.doesNotMatch(urlLine, /ticket-Spectator1|admissionCredential/);
   assertTourHonesty(report, lines);
 });
@@ -671,6 +735,9 @@ test('--spectator hold ends when the page reports connected without opening a br
   assert.ok(firstCleanup.at - firstStart.at >= 20);
   assert.equal(report.botHostsStarted, 1);
   assert.equal(report.loginAndLaunchCount, 2);
+  // No published bundle under this root: the page is not served and nothing pretends it is.
+  assert.equal(report.spectatorPage.status, 'BLOCKED_ENV');
+  assert.equal(report.spectatorUrl, undefined);
   assertTourHonesty(report);
 });
 

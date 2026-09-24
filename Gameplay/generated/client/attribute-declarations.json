@@ -28,11 +28,11 @@
     "visibility": "aoi-scoped"
   },
   {
-    "attributeId": "BoxComponent.name",
+    "attributeId": "BoxComponent.inventory",
     "persistence": "persistent",
     "replication": "replicated",
-    "valueType": "utf8-string",
-    "visibility": "aoi-scoped"
+    "valueType": "list",
+    "visibility": "claim-scoped"
   },
   {
     "attributeId": "BoxComponent.locked",
@@ -42,11 +42,11 @@
     "visibility": "aoi-scoped"
   },
   {
-    "attributeId": "BoxComponent.inventory",
+    "attributeId": "BoxComponent.name",
     "persistence": "persistent",
     "replication": "replicated",
-    "valueType": "list",
-    "visibility": "claim-scoped"
+    "valueType": "utf8-string",
+    "visibility": "aoi-scoped"
   },
   {
     "attributeId": "BoxComponent.openers",

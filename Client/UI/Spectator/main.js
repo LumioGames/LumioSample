@@ -1,0 +1,782 @@
+import { connectDs } from "./connect-ds.mjs";
+import { DS_CLOSE_CODES } from "./ds-close-codes.mjs";
+import { NOT_SERVING_RETRY } from "./not-serving-retry.mjs";
+import {
+  openVoxelGrid,
+  unavailableVoxelGrid,
+  blockStateOf,
+  blockTypeOf,
+  SURFACE_BLOCK,
+  SURFACE_AIR,
+} from "./voxel-grid.mjs";
+
+const spectator = {
+  status: "starting",
+  botCount: 0,
+  positions: [],
+  updatedAtMs: 0,
+  selfId: null,
+  worldId: null,
+  lastError: null,
+  lastFrameType: null,
+  // ADR-120: not_serving closes this page has seen. A healthy run (dial after DS_READY) keeps it at 0.
+  notServingCloses: 0,
+  // Voxel half of the view. `status` is the Rust wasm world's own state, never a
+  // guess: "ready" once the module booted, otherwise why it could not.
+  voxel: {
+    status: "starting",
+    error: null,
+    abiVersion: 0,
+    sections: 0,
+    frames: 0,
+    lastDelivery: null,
+    cells: { block: 0, air: 0, loading: 0 },
+    blockIds: [],
+  },
+};
+window.__lumioSpectator = spectator;
+
+// Sample Server/Assets/Maps/sample.layout.json is a 32×32 voxel plane. Both spectator
+// windows use this same world rectangle so they stay visually in sync;
+// the camera does not follow the cluster.
+const MAP = { minX: 0, maxX: 32, minZ: 0, maxZ: 32 };
+
+// Cells the top-down pass reads, in world coordinates. The X/Z span is the MAP
+// rectangle above; the Y span is one Section layer, which is the whole height
+// the Sample world occupies. A cell outside what the server has sent simply
+// reads back as not-resolved and paints as loading.
+const VIEW = { minX: 0, maxX: 31, minY: 0, maxY: 15, minZ: 0, maxZ: 31 };
+
+const statusEl = document.getElementById("status");
+const legendEl = document.getElementById("legend");
+const canvas = document.getElementById("field");
+const ctx = canvas && typeof canvas.getContext === "function" ? canvas.getContext("2d") : null;
+
+// The VoxelEngine wasm32 module, published next to this page. Its world is the
+// only place Section data exists in this tab (ADR-078 决策 1 / 决策 3).
+const VOXEL_WASM_URL = "./lumio_voxel_wasm.wasm";
+// Never null: between sessions the page holds a grid that answers "loading" for
+// every column, so there is no state in which a cell could be painted as air
+// because nothing was asked.
+let voxelGrid = unavailableVoxelGrid("voxel_world_not_opened");
+
+function setStatus(status, detail) {
+  spectator.status = status;
+  spectator.updatedAtMs = Date.now();
+  if ((status === "failed" || status === "error") && detail) spectator.lastError = String(detail);
+  if (statusEl) {
+    statusEl.textContent = detail ? `${status}: ${detail}` : status;
+  }
+}
+
+function frameTypeOf(text) {
+  if (typeof text !== "string") return typeof text;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed.messageType === "string" ? parsed.messageType : "json";
+  } catch {
+    return "unparsed";
+  }
+}
+
+function noteApplyFault(error, frame) {
+  spectator.lastFrameType = frameTypeOf(frame);
+  const wasmError = typeof csharp.lastApplyError === "function" ? csharp.lastApplyError() : "";
+  const message = error && error.message ? error.message : String(error ?? "bad_envelope");
+  spectator.lastError = wasmError || message;
+  console.error("[lumio-spectator] apply failed", spectator.lastFrameType, spectator.lastError);
+}
+
+// Block id -> colour. The downlink carries block ids, not names: the block
+// catalog is a game asset the page never receives, so there is nothing to look a
+// name up in, and writing one game's ids into this page would tie the engine
+// spectator to that game. The hue is therefore derived from the id itself, which
+// is stable (same id, same colour, in every window) and game-agnostic; the
+// legend under the canvas lists every id actually on screen next to its swatch,
+// so the mapping is readable instead of implied.
+//
+// The split is the voxel contract's own: `BlockType << 8 | BlockState`. The hue
+// comes from the type, so every state of one block reads as the same material,
+// and the state only shifts lightness. Air (BLOCK_TYPE_AIR) is not painted at
+// all — the empty canvas plane is what "resolved, nothing here" looks like.
+function blockFill(id) {
+  const type = blockTypeOf(id);
+  let hash = 2166136261;
+  for (let shift = 0; shift < 24; shift += 8) {
+    hash ^= (type >>> shift) & 0xff;
+    hash = Math.imul(hash, 16777619);
+  }
+  // Muted: terrain sits underneath the 85%/55% entity dots and must not compete.
+  const lightness = 26 + (blockStateOf(id) % 4) * 4;
+  return `hsl(${(hash >>> 0) % 360}, 40%, ${lightness}%)`;
+}
+
+// A cell the Rust world answered Pending / Unavailable for. ADR-078: never
+// painted as air. The inset mark makes "still loading" legible at 32x32.
+const LOADING_FILL = "hsl(45, 22%, 18%)";
+const LOADING_MARK = "hsl(45, 55%, 42%)";
+
+function paintVoxelCells(camera) {
+  const surface = voxelGrid.readSurface(VIEW);
+  const evidence = spectator.voxel;
+  evidence.cells = surface.counts;
+  if (surface.error) evidence.error = surface.error;
+  const seen = new Set();
+  const { ox, oy, scale } = camera;
+  // Cell (x, z) covers [x, x+1) x [z, z+1) in world units. Ceil the size so
+  // neighbouring cells meet with no seam at fractional scales.
+  const size = Math.ceil(scale);
+  for (let z = 0; z < surface.depth; z += 1) {
+    for (let x = 0; x < surface.width; x += 1) {
+      const i = z * surface.width + x;
+      const state = surface.states[i];
+      if (state === SURFACE_AIR) continue;
+      const px = ox + (VIEW.minX + x - MAP.minX) * scale;
+      const py = oy + (VIEW.minZ + z - MAP.minZ) * scale;
+      if (state === SURFACE_BLOCK) {
+        const id = surface.blockIds[i];
+        seen.add(id);
+        ctx.fillStyle = blockFill(id);
+        ctx.fillRect(px, py, size, size);
+        continue;
+      }
+      ctx.fillStyle = LOADING_FILL;
+      ctx.fillRect(px, py, size, size);
+      const inset = Math.max(1, Math.floor(scale / 3));
+      ctx.fillStyle = LOADING_MARK;
+      ctx.fillRect(px + inset, py + inset, Math.max(1, size - inset * 2), Math.max(1, size - inset * 2));
+    }
+  }
+
+  evidence.blockIds = [...seen].sort((a, b) => a - b);
+  renderLegend(evidence.blockIds, surface.counts.loading);
+}
+
+function renderLegend(blockIds, loadingCells) {
+  if (!legendEl) return;
+  const rows = blockIds.map(
+    (id) => `<li><i style="background:${blockFill(id)}"></i>type ${blockTypeOf(id)} state ${blockStateOf(id)}</li>`,
+  );
+  if (loadingCells > 0) rows.push(`<li><i style="background:${LOADING_MARK}"></i>loading (${loadingCells} cells)</li>`);
+  legendEl.innerHTML = rows.length ? `<ul>${rows.join("")}</ul>` : "";
+}
+
+function paint(positions) {
+  spectator.positions = positions;
+  spectator.botCount = positions.length;
+  spectator.updatedAtMs = Date.now();
+  const selfRow = positions.find((pos) => pos && (pos.self === true || pos.id === spectator.selfId));
+  if (selfRow && typeof selfRow.id === "string") spectator.selfId = selfRow.id;
+  if (!ctx || !canvas) return;
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  const { minX, maxX, minZ, maxZ } = MAP;
+  const pad = 24;
+  const innerW = Math.max(1, width - pad * 2);
+  const innerH = Math.max(1, height - pad * 2);
+  const spanX = Math.max(1, maxX - minX);
+  const spanZ = Math.max(1, maxZ - minZ);
+  const scale = Math.min(innerW / spanX, innerH / spanZ);
+  const ox = pad + (innerW - spanX * scale) / 2;
+  const oy = pad + (innerH - spanZ * scale) / 2;
+  // Blocks first, entities on top: the voxel grid is the ground the dots stand on.
+  paintVoxelCells({ ox, oy, scale });
+  ctx.strokeStyle = "#333";
+  ctx.strokeRect(ox, oy, spanX * scale, spanZ * scale);
+  if (!positions.length) return;
+  const others = [];
+  const selves = [];
+  for (const pos of positions) {
+    if (pos && (pos.self === true || (spectator.selfId && pos.id === spectator.selfId))) selves.push(pos);
+    else others.push(pos);
+  }
+  function drawDot(pos, color, radius, ring) {
+    const x = Math.min(width - 2, Math.max(2, ox + (Number(pos.x) - minX) * scale));
+    const y = Math.min(height - 2, Math.max(2, oy + (Number(pos.z) - minZ) * scale));
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    if (ring) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.stroke();
+    }
+  }
+  // The hue comes from the replicated Identity field via the wasm dump: every
+  // client paints the same color for the same person. 75% alpha lets
+  // overlapping dots blend on the dark plane. Rows without a replicated hue
+  // (entities that never went through admission) fall back to neutral gray.
+  function entityColor(pos) {
+    const hue = Number(pos.hue);
+    return Number.isFinite(hue) && hue >= 0 && hue <= 359
+      ? `hsla(${hue}, 85%, 55%, 0.75)`
+      : "hsla(0, 0%, 65%, 0.75)";
+  }
+  // Every entity dot is the same 1x radius; the self dot is 1.5x so viewers
+  // can pick themselves out of the crowd.
+  const dotRadius = 5;
+  for (const pos of others) drawDot(pos, entityColor(pos), dotRadius);
+  for (const pos of selves) drawDot(pos, entityColor(pos), dotRadius * 1.5, true);
+}
+
+function parseDump(raw) {
+  if (raw == null || raw === "") return [];
+  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+// Move every SectionFrame the C# host lifted off the wire into the Rust voxel
+// world. JS only carries the bytes across the two linear memories: it never
+// looks inside the payload, never caches a Section and never derives a cell
+// from one. Returns how many frames moved, so the caller knows to repaint.
+function drainSectionFrames() {
+  let drained = 0;
+  // The host caps its own queue, so this is a defence against a stuck peek, not
+  // a throttle.
+  for (let guard = 0; guard < 256; guard += 1) {
+    let header;
+    try {
+      header = csharp.peekSectionHeader();
+    } catch (error) {
+      spectator.voxel.error = `section_peek_failed:${error && error.message ? error.message : error}`;
+      return drained;
+    }
+    if (!header) return drained;
+    const bytes = csharp.takeSectionBytes();
+    drained += 1;
+    spectator.voxel.frames += 1;
+    try {
+      const envelope = JSON.parse(header);
+      const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      const digest = view.subarray(0, envelope.digestBytes);
+      const payload = view.subarray(envelope.digestBytes);
+      const outcome = voxelGrid.deliver(envelope, digest, payload);
+      if (outcome.ok) {
+        spectator.voxel.lastDelivery = {
+          sectionKey: envelope.sectionKey,
+          sectionRevision: outcome.result.sectionRevision,
+          worldRevision: outcome.result.worldRevision,
+        };
+        spectator.voxel.sections = voxelGrid.sections().length;
+        spectator.voxel.error = null;
+      } else {
+        // The Rust world refused it. Say so; the cells it would have filled keep
+        // painting loading.
+        spectator.voxel.error = outcome.error;
+        console.error("[lumio-spectator] section refused", envelope.sectionKey, outcome.error);
+      }
+    } catch (error) {
+      spectator.voxel.error = `section_deliver_failed:${error && error.message ? error.message : error}`;
+      console.error("[lumio-spectator] section deliver failed", error);
+    }
+  }
+
+  return drained;
+}
+
+async function openVoxelWorld() {
+  closeVoxelWorld();
+  voxelGrid = await openVoxelGrid({ wasmUrl: VOXEL_WASM_URL });
+  spectator.voxel.status = voxelGrid.status;
+  spectator.voxel.error = voxelGrid.error;
+  spectator.voxel.abiVersion = voxelGrid.abiVersion;
+  spectator.voxel.sections = 0;
+  spectator.voxel.frames = 0;
+  spectator.voxel.lastDelivery = null;
+  if (voxelGrid.status !== "ready") {
+    console.error("[lumio-spectator] voxel world unavailable", voxelGrid.error);
+  }
+  // Show the grid (all loading at this point) without waiting for the first
+  // frame, so the page states what it knows as soon as it knows it.
+  paint(spectator.positions);
+}
+
+function closeVoxelWorld() {
+  voxelGrid.destroy();
+  voxelGrid = unavailableVoxelGrid("voxel_world_closed");
+  spectator.voxel.status = "closed";
+  spectator.voxel.sections = 0;
+}
+
+function applyDump(raw) {
+  try {
+    // World identity from the server Welcome: a stable frame key for probes,
+    // unaffected by entities joining or bots reconnecting mid-observation.
+    if (csharp.worldInstanceId) {
+      const worldId = csharp.worldInstanceId();
+      if (worldId) spectator.worldId = worldId;
+    }
+    paint(parseDump(raw));
+  } catch (error) {
+    setStatus("error", "dump failed");
+    console.error("[lumio-spectator] dump failed", error);
+  }
+}
+
+const csharp = {
+  boot() {},
+  close() {},
+  connectionState() { return "synchronizing"; },
+  lastApplyError() { return ""; },
+  onBytes() {
+    return "[]";
+  },
+  onFrame() {
+    return "[]";
+  },
+  dumpPositions() {
+    return "[]";
+  },
+  issueSelfMove() {},
+  takeOutbound() {
+    return "[]";
+  },
+  peekSectionHeader() {
+    return "";
+  },
+  takeSectionBytes() {
+    return new Uint8Array(0);
+  },
+};
+let developmentSession;
+
+function utf8ByteLength(text) {
+  if (typeof TextEncoder === "function") return new TextEncoder().encode(text).length;
+  return unescape(encodeURIComponent(text)).length;
+}
+
+function bindExports(api) {
+  csharp.boot = () => api.Boot();
+  csharp.close = typeof api.Close === "function" ? () => api.Close() : () => {};
+  csharp.connectionState = typeof api.ConnectionState === "function" ? () => api.ConnectionState() : () => "synchronizing";
+  csharp.lastApplyError = typeof api.LastApplyError === "function" ? () => api.LastApplyError() : () => "";
+  csharp.onBytes = (bytes) => developmentSession ? developmentSession.run(() => api.OnBytes(bytes), bytes.byteLength) : api.OnBytes(bytes);
+  csharp.onFrame = (text) => developmentSession ? developmentSession.run(() => api.OnFrame(text), utf8ByteLength(text)) : api.OnFrame(text);
+  csharp.dumpPositions = () => api.DumpPositions();
+  if (typeof api.PeekSectionHeader === "function") csharp.peekSectionHeader = () => api.PeekSectionHeader();
+  if (typeof api.TakeSectionBytes === "function") csharp.takeSectionBytes = () => api.TakeSectionBytes();
+  if (typeof api.WorldInstanceId === "function") csharp.worldInstanceId = () => api.WorldInstanceId();
+  if (typeof api.IssueSelfMove === "function") csharp.issueSelfMove = () => {
+    if (!developmentSession || developmentSession.status().state === 'running') api.IssueSelfMove();
+  };
+  if (typeof api.TakeOutbound === "function") csharp.takeOutbound = () => api.TakeOutbound();
+}
+
+async function loadWasmExports() {
+  const injected = window.__lumioExports;
+  if (injected && typeof injected === "object") {
+    bindExports(injected);
+    csharp.boot();
+    applyDump(csharp.dumpPositions());
+    setStatus("wasm-ready", "export stub");
+    return true;
+  }
+
+  try {
+    const { dotnet } = await import("./_framework/dotnet.js");
+    const { getAssemblyExports, getConfig, runMain } = await dotnet.create();
+    const config = getConfig();
+    const exports = await getAssemblyExports(config.mainAssemblyName);
+    await runMain();
+    const api = exports?.Lumio?.Sample?.Client?.Spectator?.SpectatorExports;
+    if (!api || typeof api.DumpPositions !== "function" || typeof api.OnFrame !== "function") {
+      setStatus("failed", "exports missing");
+      console.error("[lumio-spectator] SpectatorExports missing after wasm boot");
+      return false;
+    }
+    if (globalThis.__lumioDevelopment) {
+      const { connectDevelopmentBridge } = await import('./dev-hot-reload.mjs');
+      const config = await (await fetch('/dev/config')).json();
+      const agentExports = await getAssemblyExports('Microsoft.DotNet.HotReload.WebAssembly.Browser');
+      developmentSession = await connectDevelopmentBridge({ api, config,
+        sdk: agentExports.Microsoft.DotNet.HotReload.WebAssembly.Browser.WebAssemblyHotReload });
+    }
+    bindExports(api);
+    csharp.boot();
+    applyDump(csharp.dumpPositions());
+    setStatus("wasm-ready");
+    return true;
+  } catch (error) {
+    const fileProtocol = typeof location !== "undefined" && location.protocol === "file:";
+    if (fileProtocol) {
+      setStatus("static", "ES modules need a static server (file: cannot load _framework)");
+      console.info("[lumio-spectator] file: protocol; serve this directory over http");
+      return false;
+    }
+    setStatus("failed", "wasm runtime missing");
+    console.error("[lumio-spectator] _framework failed", error && error.message ? error.message : error);
+    return false;
+  }
+}
+
+function readQuery() {
+  const params = new URLSearchParams(location.search);
+  return { ws: params.get("ws") };
+}
+
+// The Platform hosts every game page at /games/<slug>/ on its own origin
+// (platform-port-v1 roleSemantics.game-page), and launch is POST /api/games/<slug>/launch.
+// So the game this page belongs to is read off its own path, never written here:
+// the same bundle launches whichever game the Platform serves it as. A path that
+// is not /games/<slug>/ (or /games/<slug>/index.html) names no game, and the page
+// says so instead of falling back to some default game.
+const GAME_PATH = /^\/games\/([^/]+)\/(?:index\.html)?$/;
+const GAME_SLUG = /^[A-Za-z0-9_-][A-Za-z0-9._~-]*$/;
+
+function gameSlugFromPath(pathname) {
+  const match = GAME_PATH.exec(typeof pathname === "string" ? pathname : "");
+  if (!match) return null;
+  let slug;
+  try {
+    slug = decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+  return GAME_SLUG.test(slug) ? slug : null;
+}
+
+function codedError(code, detail) {
+  const error = new Error(detail ? `${code}: ${detail}` : code);
+  error.code = code;
+  return error;
+}
+
+function requireGameSlug() {
+  const pathname = typeof location !== "undefined" ? location.pathname : "";
+  const slug = gameSlugFromPath(pathname);
+  if (!slug) throw codedError("game_slug_unresolved", `page path ${JSON.stringify(pathname)} is not /games/<slug>/`);
+  return slug;
+}
+
+// Plaintext ws: is allowed only to a loopback DS, and only when this page itself
+// was loaded from loopback, i.e. a developer machine (local Platform compose, a
+// static server next to a local DS, the node tests). A page served from any other
+// origin gets wss: only. The decision is the page's origin, not a URL flag the
+// viewer can type (R-00710 removed the unused `allowLoopback` query parameter).
+const LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "[::1]", "::1"];
+
+function pageAllowsLoopback() {
+  return typeof location !== "undefined" && LOOPBACK_HOSTS.includes(location.hostname);
+}
+
+// Local test mode, the one explicit entry that bypasses the Platform: whoever loads
+// the page (node tests, a Playwright probe, a local harness) injects the launch as
+// `window.__lumioLaunch` before main.js runs. It needs no /games/<slug>/ path; `?ws=`
+// may then override only its address. Credentials never travel in the URL.
+function launchFromInjected() {
+  const launch = window.__lumioLaunch;
+  if (!launch || typeof launch !== "object") return null;
+  return launch;
+}
+
+async function launchFromPlatform(signal) {
+  // Resolve the game before any Platform round trip: no path, no request.
+  const slug = requireGameSlug();
+  const account = await fetch("/api/account/me", { credentials: "same-origin", signal });
+  if (!account.ok) throw new Error("login_required");
+  const csrf = account.headers.get("X-CSRF-Token");
+  if (!csrf) throw new Error("launch_failed");
+  const response = await fetch(`/api/games/${encodeURIComponent(slug)}/launch`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRF-Token": csrf },
+    signal,
+  });
+  if (!response.ok) throw new Error("launch_failed");
+  const body = await response.json();
+  if (!body || typeof body !== "object") throw new Error("launch_failed");
+  if (typeof body.wsUrl !== "string" || typeof body.admissionCredential !== "string") {
+    throw new Error("launch_failed");
+  }
+  return {
+    wsUrl: body.wsUrl,
+    subprotocol: typeof body.subprotocol === "string" ? body.subprotocol : "lumio.mvp.v0",
+    admissionCredential: body.admissionCredential,
+  };
+}
+
+function noteSelfFromWelcome(text) {
+  if (typeof text !== "string" || text.indexOf('"messageType":"Welcome"') < 0) return;
+  try {
+    const msg = JSON.parse(text);
+    if (msg && msg.messageType === "Welcome" && typeof msg.selfNetEntityId === "string") {
+      spectator.selfId = msg.selfNetEntityId;
+    }
+  } catch {
+    // identity only; dump still comes from wasm SpectatorDump
+  }
+}
+
+let lastSelfMoveMs = 0;
+
+function flushSelfMove(socket) {
+  if (!socket || socket.readyState !== 1) return;
+  const now = Date.now();
+  if (now - lastSelfMoveMs < 80) return;
+  lastSelfMoveMs = now;
+  try {
+    csharp.issueSelfMove();
+    const raw = csharp.takeOutbound();
+    const list = typeof raw === "string" && raw ? JSON.parse(raw) : raw;
+    if (!Array.isArray(list)) return;
+    for (const item of list) {
+      if (item && item.messageType === "InputCommand") socket.send(JSON.stringify(item));
+    }
+  } catch (error) {
+    console.error("[lumio-spectator] self move failed", error);
+  }
+}
+
+let connectionAttempt = 0;
+let currentSocket = null;
+let launchCancellation = null;
+let runtimeClosed = false;
+let terminal = false;
+let recovering = false;
+let active = false;
+// The launch the current socket dialled; a not_serving retry dials it again (ADR-120: same address).
+let currentLaunch = null;
+// not_serving retries taken in the current connect phase; back to 0 once the session is active.
+let notServingRetries = 0;
+
+// ADR-120: not_serving (1013) means the DS at this address has not opened yet. While connecting,
+// the page dials the same launch again after a bounded backoff; past the bound it reports a connect
+// failure. Retry n waits initialDelayMs doubled n-1 times, capped at maxDelayMs. NOT_SERVING_RETRY is
+// generated from the same declaration as the C# session's SessionNotServingRetryOptions.Default
+// (Client/Gameplay/Session/not-serving-retry.json), so the page and the session share one bound.
+function notServingDelayMs(retry) {
+  return Math.min(NOT_SERVING_RETRY.initialDelayMs * 2 ** (retry - 1), NOT_SERVING_RETRY.maxDelayMs);
+}
+
+// The one close code this page names that is not in the DS table. A browser reports 1006 itself when
+// the connection drops without a close frame (RFC 6455 7.1.5); an endpoint must never send it in one
+// (7.4.1). So no server can close with it and the contract's table cannot carry it.
+const ABNORMAL_CLOSURE = 1006;
+
+// One classification for every close this page sees; every server close code comes from the generated table.
+function closeClass(event) {
+  if (event.code === DS_CLOSE_CODES.internal_error) return "fault";
+  if (event.code === DS_CLOSE_CODES.not_serving) return "try_later";
+  if (event.code === ABNORMAL_CLOSURE
+    || (["connection_timeout", "queue_full", "send_buffer_overflow"].includes(event.reason)
+      && event.code === DS_CLOSE_CODES[event.reason])) return "recoverable";
+  return "closed";
+}
+
+function releaseReplica() {
+  if (!runtimeClosed) {
+    runtimeClosed = true;
+    csharp.close();
+  }
+  // The voxel baseline belongs to this connectionGeneration; a new session
+  // rebuilds it from the Sections the server sends after the next Welcome.
+  closeVoxelWorld();
+  active = false;
+  spectator.selfId = spectator.worldId = null;
+  paint([]);
+}
+
+function finish(status, reason = "normal_logout") {
+  terminal = true;
+  connectionAttempt++;
+  launchCancellation?.abort();
+  launchCancellation = null;
+  const socket = currentSocket;
+  currentSocket = null;
+  releaseReplica();
+  setStatus(status);
+  if (socket && socket.readyState < 2) {
+    // Browser scripts may send only 1000 or application codes (3000–4999).
+    // Local data failure is terminal above; close transport using the registered session_closed pair.
+    const wireReason = DS_CLOSE_CODES[reason] === DS_CLOSE_CODES.session_closed ? reason : "session_closed";
+    socket.close(DS_CLOSE_CODES[wireReason], wireReason);
+  }
+}
+
+async function reconnect() {
+  const attempt = ++connectionAttempt;
+  recovering = true;
+  currentSocket = null;
+  releaseReplica();
+  setStatus("reconnecting");
+  launchCancellation = new AbortController();
+  try {
+    // The injected launch describes the original attempt only. Recovery gets a new ticket.
+    const launch = await launchFromPlatform(launchCancellation.signal);
+    if (terminal || attempt !== connectionAttempt) return;
+    currentLaunch = launch;
+    csharp.boot();
+    await openVoxelWorld();
+    if (terminal || attempt !== connectionAttempt) { closeVoxelWorld(); return; }
+    runtimeClosed = false;
+    lastSelfMoveMs = 0;
+    attachSocket(connectDs(launch, { allowLoopback: pageAllowsLoopback(), Socket: window.WebSocket }), attempt);
+  } catch (error) {
+    if (attempt === connectionAttempt && !terminal) failLaunch(error);
+  }
+}
+
+// ADR-120: the DS refused this connect with not_serving. Dial the same launch again after the
+// backoff — no new ticket, the refused one was never admitted — or, past the bound, fail the connect.
+async function retryNotServing(attempt) {
+  if (notServingRetries >= NOT_SERVING_RETRY.maxRetries) {
+    spectator.lastError = "not_serving_exhausted";
+    finish("failed");
+    return;
+  }
+  notServingRetries++;
+  const launch = currentLaunch;
+  currentSocket = null;
+  releaseReplica();
+  setStatus("reconnecting", "not_serving");
+  try {
+    await new Promise((resolve) => setTimeout(resolve, notServingDelayMs(notServingRetries)));
+    if (terminal || attempt !== connectionAttempt) return;
+    csharp.boot();
+    await openVoxelWorld();
+    if (terminal || attempt !== connectionAttempt) { closeVoxelWorld(); return; }
+    runtimeClosed = false;
+    lastSelfMoveMs = 0;
+    attachSocket(connectDs(launch, { allowLoopback: pageAllowsLoopback(), Socket: window.WebSocket }), attempt);
+  } catch {
+    if (attempt === connectionAttempt && !terminal) finish("failed");
+  }
+}
+
+// A launch that cannot even be asked for names why. Every other failure keeps the
+// page's existing outcome (a plain `failed`).
+function failLaunch(error) {
+  finish("failed");
+  if (error && error.code === "game_slug_unresolved") {
+    setStatus("failed", error.code);
+    console.error("[lumio-spectator]", error.message);
+  }
+}
+
+function attachSocket(socket, attempt = connectionAttempt) {
+  currentSocket = socket;
+  socket.binaryType = "arraybuffer";
+  const current = () => !terminal && attempt === connectionAttempt && socket === currentSocket;
+  socket.addEventListener("open", () => { if (current()) setStatus("connected"); });
+  socket.addEventListener("error", () => { if (current()) setStatus("connecting"); });
+  socket.addEventListener("close", (event) => {
+    if (!current()) return;
+    const kind = closeClass(event);
+    if (kind === "try_later") spectator.notServingCloses++;
+    if (kind === "fault") {
+      spectator.lastError = "internal_error";
+      finish("failed", "internal_error");
+    }
+    // ADR-120 adds nothing after entering the game, and a DS that follows it sends not_serving only
+    // to a connection it has not admitted. Once active it is a peer contract violation: the page fails
+    // as on any fault, and does not reconnect.
+    else if (kind === "try_later" && active) {
+      spectator.lastError = "not_serving";
+      finish("failed", "not_serving");
+    }
+    // not_serving while connecting: same address, bounded backoff.
+    else if (kind === "try_later") void retryNotServing(attempt);
+    else if (kind === "recoverable" && active && !recovering) void reconnect();
+    else finish("closed");
+  });
+  socket.addEventListener("message", (event) => {
+    if (!current()) return;
+    const data = event.data;
+    try {
+      if (typeof data !== "string") {
+        finish("failed", "protocol_violation");
+        return;
+      }
+      spectator.lastFrameType = frameTypeOf(data);
+      const applied = csharp.onFrame(data);
+      const state = csharp.connectionState();
+      if (state === "superseded") { finish("superseded", "superseded"); return; }
+      if (state === "faulted") {
+        noteApplyFault(new Error(csharp.lastApplyError() || "faulted"), data);
+        finish("failed", spectator.lastError || "bad_envelope");
+        return;
+      }
+      // SectionFrames are not entity frames, so `applied` is false for them; the
+      // grid still has to be repainted when one landed in the voxel world.
+      const sections = drainSectionFrames();
+      if (applied === false) {
+        if (sections > 0) applyDump(csharp.dumpPositions());
+        return;
+      }
+      noteSelfFromWelcome(data);
+      active = state === "active";
+      if (active) { recovering = false; notServingRetries = 0; }
+      applyDump(csharp.dumpPositions());
+      if (active) flushSelfMove(socket);
+    } catch (error) {
+      noteApplyFault(error, data);
+      finish("failed", spectator.lastError || "bad_envelope");
+    }
+  });
+}
+
+async function obtainLaunch(query) {
+  const injected = launchFromInjected();
+  if (injected) {
+    if (query.ws) {
+      return {
+        wsUrl: query.ws,
+        subprotocol: injected.subprotocol || "lumio.mvp.v0",
+        admissionCredential: injected.admissionCredential,
+      };
+    }
+    return injected;
+  }
+  if (query.ws) {
+    throw new Error("launch required (inject window.__lumioLaunch; do not put credentials in the URL)");
+  }
+  // Platform mode: the game comes from this page's /games/<slug>/ path.
+  return launchFromPlatform();
+}
+
+async function start() {
+  if (currentSocket || launchCancellation) finish("closed");
+  terminal = false;
+  recovering = false;
+  active = false;
+  notServingRetries = 0;
+  const attempt = ++connectionAttempt;
+  if (typeof location !== "undefined" && location.protocol === "file:") {
+    setStatus("static", "ES modules need a static server");
+  } else {
+    setStatus("starting");
+  }
+  paint([]);
+  if (!await loadWasmExports()) return;
+  // Second wasm instance, own linear memory, no shared codec (ADR-078 决策 3).
+  await openVoxelWorld();
+  if (terminal || attempt !== connectionAttempt) { closeVoxelWorld(); return; }
+  runtimeClosed = false;
+
+  const query = readQuery();
+  let launch;
+  try {
+    launch = await obtainLaunch(query);
+    if (terminal || attempt !== connectionAttempt) return;
+    currentLaunch = launch;
+  } catch (error) {
+    if (error && error.code === "game_slug_unresolved") failLaunch(error);
+    else finish("waiting");
+    return;
+  }
+
+  try {
+    const socket = connectDs(launch, {
+      allowLoopback: pageAllowsLoopback(),
+      Socket: window.WebSocket,
+    });
+    attachSocket(socket, attempt);
+  } catch (error) {
+    finish("failed");
+  }
+}
+
+document.getElementById("enter")?.addEventListener("click", () => { void start(); });
+void start();

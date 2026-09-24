@@ -81,6 +81,24 @@ that was already running), stops the DS, reboots it on the same store and
 re-admits the same account under `SampleRestoreVerifyScenario`. Bots 2..N and
 the spectator are the fleet and are stopped before the restart.
 
+`--spectator` mints one more `loginAndLaunch` ticket and starts no Bot.Host
+for it. Once step 04 passes, the launcher serves the published spectator
+bundle (`--spectator-root` / `LUMIO_SPECTATOR_ROOT`, default
+`Client/UI/Spectator/host/bin/Release/net10.0/publish/wwwroot`) on
+`http://127.0.0.1:<port>/` (`--spectator-static-port` /
+`LUMIO_SPECTATOR_STATIC_PORT`, default any free port) and prints
+`spectator-url=`. Every `index.html` it serves carries that ticket as
+`window.__lumioLaunch` (the page's local test mode, see
+[`Client/UI/Spectator/README.md`](../Client/UI/Spectator/README.md)), with the
+DS endpoint the bots were given as `wsUrl`; the URL never carries the ticket.
+The page is served from loopback, which is what lets it dial the loopback DS
+over plaintext `ws:`. The ticket is single-use, so a reload after the page
+entered the game needs a new run. No published bundle means no page:
+`verification.json` records `spectatorPage.status=BLOCKED_ENV` and the
+fourteen steps are unaffected. `--spectator-url` only prints a page the
+launcher does not serve and cannot inject into; such a page has to be the
+Platform's own `/games/<slug>/` on an origin the browser is logged in to.
+
 `server.json` (or `LUMIO_DS_CONFIG`) is a template: each run writes
 `server.boot-1.json` / `server.boot-2.json` into its evidence directory with
 absolute paths, a fresh store, one debug log directory per boot and the
@@ -113,6 +131,26 @@ node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll <Lumio.Sample.B
 `native-core-clock_now`, RSS, transform consistency). A live 100-bot
 5-minute run is `BLOCKED_ENV` until Platform + Bot Activate + NativeCore
 clock exist. Do not treat the schema file as a passed gate.
+
+## 100-bot spectator gate (Wave B, `spectator-100.mjs`)
+
+`spectator-100.mjs` runs 100 Bot.Host processes plus two headed Chrome
+spectators (102 tickets). The page it opens is this repository's published
+spectator bundle, the same one the launcher serves: `--spectator-root` /
+`LUMIO_SPECTATOR_ROOT`, default
+`Client/UI/Spectator/host/bin/Release/net10.0/publish/wwwroot` (the launcher's
+`DEFAULT_SPECTATOR_ROOT`; this tool keeps no second default). It serves that
+directory on `http://127.0.0.1:<--spectator-static-port|4173>/` and each
+Chrome gets its own ticket as `window.__lumioLaunch` over CDP before the page
+loads, so the served `index.html` holds no ticket. The source directory
+`Client/UI/Spectator/` is not servable (the engine `.mjs` parts and the filled
+import map exist only in the publish output), and LumioClient no longer has a
+page (R-00710). No bundle is `BLOCKED_ENV` before any ticket is minted; there is
+no fallback. A bundle that is there but stale is `FAIL`: the published
+`index.html` import map must map `./_framework/dotnet.js` to a file in
+`_framework/`, `Lumio.Sample.Client.Spectator*.wasm` must carry
+`ConnectionState` and `LastApplyError`, and no non-Hfsm NativeLoader wasm may be
+published.
 
 ## World assertions (R-00568)
 

@@ -40,9 +40,10 @@ import {
 import { assertRunnableDsConfig, writeKernelConfigForRun } from './ds-config.mjs';
 import { blocked, loadProcessTools } from './engine-tools.mjs';
 import {
+  DEFAULT_SPECTATOR_ROOT,
+  normalizeSpectatorPageUrl,
   parseBotAdmit,
   parseLaunchArgs,
-  resolveSpectatorPageUrl,
 } from './launcher.mjs';
 import { collectRepoShas, SHA_REPOS } from './stress-move.mjs';
 
@@ -445,7 +446,14 @@ export function baseMapCaptureAgreement({ root = ROOT, dsConfig, env = {} } = {}
 }
 
 /**
- * Wave B serves `LumioClient/Client/UI/Spectator/` as a static tree.
+ * Wave B serves the Sample spectator page's publish output as a static tree:
+ * `Client/UI/Spectator/host/bin/Release/net10.0/publish/wwwroot` (R-00710 moved
+ * the page here; LumioClient keeps only engine parts). The source directory is
+ * not servable: `connect-ds.mjs` and the other engine modules are linked in only
+ * at publish time, and only the published index.html carries the filled import
+ * map. The default and `--spectator-root` / `LUMIO_SPECTATOR_ROOT` are the
+ * launcher's (R-00749); there is no second default here and no LumioClient
+ * fallback.
  * `main.js` only flushes MoveAbility after wasm `ConnectionState()==="active"`.
  * A `_framework` published before replica-host Program.cs (r15 served 2026-09-12
  * wasm without that export) leaves both self-dots at the admission pose while
@@ -453,14 +461,71 @@ export function baseMapCaptureAgreement({ root = ROOT, dsConfig, env = {} } = {}
  */
 export const SPECTATOR_WASM_CONNECTION_STATE_MARKER = 'ConnectionState';
 export const SPECTATOR_WASM_APPLY_ERROR_MARKER = 'LastApplyError';
+/** `main.js` imports the runtime by this stable name; only the import map makes it resolvable. */
+const SPECTATOR_DOTNET_SPECIFIER_PATH = '/_framework/dotnet.js';
 
-export function spectatorPageRoot(clientRoot) {
-  return resolve(String(clientRoot ?? ''), 'Client', 'UI', 'Spectator');
+export function spectatorBundleRoot({ root = ROOT, spectatorRoot, env = {} } = {}) {
+  const configured = firstNonBlank(spectatorRoot, env.LUMIO_SPECTATOR_ROOT) ?? DEFAULT_SPECTATOR_ROOT;
+  return resolve(String(root), configured);
 }
 
-export function spectatorWasmAgreement({ clientRoot } = {}) {
-  const pageRoot = spectatorPageRoot(clientRoot);
+/**
+ * .NET 10 publishes `_framework/dotnet.<fingerprint>.js` and never a plain
+ * `dotnet.js`; `import("./_framework/dotnet.js")` resolves only through the
+ * import map the SDK writes into the published index.html. Read that map and
+ * require its target to be a file of this bundle.
+ */
+export function spectatorDotnetImport(pageRoot) {
+  const indexPath = join(pageRoot, 'index.html');
+  let html;
+  try {
+    html = readFileSync(indexPath, 'utf8');
+  } catch (error) {
+    return { ok: false, reason: `spectator index.html is unreadable: ${indexPath} (${error.message})` };
+  }
+  const match = /<script\b[^>]*type\s*=\s*["']importmap["'][^>]*>([\s\S]*?)<\/script>/i.exec(html);
+  const text = match ? match[1].trim() : '';
+  if (text === '') {
+    return {
+      ok: false,
+      reason: `spectator index.html has an empty import map: ${indexPath} (source page, not the publish output; main.js import of ./_framework/dotnet.js fails closed)`,
+    };
+  }
+  let imports;
+  try {
+    imports = JSON.parse(text)?.imports;
+  } catch (error) {
+    return { ok: false, reason: `spectator index.html import map is invalid JSON: ${indexPath} (${error.message})` };
+  }
+  const base = 'http://127.0.0.1/';
+  const entry = Object.entries(imports && typeof imports === 'object' ? imports : {})
+    .find(([specifier]) => {
+      try { return new URL(specifier, base).pathname === SPECTATOR_DOTNET_SPECIFIER_PATH; } catch { return false; }
+    });
+  if (!entry || typeof entry[1] !== 'string') {
+    return {
+      ok: false,
+      reason: `spectator index.html import map does not map ./_framework/dotnet.js: ${indexPath} (main.js import of ./_framework/dotnet.js fails closed)`,
+    };
+  }
+  let target;
+  try {
+    const url = new URL(entry[1], base);
+    target = url.origin === new URL(base).origin ? resolve(pageRoot, `.${decodeURIComponent(url.pathname)}`) : null;
+  } catch { target = null; }
   const framework = join(pageRoot, '_framework');
+  if (!target || !target.startsWith(`${framework}${sep}`) || !isFilePath(target)) {
+    return {
+      ok: false,
+      reason: `spectator import map maps ./_framework/dotnet.js to ${entry[1]}, which is not a file under ${framework} (main.js import of ./_framework/dotnet.js fails closed)`,
+    };
+  }
+  return { ok: true, dotnet: target };
+}
+
+export function spectatorWasmAgreement({ pageRoot } = {}) {
+  const bundle = resolve(String(pageRoot ?? ''));
+  const framework = join(bundle, '_framework');
   if (!existsSync(framework)) {
     return {
       ok: false,
@@ -468,14 +533,8 @@ export function spectatorWasmAgreement({ clientRoot } = {}) {
       framework,
     };
   }
-  const loader = join(framework, 'dotnet.js');
-  if (!isFilePath(loader)) {
-    return {
-      ok: false,
-      reason: `spectator _framework is missing dotnet.js: ${loader} (main.js import of ./_framework/dotnet.js fails closed)`,
-      framework,
-    };
-  }
+  const loader = spectatorDotnetImport(bundle);
+  if (!loader.ok) return { ok: false, reason: loader.reason, framework };
   let names;
   try {
     names = readdirSync(framework);
@@ -486,11 +545,13 @@ export function spectatorWasmAgreement({ clientRoot } = {}) {
       framework,
     };
   }
-  const wasmNames = names.filter((name) => /^Lumio\.Client\.Spectator\.[^/\\]+\.wasm$/.test(name));
+  // The published host assembly (Client/UI/Spectator/host, AssemblyName
+  // Lumio.Sample.Client.Spectator) carries the [JSExport]s main.js calls.
+  const wasmNames = names.filter((name) => /^Lumio\.Sample\.Client\.Spectator(?:\.[^/\\]+)?\.wasm$/.test(name));
   if (wasmNames.length === 0) {
     return {
       ok: false,
-      reason: `spectator _framework has no Lumio.Client.Spectator.*.wasm: ${framework}`,
+      reason: `spectator _framework has no Lumio.Sample.Client.Spectator*.wasm: ${framework}`,
       framework,
     };
   }
@@ -536,6 +597,7 @@ export function spectatorWasmAgreement({ clientRoot } = {}) {
   return {
     ok: true,
     framework,
+    dotnet: loader.dotnet,
     wasm: wasmPath,
     marker: SPECTATOR_WASM_CONNECTION_STATE_MARKER,
     applyErrorMarker: SPECTATOR_WASM_APPLY_ERROR_MARKER,
@@ -576,6 +638,16 @@ function collectCadenceLagLogPaths(logPath) {
  * Cadence_lag is emitted into DS `logging.dir` (ADR-081 post office), not
  * the runner's captured lumio-ds stdout. Scan stdout, the capture log, and
  * any extra operator log dirs/files (typically logging.dir).
+ *
+ * ADR-118 decision 7: cadence accounting only exists inside "服务中" — the
+ * single moment `DS_READY` fires, admission opens and the cadence baseline is
+ * set, all at once. The DS no longer emits cadence_lag before that moment, so
+ * there is no pre-world line to tell apart from a runtime one; every
+ * host.drop cadence_lag line this gate sees is a real service-time drop and
+ * counts. (This used to split into a runtime bucket that failed the gate and
+ * an excluded pre-world boot bucket, working around the DS recording cadence
+ * before a world — and therefore a connection — existed. ADR-118 step 2
+ * (LumioServer #150) removed that root cause, so the split is gone.)
  */
 export function dsCadenceLagEvidence(logPath, stdout, extraLogPaths = []) {
   const chunks = [];
@@ -591,27 +663,17 @@ export function dsCadenceLagEvidence(logPath, stdout, extraLogPaths = []) {
       chunks.push(readFileSync(path, 'utf8'));
     } catch { /* log still being written */ }
   }
-  // 2026-09-22: the current-main DS emits cadence_lag during the pre-world CLR boot
-  // (tick=0 world=- conn=-, before DS_READY). No connection exists there, so no handshake
-  // can fault — the gate's stated purpose. Only provably pre-world lines are excluded;
-  // runtime drops keep the zero-tolerance baseline, and the excluded count is reported.
-  const isPreWorldLine = line => /msg="cadence_lag world=- conn=-"/.test(line) && /\btick=0\b/.test(line);
   let dropped = 0;
-  let bootDropped = 0;
   for (const text of chunks) {
     for (const line of String(text).split(/\r?\n/)) {
       if (!/target=host\.drop/.test(line) || !/msg="cadence_lag/.test(line)) continue;
       const match = line.match(/dropped=(\d+)/);
       const n = match ? Number(match[1]) : NaN;
       if (!Number.isFinite(n)) continue;
-      if (isPreWorldLine(line)) {
-        if (n > bootDropped) bootDropped = n;
-      } else if (n > dropped) {
-        dropped = n;
-      }
+      if (n > dropped) dropped = n;
     }
   }
-  return { dropped, bootDropped, marker: DS_CADENCE_LAG_MARKER, paths };
+  return { dropped, marker: DS_CADENCE_LAG_MARKER, paths };
 }
 
 /** The DS config both prerequisite gates read: explicit value, else the committed startup config. */
@@ -743,10 +805,12 @@ function firstNonBlank(...values) {
 }
 
 /**
- * Resolve only operator-supplied spectator settings. The launcher helper has
- * a useful default URL, but that default is a planning convenience; using it
- * here would make the live runner believe an externally managed page exists
- * and skip the static server it owns.
+ * Resolve only operator-supplied spectator settings. Without them the live
+ * runner owns the static server and fills in its loopback URL itself; a
+ * default here would make it believe an externally managed page exists.
+ * A URL is kept as given (launcher `normalizeSpectatorPageUrl`: no userinfo,
+ * query or fragment). An origin names a server hosting the publish output at
+ * its root, the same layout the runner's own static server has.
  */
 function resolveExplicitSpectatorUrl({ options = {}, env = {}, document } = {}) {
   const spectatorUrl = firstNonBlank(
@@ -754,20 +818,16 @@ function resolveExplicitSpectatorUrl({ options = {}, env = {}, document } = {}) 
     env.LUMIO_SPECTATOR_URL,
     document?.spectatorUrl,
   );
+  if (spectatorUrl != null) return normalizeSpectatorPageUrl(spectatorUrl);
   const spectatorOrigin = firstNonBlank(
     options.spectatorOrigin,
     env.LUMIO_SPECTATOR_ORIGIN,
   );
-  if (spectatorUrl == null && spectatorOrigin == null) return null;
-  return resolveSpectatorPageUrl({
-    spectatorUrl,
-    spectatorOrigin,
-    spectatorStaticPort: firstNonBlank(
-      options.spectatorStaticPort,
-      env.LUMIO_SPECTATOR_STATIC_PORT,
-    ),
-    env,
-  });
+  if (spectatorOrigin == null) return null;
+  const origin = new URL(spectatorOrigin.includes('://') ? spectatorOrigin : `http://${spectatorOrigin}`);
+  const port = firstNonBlank(options.spectatorStaticPort, env.LUMIO_SPECTATOR_STATIC_PORT);
+  if (port != null) origin.port = port;
+  return normalizeSpectatorPageUrl(`${origin.origin}/`);
 }
 
 function assertLoopbackPageUrl(value) {
@@ -3446,18 +3506,26 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     assertRunnableDsConfig(dsConfigValue);
     const kernelConfigPath = writeKernelConfigForRun(effectiveDsConfig, join(evidence, 'kernel-config.json'));
 
-    const pageRoot = resolve(options.clientRoot ?? resolve(root, '..', 'LumioClient'));
+    // The Sample page's publish output (launcher default / --spectator-root /
+    // LUMIO_SPECTATOR_ROOT). No bundle is BLOCKED_ENV, never a LumioClient
+    // fallback: the wasm agreement below reads this bundle even when an
+    // operator-provided URL serves the page.
+    const pageRoot = spectatorBundleRoot({ root, spectatorRoot: options.spectatorRoot, env });
     // Resolve only an operator-provided URL/origin. When absent, the runner
     // owns the static server lifecycle and fills in its loopback URL below.
     const requestedSpectatorUrl = resolveExplicitSpectatorUrl({ options, env, document });
-    const pageEntry = join(pageRoot, 'Client', 'UI', 'Spectator', 'index.html');
-    if (!isFilePath(pageEntry) && !requestedSpectatorUrl) {
-      return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: spectator page is missing: ${pageEntry}` };
+    const pageEntry = join(pageRoot, 'index.html');
+    if (!isFilePath(pageEntry)) {
+      return {
+        status: 'BLOCKED_ENV',
+        error: `BLOCKED_ENV: spectator bundle not found: ${pageEntry} (dotnet publish Client/UI/Spectator/host, or --spectator-root)`,
+      };
     }
-    const spectatorWasm = spectatorWasmAgreement({ clientRoot: pageRoot });
+    const spectatorWasm = spectatorWasmAgreement({ pageRoot });
     if (!spectatorWasm.ok) return { status: 'FAIL', error: spectatorWasm.reason };
     document.processes.spectatorWasm = {
       ok: true,
+      root: pageRoot,
       wasm: spectatorWasm.wasm,
       marker: spectatorWasm.marker,
     };
@@ -3778,7 +3846,8 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
       document.spectatorUrl = assertLoopbackPageUrl(requestedSpectatorUrl);
     } else {
       staticServer = await startStaticServer(pageRoot, staticPort);
-      document.spectatorUrl = assertLoopbackPageUrl(`http://127.0.0.1:${staticPort}/Client/UI/Spectator/`);
+      // The bundle is served at the root; main.js reads the launch injected over CDP.
+      document.spectatorUrl = assertLoopbackPageUrl(`http://127.0.0.1:${staticPort}/`);
     }
     const ports = preflight.cdpPorts ?? normalizeCdpPorts(options.cdpPorts).ports;
     const sessions = spectatorRows.map((row, index) => ({
@@ -4108,6 +4177,8 @@ export function usage() {
     '--bots 100 is mandatory; another bot count is rejected rather than resized silently.',
     '--authorize-live is required together with attachLive, LIVE_BOTS=0, and LUMIO_WAVE_B_LIVE=1.',
     '--start-platform opts into docker compose startup; without it Platform must already be running.',
+    `Spectator page: the published Sample bundle (--spectator-root / LUMIO_SPECTATOR_ROOT, default ${DEFAULT_SPECTATOR_ROOT})`,
+    `  served at http://127.0.0.1:<--spectator-static-port|${DEFAULT_STATIC_PORT}>/; no bundle is BLOCKED_ENV (no LumioClient fallback).`,
     'Admission credentials are injected through CDP in memory and never enter URLs or verification.json.',
   ].join('\n');
 }
