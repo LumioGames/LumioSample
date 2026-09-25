@@ -1,0 +1,33 @@
+{
+  "page": "Client/UI/Spectator (publish output) index.html?view=blocks, served by Tools/launcher.mjs --spectator on 127.0.0.1:8790, DS = LUMIO_DS_CONFIG=Server/Config/Startup/server.acceptance.json",
+  "browser": "Claude desktop built-in Chromium, Chrome/152.0.7977.130, WebGL 2.0 (OpenGL ES 3.0 Chromium), macOS x86_64",
+  "sectionFeed": "the DS sent no SectionFrame (see ds-probe-acceptance.txt); the two acceptance Sections were encoded from acceptance-lakeside.cells.json and handed to the page's own voxel grid deliver() (request_section + deliver_section, digest from lumio_voxel_payload_digest) by a test harness run in the page",
+  "delivered": [
+    { "key": "0:0:0", "encoding": "Palette", "ids": 30, "ok": true },
+    { "key": "1:0:0", "encoding": "Palette", "ids": 18, "ok": true }
+  ],
+  "faces": { "opaque": 1714, "cutout": 198, "translucent": 65 },
+  "perSection": { "0:0:0": { "opaque": 1113, "cutout": 63, "translucent": 2 }, "1:0:0": { "opaque": 601, "cutout": 135, "translucent": 63 } },
+  "lightDigests": {
+    "s:0:0:0": "9c816a65a6f5f4460ef8d39c2d717381ab4cdc425bbefbae95db2595846af05b",
+    "s:1:0:0": "37f01cd33bc9b40c9b2e925391a55868806581345e33af26df4d3209fb801769"
+  },
+  "lightProbes": {
+    "torch(6,3,11)+x d=0..6 blockRGB": [[14,12,8],[13,11,7],[12,10,6],[11,9,5],[10,8,4],[9,7,3],[8,6,2]],
+    "glowstone(5,4,7) five air neighbours": [[14,12,9],[14,12,9],[14,12,9],[14,12,9],[14,12,9]],
+    "lava(28,2,11) above": [14,5,0],
+    "under plank roof (4,5,8),(7,5,9) sky": [12, 11],
+    "under leaves (27,5,4) / open ground (22,3,5) sky": [15, 15]
+  },
+  "firstEntry": {
+    "lakeside 2 Sections": { "deliverAndLightMs": 14.1, "untilMeshedMs": 18.1 },
+    "test-sections.json 192 Sections": { "deliverAndLightMs(incl. JS encode)": 411.1, "meshMs": 54.1, "faces": { "opaque": 23294, "cutout": 1888, "translucent": 5934 } },
+    "mc-lake-large.sections.json 846 Sections": { "jsEncodeMs": 147.7, "deliverAndLightMs": 1734.4, "meshMs": 250.8, "faces": { "opaque": 29782, "cutout": 53907, "translucent": 25282 } }
+  },
+  "missingTexture": {
+    "removed": "publish output game-assets/Blocks/textures/trunk_side.png (restored afterwards)",
+    "warnings": [{ "reason": "texture_missing:http_404", "name": "lumio.oak_log", "slots": ["north","south","west","east"] }],
+    "otherWarningsUnchanged": "742 description_missing:http_404 for the 742 legacy lumio.block_N rows that have no art (not on the map)",
+    "shot": "shots/missing-texture-oak_log-side.png"
+  }
+}

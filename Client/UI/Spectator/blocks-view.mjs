@@ -229,7 +229,7 @@ export async function createBlocksView({ grid, catalogJson, canvas, hud, cameraB
   requestAnimationFrame(tick);
 
   const api = {
-    scene, quads, sum, warnings, timing, cameras, orbit,
+    grid, scene, quads, sum, warnings, timing, cameras, orbit,
     selectCamera, lightAt, lightDigests, snapDataUrl, snapTo,
     get cameraId() { return cameras[cameraIndex]?.id ?? null; },
     get fps() { return fps; },

@@ -1,0 +1,1069 @@
+{
+  "catalog": "Server/Assets/Maps/official-catalog.json",
+  "cells": 2035,
+  "lighting": {
+    "digests": {
+      "s:0:0:0": "9c816a65a6f5f4460ef8d39c2d717381ab4cdc425bbefbae95db2595846af05b",
+      "s:1:0:0": "37f01cd33bc9b40c9b2e925391a55868806581345e33af26df4d3209fb801769"
+    },
+    "probes": {
+      "light.glowstone_neighbours": [
+        {
+          "block": "lumio.glowstone",
+          "cell": [
+            5,
+            4,
+            7
+          ],
+          "light": {
+            "block": [
+              15,
+              13,
+              10
+            ],
+            "sky": 0
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            4,
+            4,
+            7
+          ],
+          "light": {
+            "block": [
+              14,
+              12,
+              9
+            ],
+            "sky": 12
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            6,
+            4,
+            7
+          ],
+          "light": {
+            "block": [
+              14,
+              12,
+              9
+            ],
+            "sky": 10
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            5,
+            5,
+            7
+          ],
+          "light": {
+            "block": [
+              14,
+              12,
+              9
+            ],
+            "sky": 12
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            5,
+            4,
+            6
+          ],
+          "light": {
+            "block": [
+              14,
+              12,
+              9
+            ],
+            "sky": 10
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            5,
+            4,
+            8
+          ],
+          "light": {
+            "block": [
+              14,
+              12,
+              9
+            ],
+            "sky": 12
+          }
+        }
+      ],
+      "light.lava_source": [
+        {
+          "block": "lumio.lava",
+          "cell": [
+            28,
+            2,
+            11
+          ],
+          "light": {
+            "block": [
+              15,
+              6,
+              0
+            ],
+            "sky": 14
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            28,
+            3,
+            11
+          ],
+          "light": {
+            "block": [
+              14,
+              5,
+              0
+            ],
+            "sky": 15
+          }
+        }
+      ],
+      "light.leaves_keep_skylight": [
+        {
+          "block": "air",
+          "cell": [
+            27,
+            5,
+            4
+          ],
+          "light": {
+            "block": [
+              4,
+              0,
+              0
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "lumio.oak_leaves",
+          "cell": [
+            27,
+            6,
+            4
+          ],
+          "light": {
+            "block": [
+              3,
+              0,
+              0
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            22,
+            3,
+            5
+          ],
+          "light": {
+            "block": [
+              2,
+              0,
+              0
+            ],
+            "sky": 15
+          }
+        }
+      ],
+      "light.roof_blocks_skylight": [
+        {
+          "block": "air",
+          "cell": [
+            4,
+            5,
+            8
+          ],
+          "light": {
+            "block": [
+              12,
+              10,
+              7
+            ],
+            "sky": 12
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            7,
+            5,
+            9
+          ],
+          "light": {
+            "block": [
+              10,
+              8,
+              5
+            ],
+            "sky": 11
+          }
+        },
+        {
+          "block": "lumio.oak_planks",
+          "cell": [
+            5,
+            7,
+            8
+          ],
+          "light": {
+            "block": [
+              0,
+              0,
+              0
+            ],
+            "sky": 0
+          }
+        }
+      ],
+      "light.torch_falloff": [
+        {
+          "block": "lumio.torch",
+          "cell": [
+            6,
+            3,
+            11
+          ],
+          "light": {
+            "block": [
+              14,
+              12,
+              8
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            7,
+            3,
+            11
+          ],
+          "light": {
+            "block": [
+              13,
+              11,
+              7
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            8,
+            3,
+            11
+          ],
+          "light": {
+            "block": [
+              12,
+              10,
+              6
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            9,
+            3,
+            11
+          ],
+          "light": {
+            "block": [
+              11,
+              9,
+              5
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            10,
+            3,
+            11
+          ],
+          "light": {
+            "block": [
+              10,
+              8,
+              4
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            11,
+            3,
+            11
+          ],
+          "light": {
+            "block": [
+              9,
+              7,
+              3
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "air",
+          "cell": [
+            12,
+            3,
+            11
+          ],
+          "light": {
+            "block": [
+              8,
+              6,
+              2
+            ],
+            "sky": 15
+          }
+        }
+      ],
+      "light.wall_torch": [
+        {
+          "block": "lumio.torch",
+          "cell": [
+            4,
+            5,
+            11
+          ],
+          "light": {
+            "block": [
+              14,
+              12,
+              8
+            ],
+            "sky": 15
+          }
+        },
+        {
+          "block": "lumio.oak_planks",
+          "cell": [
+            4,
+            5,
+            10
+          ],
+          "light": {
+            "block": [
+              0,
+              0,
+              0
+            ],
+            "sky": 0
+          }
+        }
+      ]
+    }
+  },
+  "map": "Server/Assets/Maps/acceptance-lakeside.voxel",
+  "mesh": {
+    "segmentQuads": {
+      "s:0:0:0": {
+        "cutout": 63,
+        "opaque": 1113,
+        "translucent": 2
+      },
+      "s:1:0:0": {
+        "cutout": 135,
+        "opaque": 601,
+        "translucent": 63
+      }
+    }
+  },
+  "ok": true,
+  "parity": {
+    "grid": {
+      "diffs": [],
+      "hits": 2834,
+      "same": 3072,
+      "total": 3072
+    },
+    "probeDiffs": [],
+    "queries": 30
+  },
+  "probes": [
+    {
+      "detail": {
+        "ray": {
+          "blockId": 259840,
+          "distance": 2.0,
+          "hitCell": [
+            15,
+            3,
+            9
+          ],
+          "hitPoint": [
+            15.5,
+            4.0,
+            9.5
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        },
+        "sweep": {
+          "blockId": 259840,
+          "fraction": 0.4749999940395355,
+          "hitCell": [
+            15,
+            3,
+            9
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "collision.blocks lumio.oak_fence",
+      "ok": true
+    },
+    {
+      "detail": {
+        "ray": {
+          "blockId": 257280,
+          "distance": 2.0,
+          "hitCell": [
+            26,
+            3,
+            6
+          ],
+          "hitPoint": [
+            26.5,
+            4.0,
+            6.5
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        },
+        "sweep": {
+          "blockId": 257280,
+          "fraction": 0.4749999940395355,
+          "hitCell": [
+            26,
+            3,
+            6
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "collision.blocks lumio.oak_leaves",
+      "ok": true
+    },
+    {
+      "detail": {
+        "ray": {
+          "blockId": 257536,
+          "distance": 2.0,
+          "hitCell": [
+            19,
+            3,
+            11
+          ],
+          "hitPoint": [
+            19.5,
+            4.0,
+            11.5
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        },
+        "sweep": {
+          "blockId": 257536,
+          "fraction": 0.4749999940395355,
+          "hitCell": [
+            19,
+            3,
+            11
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "collision.blocks lumio.glass",
+      "ok": true
+    },
+    {
+      "detail": {
+        "ray": {
+          "blockId": 260096,
+          "distance": 2.0,
+          "hitCell": [
+            14,
+            3,
+            3
+          ],
+          "hitPoint": [
+            14.5,
+            4.0,
+            3.5
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        },
+        "sweep": {
+          "blockId": 260096,
+          "fraction": 0.4749999940395355,
+          "hitCell": [
+            14,
+            3,
+            3
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "collision.blocks lumio.glass_pane",
+      "ok": true
+    },
+    {
+      "detail": {
+        "overlap": {
+          "cells": [],
+          "resolution": "Miss"
+        },
+        "ray": {
+          "blockId": 256512,
+          "distance": 3.0,
+          "hitCell": [
+            14,
+            2,
+            10
+          ],
+          "hitPoint": [
+            14.5,
+            3.0,
+            10.5
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "collision.passes_through lumio.poppy",
+      "ok": true
+    },
+    {
+      "detail": {
+        "overlap": {
+          "cells": [],
+          "resolution": "Miss"
+        },
+        "ray": {
+          "blockId": 256512,
+          "distance": 3.0,
+          "hitCell": [
+            15,
+            2,
+            11
+          ],
+          "hitPoint": [
+            15.5,
+            3.0,
+            11.5
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "collision.passes_through lumio.short_grass",
+      "ok": true
+    },
+    {
+      "detail": {
+        "overlap": {
+          "cells": [],
+          "resolution": "Miss"
+        },
+        "ray": {
+          "blockId": 256512,
+          "distance": 3.0,
+          "hitCell": [
+            16,
+            2,
+            10
+          ],
+          "hitPoint": [
+            16.5,
+            3.0,
+            10.5
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "collision.passes_through lumio.oak_sapling",
+      "ok": true
+    },
+    {
+      "detail": {
+        "overlap": {
+          "cells": [],
+          "resolution": "Miss"
+        },
+        "ray": {
+          "blockId": 256512,
+          "distance": 3.0,
+          "hitCell": [
+            6,
+            2,
+            11
+          ],
+          "hitPoint": [
+            6.5,
+            3.0,
+            11.5
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "collision.passes_through lumio.torch",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": [
+          3.0,
+          3.5,
+          4.0,
+          4.0
+        ],
+        "floorHeights": [
+          3.0,
+          3.5,
+          4.0,
+          4.0
+        ]
+      },
+      "id": "shape.stairs_walk_up",
+      "ok": true
+    },
+    {
+      "detail": {
+        "atGroundLevel": {
+          "blockId": 259073,
+          "fraction": 0.20000000298023224,
+          "hitCell": [
+            16,
+            3,
+            7
+          ],
+          "normal": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        },
+        "onLowerHalf": {
+          "fraction": 1.0,
+          "resolution": "Miss"
+        }
+      },
+      "id": "shape.stairs_step_is_half_a_block",
+      "ok": true
+    },
+    {
+      "detail": {
+        "expected": [
+          3.0,
+          3.5,
+          4.0
+        ],
+        "floorHeights": [
+          3.0,
+          3.5,
+          4.0
+        ]
+      },
+      "id": "shape.slab_step",
+      "ok": true
+    },
+    {
+      "detail": {
+        "blockId": 259586,
+        "fraction": 0.5562499761581421,
+        "hitCell": [
+          5,
+          4,
+          10
+        ],
+        "normal": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "resolution": "Hit"
+      },
+      "id": "shape.door_closed_blocks",
+      "ok": true
+    },
+    {
+      "detail": {
+        "alongPanel": {
+          "blockId": 259591,
+          "fraction": 0.46428558230400085,
+          "hitCell": [
+            13,
+            3,
+            11
+          ],
+          "normal": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "resolution": "Hit"
+        },
+        "throughDoorway": {
+          "fraction": 1.0,
+          "resolution": "Miss"
+        }
+      },
+      "id": "shape.door_open_passable",
+      "ok": true
+    },
+    {
+      "detail": {
+        "mask13": {
+          "cells": [],
+          "resolution": "Miss"
+        },
+        "mask2": {
+          "cells": [
+            [
+              22,
+              2,
+              11,
+              258560
+            ]
+          ],
+          "resolution": "Hit"
+        }
+      },
+      "id": "mask.liquid_2_vs_blocking_13",
+      "ok": true
+    },
+    {
+      "detail": {
+        "overlap": {
+          "resolution": "Unresolved",
+          "unresolvedSection": [
+            1,
+            0,
+            0
+          ]
+        },
+        "sweep": {
+          "resolution": "Unresolved",
+          "unresolvedSection": [
+            1,
+            0,
+            0
+          ]
+        }
+      },
+      "id": "connected.section_border_unresolved",
+      "ok": true
+    },
+    {
+      "detail": {
+        "armProbeWithBlock": {
+          "cells": [
+            [
+              18,
+              3,
+              12,
+              259840
+            ]
+          ],
+          "resolution": "Hit"
+        },
+        "armProbeWithoutBlock": {
+          "cells": [],
+          "resolution": "Miss"
+        },
+        "fenceBlockIdAfter": 259840,
+        "fenceBlockIdBefore": 259840
+      },
+      "id": "connected.fence_toggle_full_block",
+      "ok": true
+    },
+    {
+      "detail": {
+        "blockLight+x": [
+          [
+            14,
+            12,
+            8
+          ],
+          [
+            13,
+            11,
+            7
+          ],
+          [
+            12,
+            10,
+            6
+          ],
+          [
+            11,
+            9,
+            5
+          ],
+          [
+            10,
+            8,
+            4
+          ],
+          [
+            9,
+            7,
+            3
+          ],
+          [
+            8,
+            6,
+            2
+          ]
+        ],
+        "expected": [
+          [
+            14,
+            12,
+            8
+          ],
+          [
+            13,
+            11,
+            7
+          ],
+          [
+            12,
+            10,
+            6
+          ],
+          [
+            11,
+            9,
+            5
+          ],
+          [
+            10,
+            8,
+            4
+          ],
+          [
+            9,
+            7,
+            3
+          ],
+          [
+            8,
+            6,
+            2
+          ]
+        ]
+      },
+      "id": "light.torch_falloff",
+      "ok": true
+    },
+    {
+      "detail": {
+        "neighbours": [
+          [
+            14,
+            12,
+            9
+          ],
+          [
+            14,
+            12,
+            9
+          ],
+          [
+            14,
+            12,
+            9
+          ],
+          [
+            14,
+            12,
+            9
+          ],
+          [
+            14,
+            12,
+            9
+          ]
+        ]
+      },
+      "id": "light.glowstone_neighbours",
+      "ok": true
+    },
+    {
+      "detail": {
+        "above": [
+          14,
+          5,
+          0
+        ]
+      },
+      "id": "light.lava_source",
+      "ok": true
+    },
+    {
+      "detail": {
+        "openGround": 15,
+        "underLeaves": 15
+      },
+      "id": "light.leaves_keep_skylight",
+      "ok": true
+    },
+    {
+      "detail": {
+        "note": "column-only rule expected 0; the MC-style spread ruling lets light in through the door / windows",
+        "skyUnderRoof": [
+          12,
+          11
+        ]
+      },
+      "id": "light.roof_blocks_skylight",
+      "ok": null
+    },
+    {
+      "detail": {
+        "exact16x16": 1,
+        "northQuadsCoveringTheWall": 1
+      },
+      "id": "mesh.stone_wall_single_quad",
+      "ok": true
+    },
+    {
+      "detail": {
+        "southFaceOf(5,3,0)": 1
+      },
+      "id": "cull.stone_wall_beside_lower_slab",
+      "ok": true
+    },
+    {
+      "detail": {
+        "betweenTheTwoLeaves(east,west)": [
+          0,
+          0
+        ],
+        "westFaceTowardAir": 1
+      },
+      "id": "cull.leaves_beside_leaves",
+      "ok": true
+    },
+    {
+      "detail": {
+        "lavaWestFace": 1,
+        "waterEastFace": 1
+      },
+      "id": "cull.water_beside_lava",
+      "ok": true
+    },
+    {
+      "detail": {
+        "glassEastFace": 1,
+        "waterWestFace": 1
+      },
+      "id": "cull.water_beside_glass",
+      "ok": true
+    },
+    {
+      "detail": {
+        "iceLayers": [
+          0
+        ],
+        "iceQuads": 6,
+        "otherQuadsOnLayer0": 0
+      },
+      "id": "mesh.missing_texture_writes_layer_0",
+      "ok": true
+    }
+  ]
+}

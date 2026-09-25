@@ -68,7 +68,7 @@
     blocks-view.mjs, the block catalog v2 the DS uses (Server/Assets/Maps/official-catalog.json,
     also what voxel-grid.mjs creates the browser world with), the acceptance map's camera
     presets, and the block art (Client/Assets/Blocks/, descriptions + textures + pack.json;
-    not the generator source or the preview sheet) under wwwroot/assets/Blocks/.
+    not the generator source or the preview sheet) under wwwroot/game-assets/Blocks/ (not assets/: on a case-insensitive disk that is the engine's Assets/ directory).
   -->
   <ItemGroup>
     <Content Include="..\blocks-view.mjs" Link="wwwroot\blocks-view.mjs" />
@@ -77,8 +77,8 @@
     <Content Include="$(LumioEngineWeb)Assets\*.mjs" Link="wwwroot\Assets\%(Filename)%(Extension)" />
     <Content Include="$(LumioSampleRepoRoot)Server\Assets\Maps\official-catalog.json" Link="wwwroot\official-catalog.json" />
     <Content Include="$(LumioSampleRepoRoot)Server\Assets\Maps\acceptance-lakeside.points.json" Link="wwwroot\acceptance-lakeside.points.json" />
-    <Content Include="$(LumioSampleRepoRoot)Client\Assets\Blocks\*.json" Link="wwwroot\assets\Blocks\%(Filename)%(Extension)" />
-    <Content Include="$(LumioSampleRepoRoot)Client\Assets\Blocks\textures\*.png" Link="wwwroot\assets\Blocks\textures\%(Filename)%(Extension)" />
+    <Content Include="$(LumioSampleRepoRoot)Client\Assets\Blocks\*.json" Link="wwwroot\game-assets\Blocks\%(Filename)%(Extension)" />
+    <Content Include="$(LumioSampleRepoRoot)Client\Assets\Blocks\textures\*.png" Link="wwwroot\game-assets\Blocks\textures\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />

@@ -290,7 +290,7 @@ an import map rewrites neither — it only maps ES module specifiers.
 renderer. Nothing new decodes or meshes a Section: `voxel-grid.mjs` creates the world with this
 game's catalog v2 (`./official-catalog.json`, published from `Server/Assets/Maps/`; wasm ABI 2
 has no world without it), and `blocks-view.mjs` hands that world (`grid.wasm`) to
-`Render/block-scene.mjs`, which loads `assets/Blocks/` (this game's `Client/Assets/Blocks/`),
+`Render/block-scene.mjs`, which loads `game-assets/Blocks/` (this game's `Client/Assets/Blocks/`),
 builds the texture array and face texture table, and drives VoxelEngine's wasm mesher. The
 publish links `Engine/web/{RHI,Render,Assets}/*.mjs` into `wwwroot/` under the same directory
 names (Render imports `../RHI` and `../Assets`).

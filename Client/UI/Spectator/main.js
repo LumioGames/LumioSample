@@ -312,7 +312,7 @@ async function openBlocksView() {
       canvas: canvasEl,
       hud: document.getElementById("blocks-hud"),
       cameraBar: document.getElementById("blocks-cams"),
-      assetRoot: new URL("./assets/", location.href).href,
+      assetRoot: new URL("./game-assets/", location.href).href,
       pointsUrl: "./acceptance-lakeside.points.json",
     });
   } catch (error) {
