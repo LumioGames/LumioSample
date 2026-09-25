@@ -356,18 +356,10 @@ public sealed partial class SampleMiningComponent
     private List<ulong> CandidateSections(ISampleConfig config)
     {
         if (_candidateSections is not null) return _candidateSections;
-        var sections = new List<ulong>();
-        var seen = new HashSet<ulong>();
-        int width = config.Map.Width;
-        int depth = config.Map.Depth;
-        for (int z = 0; z < depth; z += 16)
-        for (int x = 0; x < width; x += 16)
-        {
-            ulong section = ((ulong)(x >> 4) << 36) | (uint)(z >> 4);
-            if (seen.Add(section)) sections.Add(section);
-        }
-        _candidateSections = sections;
-        return sections;
+        // Same formula as the client's reverse lookup (R-00768): AllCandidateSections is the one place
+        // that encodes it now, so this side and the client side cannot drift apart.
+        _candidateSections = AllCandidateSections(config.Map.Width, config.Map.Depth);
+        return _candidateSections;
     }
 
     private void PollSectionReadiness(HostVoxelWorldAdapter adapter, ISampleConfig config)
@@ -397,8 +389,7 @@ public sealed partial class SampleMiningComponent
         var bound = new Dictionary<int, NetEntityId>(entries.Count);
         for (int i = 0; i < entries.Count; i++) bound[entries[i].CellOffset] = entries[i].Entity;
 
-        int sectionOriginX = (int)(section >> 36) << 4;
-        int sectionOriginZ = (int)(section & 0xFFFFFFFFUL) << 4;
+        SectionOrigin(section, out int sectionOriginX, out int sectionOriginZ);
         int width = config.Map.Width;
         int depth = config.Map.Depth;
         uint oreType = config.Map.OreBlockType;
@@ -448,8 +439,7 @@ public sealed partial class SampleMiningComponent
                 $"SampleMiningComponent expected {offsets.Count} freshly-created veins for Section {section:x16}, found {fresh.Count}.");
 
         adapter.RefreshBindingContext();
-        int sectionOriginX = (int)(section >> 36) << 4;
-        int sectionOriginZ = (int)(section & 0xFFFFFFFFUL) << 4;
+        SectionOrigin(section, out int sectionOriginX, out int sectionOriginZ);
         var bindings = new List<VoxelBindingOp>(offsets.Count);
         for (int i = 0; i < offsets.Count; i++)
         {

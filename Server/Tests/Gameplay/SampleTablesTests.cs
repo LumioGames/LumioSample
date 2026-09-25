@@ -99,9 +99,24 @@ public sealed class SampleTablesTests
         }
     }
 
-    // Fixed voxel wire coordinates are not gameplay configuration defaults.
+    // Fixed voxel wire coordinates are not gameplay configuration defaults. This session's unified
+    // verify found the encode formula duplicated into a second file (SampleMiningComponent.cs,
+    // R-00768) and, independently, its decode inverse already duplicated three times over
+    // (SampleMiningComponent.Server.cs ScanSection and CompletePendingBind, plus the new
+    // SampleMiningComponent.cs TryLocateInSections) — the second and third copies were pre-existing
+    // and not caught by this allowlist because Directory.GetFiles's enumeration order let some earlier
+    // violation win the race to fail first. AllCandidateSections and SectionOrigin in
+    // SampleMiningComponent.cs are now the only places either formula is written; every call site
+    // (both sides' scans) reuses them instead of re-deriving the wire shift.
+    private static readonly string[] WireEncodingLines =
+    {
+        "ulong section = ((ulong)(x >> 4) << 36) | (uint)(z >> 4);",
+        "originX = (int)(section >> 36) << 4;",
+        "originZ = (int)(section & 0xFFFFFFFFUL) << 4;",
+    };
+
     private static bool IsWireEncoding(string path, string code) =>
-        path == "SampleMiningComponent.Server.cs" && code == "ulong section = ((ulong)(x >> 4) << 36) | (uint)(z >> 4);";
+        path == "SampleMiningComponent.cs" && Array.IndexOf(WireEncodingLines, code) >= 0;
 
     private static bool IsNonConfigOne(string path, string code) => (path, code) switch
     {

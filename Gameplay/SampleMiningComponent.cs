@@ -34,6 +34,18 @@ public sealed partial class SampleMiningComponent : Component
     }
 
     /// <summary>
+    /// The inverse of <see cref="AllCandidateSections"/>'s packing: this Section's own origin cell in
+    /// world coordinates. Both sides need it — the server to place a newly discovered vein, the client
+    /// to turn a bound cell offset back into a world position — so it lives here once rather than as a
+    /// second copy of the same fixed voxel wire shift each side would otherwise carry.
+    /// </summary>
+    internal static void SectionOrigin(ulong section, out int originX, out int originZ)
+    {
+        originX = (int)(section >> 36) << 4;
+        originZ = (int)(section & 0xFFFFFFFFUL) << 4;
+    }
+
+    /// <summary>
     /// Scans <paramref name="candidateSections"/> through <paramref name="read"/> for
     /// <paramref name="vein"/>'s committed binding (ADR-119 决策 2: "位置只有一个来源：绑定表"), the
     /// pure half of both sides' <c>TryLocate</c> — no adapter, no world, so a test can drive it with a
@@ -52,8 +64,7 @@ public sealed partial class SampleMiningComponent : Component
                 if (!entries[j].Entity.Equals(vein)) continue;
                 sectionKey = section;
                 cellOffset = entries[j].CellOffset;
-                int originX = (int)(section >> 36) << 4;
-                int originZ = (int)(section & 0xFFFFFFFFUL) << 4;
+                SectionOrigin(section, out int originX, out int originZ);
                 worldX = originX + cellOffset % 16;
                 worldZ = originZ + cellOffset / 16;
                 return true;
