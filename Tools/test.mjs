@@ -10,3 +10,4 @@ import './server-profile.test.mjs';
 import './check-block-assets.test.mjs';
 import './official-catalog.test.mjs';
 import './acceptance-map.test.mjs';
+import './mc-mapping.test.mjs';

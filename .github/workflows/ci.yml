@@ -117,9 +117,9 @@ jobs:
       - run: node --test Tools/server-profile.test.mjs
       - run: node --test Tools/ds-config.test.mjs
       - run: node --test Tools/sync-config-readers.test.mjs
-      # ADR-124 C7 / C8 content checks (R-00795): block assets vs the C0 list, catalog v2 and the
+      # ADR-124 C7 / C8 / C11 content checks (R-00795): block assets vs the C0 list, catalog v2 and the
       # acceptance map generators (--check fails when a committed generated file is stale).
-      - run: node --test Tools/check-block-assets.test.mjs Tools/official-catalog.test.mjs Tools/acceptance-map.test.mjs
+      - run: node --test Tools/check-block-assets.test.mjs Tools/official-catalog.test.mjs Tools/acceptance-map.test.mjs Tools/mc-mapping.test.mjs
       - run: node Tools/check-block-assets.mjs
       - run: node Tools/official-catalog.mjs --check
       - run: node Tools/acceptance-map.mjs --check
