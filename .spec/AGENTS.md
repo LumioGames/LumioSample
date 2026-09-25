@@ -29,14 +29,16 @@ node --test Tools/verify-evidence.mjs
 
 ## 目录（ADR-115）
 
-顶层职责目录只有四个，仓务目录（`eng` / `docs` / `.spec` / `.github`）不计入：
+顶层职责目录只有四个，仓务目录（`eng` / `.spec` / `.github`）与只读子模块 `Engine/` 不计入（ADR-123：游戏工作区去 `docs/`、加 `Engine/`）：
 
 | 目录 | 放什么 |
 |---|---|
 | `Client/` | 客户端源码（Application / Bots / UI）与 `Config/`（`C` 投影表 + 生成 Reader） |
 | `Server/` | **只放数据**：`Config/`（`Startup/server.json`、`S`+`V` 投影表、生成 Reader）、`Assets/Maps/`、`Tests/`。**不得出现任何 `.csproj`**——服务端源码在 LumioServer |
 | `Gameplay/` | 玩法程序集（一份源码分端构建）与 `Tables/`（配表源） |
-| `Tools/` | 跨端启动器、联测编排，以及两个测试工程的 `.csproj`（用例源码在各端 `Tests/`） |
+| `Tools/` | 跨端启动器、联测编排、引擎更新命令、Platform 的游戏输入（`compose/`），以及两个测试工程的 `.csproj`（用例源码在各端 `Tests/`） |
+
+`Engine/` 是只读子模块（`LumioEngineRelease` 的一个 tag）：编译与运行的引擎一半只从这里取，不在里面改或提交文件。
 
 `Server/Storage` / `Server/Diagnostics` 由 `lumio-ds` 运行时创建，已 gitignore，不入库
 也不建空壳。配表按端导出（`split-export/1`）：`C` 进 `Client/Config/Tables`，`S` 与

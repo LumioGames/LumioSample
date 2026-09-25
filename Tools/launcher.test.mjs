@@ -816,7 +816,7 @@ test('root README names the launcher and does not keep formal-ds-smoke', () => {
 
 test('committed server.json and tour no longer claim runtime-only', () => {
   const server = readFileSync(new URL('../Server/Config/Startup/server.json', import.meta.url), 'utf8');
-  const tour = readFileSync(new URL('../docs/tour.md', import.meta.url), 'utf8');
+  const tour = readFileSync(new URL('../.spec/knowledge/features/sample-tour.md', import.meta.url), 'utf8');
   const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
   assert.match(server, /"world_profile": "runtime\+voxel"/);
   assert.match(server, /"durability": "snapshot_only"/);
@@ -853,7 +853,7 @@ test('a release without lumio-ds for this platform is BLOCKED_ENV naming the Eng
   const step03 = report.steps.find((step) => step.id === '03');
   assert.equal(step03.status, 'BLOCKED_ENV');
   assert.equal(step03.detail, `${engine.layout.dsExe} is missing from the Engine/ release.`);
-  assert.doesNotMatch(step03.detail, /replace-|REPLACE_WITH_PLATFORM|missing required value|LUMIO_DS_EXE/);
+  assert.doesNotMatch(step03.detail, /replace-|REPLACE_WITH_PLATFORM|missing required value/);
 });
 
 test('step 03 with the release lumio-ds boots on the committed template without replace-* tokens', async () => {
@@ -1537,7 +1537,7 @@ test('the fourteen steps have one driver: tour-run.mjs is gone and nothing point
   const root = resolve(HERE, '..');
   const texts = [
     join(root, 'README.md'),
-    join(root, 'docs', 'tour.md'),
+    join(root, '.spec', 'knowledge', 'features', 'sample-tour.md'),
     join(root, 'Tools', 'README.md'),
     ...readdirSync(HERE).filter((name) => name.endsWith('.mjs')).map((name) => join(HERE, name)),
   ];

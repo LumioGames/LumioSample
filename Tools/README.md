@@ -1,6 +1,9 @@
 # Tools - verification, production launcher and test projects
 
-ADR-115 把原 `integration/` 归到仓根 `Tools/`（跨端启动器与联测编排）。本目录另外
+ADR-115 把原 `integration/` 归到仓根 `Tools/`（跨端启动器与联测编排）。引擎一半一律只从
+子模块 `Engine/` 取（ADR-123，解析集中在 [`engine-release.mjs`](engine-release.mjs)）；
+升级引擎用 [`update-engine.mjs`](update-engine.mjs)，Platform 的游戏输入在
+[`compose/`](compose/README.md)。本目录另外
 收着两个测试工程的 `.csproj`——它们的用例源码在各端 `Tests/` 下，工程文件放这里
 是因为游戏侧 `Server/` 只放数据、不得含 `.csproj`：
 
@@ -16,33 +19,24 @@ ADR-115 把原 `integration/` 归到仓根 `Tools/`（跨端启动器与联测�
 所需环境变量、守的八项引擎级断言与不入 `LumioSample.slnx` 的理由见
 [`Server/Tests/README.md`](../Server/Tests/README.md)。
 
-`prepare-server-host-inputs.mjs` 造并点名那六个输入，是 CI 与本机的同一个入口：
+`prepare-server-host-inputs.mjs` 核对 `Engine/` 里的引擎输入并点名三个游戏侧输入，是 CI 与本机的同一个入口：
 
 ```bash
-node Tools/prepare-server-host-inputs.mjs \
-  --engine-root ../LumioGameEngine \
-  --hostentry-dir <已构建的 Lumio.Server.HostEntry 输出目录> \
-  --gameplay-bin Gameplay/bin/Release/net10.0 \
-  --output <本次运行的 fixture 目录>
+dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -c Release
+node Tools/prepare-server-host-inputs.mjs --gameplay-bin Gameplay/bin/Release/net10.0
 node Tools/test-server-host.mjs <results-dir>
 ```
 
 两件事它替你把住：
 
-- **voxel fixture 必须本次现造**。`LumioGameRuntime/modules/coordination/tests/
-  fixtures/voxel-native` 是对着另一个 native build 造的，voxel 那条会以
-  `load_suspended_missing_voxel` 失败；脚本按 Engine 的两个产出器现造一份，并用
-  `catalog-world-evidence.json` 的 `BinarySha256` 对本次 native 的 `build-info.json`
-  核一遍，不同源就 `VOXEL_FIXTURE_NATIVE_MISMATCH`。
-- **缺产物按名字失败，不跳过**（ADR-113 决策 2）。六个输入缺任何一个都是
-  `MISSING_INPUT: <变量名>`，不再报 `BLOCKED_ENV`——那个词在本仓是「环境跑不了」，
+- **引擎一半只来自 `Engine/`**。`Lumio.Server.HostEntry.dll`、Runtime 三路径、native 都在
+  `Engine/server/<rid>/`，用例自己从那里读（`Server/Tests/EngineRelease.cs`）；voxel 用例的
+  catalog world 是发布物随带的 `Engine/tools/fixtures/catalog-world/`，它的
+  `catalog-world-evidence.json` 的 `BinarySha256` 必须等于发布物 native 的 `build-info.json`，
+  不同源就 `VOXEL_FIXTURE_NATIVE_MISMATCH`（R-00692 踩过的 `load_suspended_missing_voxel`）。
+- **缺产物按名字失败，不跳过**（ADR-113 决策 2）。任何一个缺失都是
+  `MISSING_INPUT: <名字>`，不报 `BLOCKED_ENV`——那个词在本仓是「环境跑不了」，
   调用方有理由容忍它，而这两条不许被容忍掉。
-
-`Lumio.Server.HostEntry.dll` 要一份已构建的 LumioServer 产物。CI 由
-`server-hostentry` 作业按 LumioServer 自己的口径
-（`Tools/prepare-host-sdk.mjs` → `dotnet build`）打出来再传给 `server-host` 作业；
-本机 macOS ARM64 打不出来——`eng/pack-sdk.mjs` 只发 linux-x64 / win-x64，在这台机器上
-是 `BLOCKED_ENV`。
 
 ## Platform account client (S-4)
 
@@ -65,7 +59,7 @@ CLI prints only a public summary so secrets never land in logs.
 
 ## One-command launcher (S-3 / R-00520)
 
-`launcher.mjs` is the internal fourteen-step command and the only driver of
+`launcher.mjs` is the fourteen-step command and the only driver of
 those steps. It copies the committed `Server/Config/Startup/server.json.clr.kernel_config` object to each run's `kernel-config.json` and passes that path to Bot.Host; native execution has no hidden Context limits. It prints `step=NN`
 for every sample.md step, admits `--bots N` names (`Bot1`…, or
 `--login-prefix`) with a configurable `--stagger-ms`, and consumes unique
@@ -102,27 +96,30 @@ Platform's own `/games/<slug>/` on an origin the browser is logged in to.
 `server.json` (or `LUMIO_DS_CONFIG`) is a template: each run writes
 `server.boot-1.json` / `server.boot-2.json` into its evidence directory with
 absolute paths, a fresh store, one debug log directory per boot and the
-Platform launch's allocation claims. The CLR files come from
-`LUMIO_ENGINE_NATIVE`, `LUMIO_HOSTFXR`, `LUMIO_SERVER_HOSTENTRY_DLL`,
-`LUMIO_RUNTIME_REPLICATION_DLL`, `LUMIO_RUNTIME_ECS_DLL` and
-`LUMIO_SAMPLE_GAMEPLAY_DLL`, else from the template; when neither is a file the
-run stops at step 03 with `BLOCKED_ENV` naming the variable.
-`LUMIO_PLATFORM_ADMISSION_KEY` replaces the template's stand-in key.
-Process management is imported from Engine `eng/process-tools.mjs`
-(`LUMIO_ENGINE_ROOT` or a sibling `LumioGameEngine` checkout). If that
-file is missing the command exits `2` with `VERIFICATION_STATUS=BLOCKED_ENV`.
+Platform launch's allocation claims (the run directory is under the gitignored `.run/`).
+The engine half of the CLR files comes from the Engine/ release for this machine's
+`<rid>` (`Engine/server/<rid>/`: native, HostEntry + runtimeconfig, Runtime three-path),
+hostfxr from this machine's dotnet, and the game's own assembly from the template;
+a missing one stops step 03 with `BLOCKED_ENV` naming the field and path.
+`LUMIO_PLATFORM_ADMISSION_KEY` replaces the template's local admission key.
+Before anything starts, an empty `Engine/` is filled once with
+`git submodule update --init --depth 1 Engine` and `Engine/tools/verify-release.mjs`
+checks this `<rid>`; still empty, or a platform the manifest does not list, exits `2`
+with `VERIFICATION_STATUS=BLOCKED_ENV`; a tree that fails verification exits `1`.
+Process management is `Engine/tools/process-tools.mjs`.
 
-This is internal-only while the Platform image is built from a private
-compose file. The public tree does not ship that file; see
-[`compose/README.md`](compose/README.md). Runtime logs land under
-[`logs/`](logs/README.md) or `LUMIO_LAUNCH_EVIDENCE_DIR`. A force-kill
+Without `--origin` the launcher starts Platform itself from
+`Engine/platform/docker-compose.yml` with this game's [`compose/`](compose/README.md)
+inputs and removes the stack afterwards; `--no-platform` skips it. Runtime logs land
+under `.run/launch-*` or `LUMIO_LAUNCH_EVIDENCE_DIR`. A force-kill
 is never pass evidence. The retired Game harness names
 (`lumio-entity-chat-replay`, `LumioServer/account-server`) do not
 appear here.
 
 ```bash
 node --test Tools/launcher.test.mjs
-node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll <Lumio.Sample.Bots.dll>
+dotnet build Client/Bots/Lumio.Sample.Bots.csproj
+node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll Client/Bots/bin/Debug/net10.0/Lumio.Sample.Bots.dll
 ```
 
 ## 100-bot move gate (R-00588)
@@ -163,9 +160,11 @@ Committed [`Server/Config/Startup/server.json`](../Server/Config/Startup/server.
 template: `world_profile=runtime+voxel`, `durability=snapshot_only`
 (persistence-container-v1; not `process-crash` / `power-loss`), and
 required `base_map_id` / `base_map_version` / `base_map_content_sha256`
-(64 lowercase hex of `Server/Assets/Maps/sample.voxel`). Allocation strings and
-`admission_public_key_hex` are local syntactic stand-ins so step 03
-is not blocked by `replace-*` tokens. Fill-me tokens live in
+(64 lowercase hex of `Server/Assets/Maps/sample.voxel`). Allocation strings are
+local syntactic stand-ins so step 03 is not blocked by `replace-*` tokens;
+`admission_public_key_hex` is the public half of the Platform release compose's
+local admission key. The template names only the game's own assembly; the engine half
+of `clr` is filled per run from `Engine/server/<rid>/`. Fill-me tokens live in
 [`Server/Config/Startup/server.sample.json`](../Server/Config/Startup/server.sample.json) and fail as
 `MISSING_VALUE` (`ds-config.mjs`), not placeholder `BLOCKED_ENV`.
 Host entry stays `Lumio.Server.HostEntry.HostEntry` /
@@ -192,9 +191,9 @@ node --test Tools/sync-config-readers.test.mjs
 `Server/Assets/Maps/sample.voxel` is an author-time Engine capture (`LUMIOSNP1`).
 DS boot restores only; it does not recompute terrain. Layout (W×D and
 the vein patch) lives in [`Server/Assets/Maps/sample.layout.json`](../Server/Assets/Maps/sample.layout.json).
-`capture-basemap.mjs` invokes sibling `LumioGameEngine/eng/capture-voxel.mjs`;
+`capture-basemap.mjs` invokes the release's `Engine/tools/capture-voxel.mjs`;
 gameplay and DS must not import that script. Voxel write (dig-to-air)
-stays R-00469. Missing Engine CLI is `BLOCKED_ENV`; Sample does not
+stays R-00469. A release without that CLI is `BLOCKED_ENV`; Sample does not
 invent an encoder.
 
 ---

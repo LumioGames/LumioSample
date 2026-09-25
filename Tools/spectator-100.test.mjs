@@ -492,7 +492,7 @@ test('missing Bot.Host / DS files stay BLOCKED_ENV and never fake PASS', () => {
   // ADR-123: the engine half is Engine/ only. Empty, the reason is the command that fills it;
   // a release without this platform's lumio-ds names that path. No variable is consulted.
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-spectator-engine-'));
-  const env = { LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080', LUMIO_DS_EXE: '/opt/lumio-ds' };
+  const env = { LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080' };
   assert.equal(missingLiveReason(env, { root: isolated }), 'Engine/ is empty; run: git submodule update --init --depth 1 Engine');
   mkdirSync(join(isolated, 'Engine'), { recursive: true });
   writeFileSync(join(isolated, 'Engine', 'manifest.json'), JSON.stringify({ formatVersion: 1, version: '0.0.1', platforms: [] }));

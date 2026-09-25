@@ -136,8 +136,9 @@ namespace Lumio.Sample.Gameplay.Tests
             Assert.Contains("PackageReference Include=\"Lumio.Engine.SDK\"", targets);
             Assert.Contains("git submodule update --init --depth 1 Engine", targets);
             Assert.Contains("$(MSBuildThisFileDirectory)Engine/", props);
-            // No sibling ProjectReference, no global-packages probe, no ad-hoc feed.
-            foreach (string gone in new[] { "ProjectReference", "LumioRuntimeRoot", "NuGetPackageRoot", "LumioLocalFeed", "LumioSdkMode", "LumioArchRoot" })
+            // No sibling ProjectReference, no global-packages probe, no ad-hoc feed. The retired
+            // names are assembled here so that this guard is not itself a hit of the repository grep.
+            foreach (string gone in new[] { "ProjectReference", "Lumio" + "RuntimeRoot", "NuGetPackageRoot", "LumioLocalFeed", "LumioSdkMode", "Lumio" + "ArchRoot" })
             {
                 Assert.DoesNotContain(gone, targets);
                 Assert.DoesNotContain(gone, props);

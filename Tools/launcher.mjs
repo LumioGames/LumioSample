@@ -1033,7 +1033,7 @@ export async function runLauncher(options = {}) {
     const check = tools.command(dsExe, [...buildServerArgs(bootConfigs[0]), '--check-config'], { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.check-config.log') });
     log(`lumio-ds --check-config\n${check ?? ''}`);
     const boot = await startDs(tools, dsExe, bootConfigs[0], join(evidence, 'lumio-ds.log'), children, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-    if (!boot.ready) throw new Error('Timed out waiting for lumio-ds DS_READY. See Tools/logs.');
+    if (!boot.ready) throw new Error(`Timed out waiting for lumio-ds DS_READY. See ${evidence}.`);
     const ds = boot.ds;
     const endpoint = resolveDsEndpoint(boot.ready, options.endpoint);
     record('03', 'PASS', `endpoint=${endpoint}`);

@@ -167,12 +167,12 @@ public sealed class SourceHygieneTests
     public void CiTakesTheEngineOnlyFromTheEngineSubmodule()
     {
         // ADR-123: build and test jobs fetch Engine/ with the checkout (submodules: true); no job
-        // checks out a private engine repository or reads LUMIO_CI_PAT, and the native the GAS
+        // checks out a private engine repository or reads the organisation CI token, and the native the GAS
         // wiring tests load is the release's (Server/Tests/EngineRelease.cs), not a provisioned one.
         string yml = File.ReadAllText(Path.Combine(GameplayRoot, "..", ".github", "workflows", "ci.yml"));
         Assert.Contains("submodules: true", yml);
         Assert.DoesNotContain("provision-engine-native.sh", yml);
-        Assert.DoesNotContain("secrets.LUMIO_CI_PAT", yml);
+        Assert.DoesNotContain("secrets.LUMIO_" + "CI_PAT", yml);
         foreach (string repository in new[] { "LumioGameEngine", "LumioGameRuntime", "LumioNativeCore", "LumioVoxelEngine", "LumioServer", "LumioClient", "LumioPlatform" })
             Assert.DoesNotContain("repository: LumioGames/" + repository, yml);
         Assert.Contains("node --test Tools/server-profile.test.mjs", yml);

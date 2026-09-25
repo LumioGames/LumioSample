@@ -258,16 +258,19 @@ export function verifyEvidenceDir(dir) {
   return { ok: failures.length === 0, failures, round1: logs.round1, round2: logs.round2 }
 }
 
+/** ADR-123 决策 11: the game workspace has no docs/; the tour is a knowledge document. */
+export const TOUR_RELATIVE = '.spec/knowledge/features/sample-tour.md'
+
 export function verifyTourLinks(root = ROOT) {
-  const tourPath = join(root, 'docs', 'tour.md')
+  const tourPath = join(root, TOUR_RELATIVE)
   const failures = []
-  if (!existsSync(tourPath)) return [{ check: 'tour:path', message: 'docs/tour.md is missing' }]
+  if (!existsSync(tourPath)) return [{ check: 'tour:path', message: `${TOUR_RELATIVE} is missing` }]
   const markdown = readFileSync(tourPath, 'utf8')
   for (const match of markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
     const target = match[1].split('#', 1)[0]
     if (!target || /^[a-z]+:/i.test(target)) continue
     const path = resolve(dirname(tourPath), target)
-    if (!existsSync(path)) failures.push({ check: 'tour:path', message: `docs/tour.md points to missing path: ${target}` })
+    if (!existsSync(path)) failures.push({ check: 'tour:path', message: `${TOUR_RELATIVE} points to missing path: ${target}` })
   }
   return failures
 }
@@ -348,7 +351,7 @@ test('tour markdown links resolve to files in this repository', () => {
 })
 
 test('tour can be walked: fourteen steps, no stale ABI-does-not-exist copy', () => {
-  const markdown = readFileSync(join(ROOT, 'docs', 'tour.md'), 'utf8')
+  const markdown = readFileSync(join(ROOT, TOUR_RELATIVE), 'utf8')
   assert.match(markdown, /第 1 步/)
   assert.match(markdown, /第 4 步/)
   assert.match(markdown, /第 8 步/)
