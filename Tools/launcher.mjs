@@ -31,6 +31,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
+import { createServer as createTcpServer } from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -72,7 +73,8 @@ const BOOLEAN_FLAGS = new Set(['spectator']);
 const DEFAULT_TOUR_TICKS = 15_000;
 /** Platform from the release compose (ADR-123 决策 8); the game's three inputs live in Tools/compose/. */
 const PLATFORM_PROJECT = 'lumio-sample-platform';
-const PLATFORM_ORIGIN = 'http://127.0.0.1:8080';
+/** Default host port the release compose publishes; the container itself always listens on 8080. */
+const DEFAULT_PLATFORM_HOST_PORT = 8080;
 const GAME_PLATFORM_DIR = 'Tools/compose';
 const DEFAULT_PLATFORM_TIMEOUT_MS = 180_000;
 /** Owner frames the step-14 verification bot gets; it completes on its first bound frame. */
@@ -767,9 +769,48 @@ export function seedState(result) {
   return { state: String(row.State ?? '').toLowerCase(), exitCode: Number(row.ExitCode) };
 }
 
+/** True when nothing on this machine is bound to `port` on any interface (docker publishes on 0.0.0.0). */
+export function portIsFree(port) {
+  return new Promise((resolveFree) => {
+    const probe = createTcpServer();
+    probe.once('error', () => resolveFree(false));
+    probe.listen({ port, host: '0.0.0.0', exclusive: true }, () => probe.close(() => resolveFree(true)));
+  });
+}
+
+/** An ephemeral port the OS just handed out, released again for docker to take. */
+export function ephemeralPort() {
+  return new Promise((resolvePort, reject) => {
+    const probe = createTcpServer();
+    probe.once('error', reject);
+    probe.listen({ port: 0, host: '0.0.0.0', exclusive: true }, () => {
+      const { port } = probe.address();
+      probe.close(() => resolvePort(port));
+    });
+  });
+}
+
+/**
+ * Host port for the release Platform: LUMIO_PLATFORM_HOST_PORT when set (the operator's choice is
+ * used as given), else 8080 when it is free, else an ephemeral port. Shared CI machines and
+ * developer boxes often have 8080 taken (sample-regression run 36158294967).
+ */
+export async function choosePlatformHostPort({ env = process.env, isFree = portIsFree, pickFree = ephemeralPort } = {}) {
+  const configured = String(env.LUMIO_PLATFORM_HOST_PORT ?? '').trim();
+  if (configured !== '') {
+    const port = Number(configured);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw blocked(`LUMIO_PLATFORM_HOST_PORT=${configured} is not a TCP port.`);
+    }
+    return port;
+  }
+  if (await isFree(DEFAULT_PLATFORM_HOST_PORT)) return DEFAULT_PLATFORM_HOST_PORT;
+  return pickFree();
+}
+
 export async function startReleasePlatform({
   layout, manifest, root, evidence, log = () => {}, run = spawnSync, fetchFn = globalThis.fetch,
-  timeoutMs = DEFAULT_PLATFORM_TIMEOUT_MS, env = process.env,
+  timeoutMs = DEFAULT_PLATFORM_TIMEOUT_MS, env = process.env, hostPort,
 }) {
   if (!existsSync(layout.platformCompose)) {
     throw blocked(`${layout.platformCompose} is missing from the Engine/ release.`);
@@ -778,10 +819,13 @@ export async function startReleasePlatform({
   for (const name of ['platform.env', 'seed-games.sql', 'games']) {
     if (!existsSync(join(gameDir, name))) throw blocked(`${join(gameDir, name)} is missing (this game's Platform input).`);
   }
+  const port = hostPort ?? await choosePlatformHostPort({ env });
+  const origin = `http://127.0.0.1:${port}`;
   const composeEnv = {
     ...env,
     LUMIO_PLATFORM_IMAGE: String(manifest.platformImage ?? ''),
     LUMIO_GAME_PLATFORM_DIR: gameDir,
+    LUMIO_PLATFORM_HOST_PORT: String(port),
   };
   const base = ['compose', '-f', layout.platformCompose, '-p', PLATFORM_PROJECT];
   const docker = (args, label) => {
@@ -794,7 +838,7 @@ export async function startReleasePlatform({
     throw blocked(`docker compose is not available (${commandOutput(version) || 'docker not found'}); ADR-123 lists Docker as a prerequisite.`);
   }
   const stop = () => { docker(['down', '-v', '--remove-orphans'], 'down'); };
-  log(`platform: docker compose -f ${layout.platformCompose} up (image ${composeEnv.LUMIO_PLATFORM_IMAGE || 'from compose'}, game dir ${gameDir})`);
+  log(`platform: docker compose -f ${layout.platformCompose} up (image ${composeEnv.LUMIO_PLATFORM_IMAGE || 'from compose'}, game dir ${gameDir}, host port ${port})`);
   const up = docker(['up', '-d'], 'up');
   if (up.error || up.status !== 0) {
     stop();
@@ -820,7 +864,7 @@ export async function startReleasePlatform({
   let healthy = false;
   while (!healthy && Date.now() < deadline) {
     try {
-      const response = await fetchFn(`${PLATFORM_ORIGIN}/healthz`);
+      const response = await fetchFn(`${origin}/healthz`);
       healthy = response.ok;
     } catch {
       healthy = false;
@@ -829,9 +873,9 @@ export async function startReleasePlatform({
   }
   if (!healthy) {
     stop();
-    throw blocked(`Platform at ${PLATFORM_ORIGIN} did not report /healthz within ${timeoutMs} ms.`);
+    throw blocked(`Platform at ${origin} did not report /healthz within ${timeoutMs} ms.`);
   }
-  return { origin: PLATFORM_ORIGIN, stop };
+  return { origin, stop };
 }
 
 function printStep(log, id, status, detail) {

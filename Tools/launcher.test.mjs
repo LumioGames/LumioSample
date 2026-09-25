@@ -9,6 +9,7 @@ import { hostRid, releaseLayout } from './engine-release.mjs';
 import {
   collectLaunchTickets,
   startReleasePlatform,
+  choosePlatformHostPort,
   DEFAULT_SPECTATOR_LOGIN,
   injectSpectatorLaunch,
   normalizeSpectatorPageUrl,
@@ -1555,4 +1556,17 @@ test('the fourteen steps have one driver: tour-run.mjs is gone and nothing point
     if (path.endsWith('launcher.test.mjs')) continue;
     assert.doesNotMatch(readFileSync(path, 'utf8'), /tour-run/, path);
   }
+});
+
+test('Platform host port: LUMIO_PLATFORM_HOST_PORT wins, else 8080 when free, else an ephemeral port', async () => {
+  const never = async () => { throw new Error('must not probe'); };
+  assert.equal(await choosePlatformHostPort({ env: { LUMIO_PLATFORM_HOST_PORT: '18080' }, isFree: never, pickFree: never }), 18080);
+  await assert.rejects(
+    choosePlatformHostPort({ env: { LUMIO_PLATFORM_HOST_PORT: 'eighty' }, isFree: never, pickFree: never }),
+    /BLOCKED_ENV: LUMIO_PLATFORM_HOST_PORT=eighty is not a TCP port/,
+  );
+  const probed = [];
+  assert.equal(await choosePlatformHostPort({ env: {}, isFree: async (p) => { probed.push(p); return true; }, pickFree: never }), 8080);
+  assert.deepEqual(probed, [8080]);
+  assert.equal(await choosePlatformHostPort({ env: {}, isFree: async () => false, pickFree: async () => 41234 }), 41234);
 });
