@@ -273,6 +273,15 @@ test('CLI parses --spectator-url, --spectator-root and the static port', () => {
   assert.throws(() => parseLaunchArgs(['--not-a-flag'], {}), /unknown option/);
 });
 
+test('default login names are ordinary without a bot-tool credential and Bot* with one (R-00785)', () => {
+  // The engine release's Platform compose accepts no bot-tool credential, so a clean-machine run
+  // with no LUMIO_BOT_TOOL_CREDENTIAL must not plan Bot* names (they are refused before login).
+  assert.equal(parseLaunchArgs([], {}).loginPrefix, 'Player');
+  assert.equal(parseLaunchArgs([], { LUMIO_BOT_TOOL_CREDENTIAL: 'abc_DEF-123' }).loginPrefix, 'Bot');
+  assert.equal(parseLaunchArgs([], { LUMIO_LOGIN_PREFIX: 'Tour' }).loginPrefix, 'Tour');
+  assert.equal(parseLaunchArgs(['--login-prefix', 'Tour'], {}).loginPrefix, 'Tour');
+});
+
 test('spectator login is appended after Bot1..BotN and does not collide', () => {
   assert.deepEqual(planLaunchLogins(3, { spectator: true }), ['Bot1', 'Bot2', 'Bot3', 'Spectator1']);
   const hundred = planLaunchLogins(100, { spectator: true });

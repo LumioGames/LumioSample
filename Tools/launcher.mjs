@@ -35,7 +35,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BINDING_FIELDS, loginAndLaunch } from './account-client.mjs';
-import { LOGIN_NAME_PATTERN, resolvePassword } from './bot-credential.mjs';
+import { LOGIN_NAME_PATTERN, resolveBotToolCredential, resolvePassword } from './bot-credential.mjs';
 import { buildBotArgs, buildServerArgs, findDsReady, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
 import { assertDsClrInputs, assertRunnableDsConfig, deriveRunDsConfig, engineClrInputs, writeKernelConfigForRun } from './ds-config.mjs';
 import { blocked, prepareEngine, resolveHostfxr } from './engine-release.mjs';
@@ -47,6 +47,7 @@ import {
   judgeCheckpoint,
   judgeRestore,
   judgeTourSteps,
+  ORDINARY_LOGIN_PREFIX,
   planBotLogins,
   RESTORE_SCENARIO,
   TOUR_SCENARIO,
@@ -161,7 +162,10 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     scenarioDll: environment.LUMIO_SCENARIO_DLL || undefined,
     tourTicks: Number(environment.LUMIO_TOUR_TICKS || DEFAULT_TOUR_TICKS),
     checkpointSeconds: environment.LUMIO_CHECKPOINT_SECONDS ? Number(environment.LUMIO_CHECKPOINT_SECONDS) : undefined,
-    loginPrefix: environment.LUMIO_LOGIN_PREFIX || DEFAULT_LOGIN_PREFIX,
+    // Bot* names need a Platform-issued bot-tool credential; without one (the release compose issues
+    // none) the run registers ordinary accounts, so the default command works on a clean machine.
+    loginPrefix: environment.LUMIO_LOGIN_PREFIX
+      || (resolveBotToolCredential(environment) ? DEFAULT_LOGIN_PREFIX : ORDINARY_LOGIN_PREFIX),
   };
   const names = {
     bots: 'bots',
@@ -854,7 +858,8 @@ function usage() {
     '  and a bot with no voxel budget faults on its first SectionFrame (ADR-112 修订 2 ⑨, by design).',
     '  --voxel-config off keeps the entity-only bot for a room that sends no Sections.',
     `Game inputs: --gameplay (bot gameplay, default ${DEFAULT_BOT_GAMEPLAY}: the client compile), --scenario-dll (Lumio.Sample.Bots.dll,`,
-    '  built from Client/Bots), LUMIO_BOT_TOOL_CREDENTIAL for Bot* names (or --login-prefix for ordinary accounts).',
+    `  built from Client/Bots). Login names: ${DEFAULT_LOGIN_PREFIX}1..N with LUMIO_BOT_TOOL_CREDENTIAL, else ordinary ${ORDINARY_LOGIN_PREFIX}1..N`,
+    '  (the release compose issues no bot-tool credential); --login-prefix / LUMIO_LOGIN_PREFIX overrides.',
     'DS config: LUMIO_DS_CONFIG (default Server/Config/Startup/server.json) is a template; each run',
     '  writes its own copy with a fresh store under .run/. LUMIO_PLATFORM_ADMISSION_KEY replaces the',
     '  template\'s local admission key when the Platform is not the release compose.',

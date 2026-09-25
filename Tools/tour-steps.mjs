@@ -25,6 +25,13 @@ export function formatStep(id, status, detail = '') {
 
 export const DEFAULT_LOGIN_PREFIX = 'Bot';
 
+/**
+ * Ordinary (non-Bot-namespace) login names. The engine release's local Platform compose accepts no
+ * bot-tool credential (all-zero bot tool key, R-00780), and Bot* names need one, so a run without
+ * LUMIO_BOT_TOOL_CREDENTIAL registers ordinary accounts under this prefix (R-00785).
+ */
+export const ORDINARY_LOGIN_PREFIX = 'Player';
+
 export function planBotLogins(bots, prefix = DEFAULT_LOGIN_PREFIX) {
   if (!Number.isInteger(bots) || bots < 1) {
     const error = new Error('--bots must be a positive integer.');
