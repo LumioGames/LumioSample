@@ -224,7 +224,7 @@ function platformFixture() {
 
 test('Platform runs from Engine/platform with the manifest image and this game\'s Tools/compose inputs', async () => {
   const { repo, layout, manifest } = platformFixture();
-  const docker = fakeDocker((args) => (args.includes('wait') ? { status: 0, stdout: '0\n', stderr: '' } : undefined));
+  const docker = fakeDocker((args) => (args.includes('ps') ? { status: 0, stdout: SEED_EXITED(0), stderr: '' } : undefined));
   const platform = await startReleasePlatform({
     layout, manifest, root: repo, run: docker.run, fetchFn: async () => ({ ok: true }), env: {},
   });
@@ -235,6 +235,33 @@ test('Platform runs from Engine/platform with the manifest image and this game\'
   assert.equal(up.env.LUMIO_GAME_PLATFORM_DIR, join(repo, 'Tools', 'compose'));
   platform.stop();
   assert.ok(docker.calls.some((call) => call.args.includes('down') && call.args.includes('-v')));
+});
+
+// games-seed is a one-shot psql: by the time the launcher looks it has usually exited, so the launcher
+// reads its state from `ps -a` (a `compose wait` on an exited service finds no container). R-00785.
+const SEED_EXITED = (code) => `${JSON.stringify({ Service: 'games-seed', State: 'exited', ExitCode: code })}\n`;
+
+test('games-seed that already exited 0 counts as the catalog in place; a non-zero exit is BLOCKED_ENV and tears down', async () => {
+  const { repo, layout, manifest } = platformFixture();
+  let polls = 0;
+  const running = fakeDocker((args) => {
+    if (!args.includes('ps')) return undefined;
+    polls += 1;
+    return { status: 0, stdout: polls < 2 ? `${JSON.stringify({ Service: 'games-seed', State: 'running', ExitCode: 0 })}\n` : SEED_EXITED(0), stderr: '' };
+  });
+  const platform = await startReleasePlatform({ layout, manifest, root: repo, run: running.run, fetchFn: async () => ({ ok: true }), env: {} });
+  assert.equal(polls, 2);
+  assert.ok(!running.calls.some((call) => call.args.includes('wait')), 'no compose wait');
+  platform.stop();
+  // Older compose prints one JSON array.
+  const array = fakeDocker((args) => (args.includes('ps') ? { status: 0, stdout: JSON.stringify([{ Service: 'games-seed', State: 'exited', ExitCode: 0 }]), stderr: '' } : undefined));
+  (await startReleasePlatform({ layout, manifest, root: repo, run: array.run, fetchFn: async () => ({ ok: true }), env: {} })).stop();
+  const failed = fakeDocker((args) => (args.includes('ps') ? { status: 0, stdout: SEED_EXITED(3), stderr: '' } : undefined));
+  await assert.rejects(
+    () => startReleasePlatform({ layout, manifest, root: repo, run: failed.run, fetchFn: async () => ({ ok: true }), env: {} }),
+    (error) => error.code === 'BLOCKED_ENV' && /games-seed did not finish cleanly \(state=exited exit=3\)/.test(error.message),
+  );
+  assert.ok(failed.calls.some((call) => call.args.includes('down')));
 });
 
 test('no docker is BLOCKED_ENV before anything starts', async () => {

@@ -743,6 +743,26 @@ function commandOutput(result) {
  * this run failing. Returns the origin and a stop() that removes the stack and its data, so a
  * second run never meets the first run's accounts.
  */
+/**
+ * `docker compose ps -a --format json <service>`: one JSON object per line (compose ≥ 2.21) or one
+ * JSON array (older). Returns `{ state, exitCode }` of the games-seed container, or null.
+ */
+export function seedState(result) {
+  if (!result || result.error || result.status !== 0) return null;
+  const text = String(result.stdout ?? '').trim();
+  if (!text) return null;
+  let rows;
+  try {
+    const parsed = JSON.parse(text);
+    rows = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    rows = text.split(/\r?\n/).filter(Boolean).map((line) => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
+  }
+  const row = rows.find((entry) => entry?.Service === 'games-seed') ?? rows[0];
+  if (!row) return null;
+  return { state: String(row.State ?? '').toLowerCase(), exitCode: Number(row.ExitCode) };
+}
+
 export async function startReleasePlatform({
   layout, manifest, root, evidence, log = () => {}, run = spawnSync, fetchFn = globalThis.fetch,
   timeoutMs = DEFAULT_PLATFORM_TIMEOUT_MS, env = process.env,
@@ -776,13 +796,23 @@ export async function startReleasePlatform({
     stop();
     throw blocked(`docker compose up failed: ${commandOutput(up).split('\n').slice(-3).join(' | ')}`);
   }
-  // games-seed runs once platform is healthy; its exit code is the catalog being in place.
-  const seed = docker(['wait', 'games-seed'], 'seed');
-  if (seed.error || seed.status !== 0 || String(seed.stdout ?? '').trim().split(/\s+/).pop() !== '0') {
-    stop();
-    throw blocked(`games-seed did not finish cleanly: ${commandOutput(seed).split('\n').slice(-3).join(' | ')}`);
-  }
+  // games-seed runs once platform is healthy; its exit code is the catalog being in place. It is a
+  // one-shot psql that often exits before a `docker compose wait` could attach, and `wait` then finds
+  // no container at all (R-00785, linux-x64 run), so poll `ps -a` for its state and exit code instead.
   const deadline = Date.now() + timeoutMs;
+  let seed = null;
+  for (;;) {
+    const listed = docker(['ps', '-a', '--format', 'json', 'games-seed'], 'seed');
+    seed = seedState(listed);
+    if (seed?.state === 'exited' || seed?.state === 'dead' || Date.now() >= deadline) break;
+    await sleep(500, { keepAlive: true });
+  }
+  if (seed?.state !== 'exited' || seed.exitCode !== 0) {
+    const logs = docker(['logs', 'games-seed'], 'seed-logs');
+    stop();
+    throw blocked(`games-seed did not finish cleanly (${seed ? `state=${seed.state} exit=${seed.exitCode}` : 'no games-seed container'}): `
+      + `${commandOutput(logs).split('\n').slice(-3).join(' | ')}`);
+  }
   let healthy = false;
   while (!healthy && Date.now() < deadline) {
     try {
