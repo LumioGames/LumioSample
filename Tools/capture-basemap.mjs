@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * R-00522 author-time one-shot. Invokes Engine `eng/capture-voxel.mjs`
- * (PR #182). Does not invent a capture implementation. DS boot only restores
+ * R-00522 author-time one-shot. Invokes the engine's capture CLI as shipped in the
+ * Engine/ release (`Engine/tools/capture-voxel.mjs`, ADR-123). Does not invent a
+ * capture implementation. DS boot only restores
  * the committed snapshot; gameplay must not import this module (voxel write
  * is R-00469).
  */
@@ -11,7 +12,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { blocked, candidateEngineRoots } from './engine-tools.mjs';
+import { blocked } from './engine-tools.mjs';
+import { engineDir } from './engine-release.mjs';
 import { inspectBaseMap } from './server-profile.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,12 +31,9 @@ export function inspectPlaceholderMap(repoRoot = ROOT) {
   };
 }
 
-export function resolveCaptureCli({ env = process.env, repoRoot = ROOT } = {}) {
-  for (const root of candidateEngineRoots({ env, repoRoot })) {
-    const file = join(root, 'eng', 'capture-voxel.mjs');
-    if (existsSync(file)) return file;
-  }
-  return null;
+export function resolveCaptureCli({ repoRoot = ROOT } = {}) {
+  const file = join(engineDir(repoRoot), 'tools', 'capture-voxel.mjs');
+  return existsSync(file) ? file : null;
 }
 
 export function loadLayout(repoRoot = ROOT) {
@@ -60,8 +59,8 @@ export function loadLayout(repoRoot = ROOT) {
   return layout;
 }
 
-export function detectVoxelCaptureApi({ env = process.env, repoRoot = ROOT } = {}) {
-  const cli = resolveCaptureCli({ env, repoRoot });
+export function detectVoxelCaptureApi({ repoRoot = ROOT } = {}) {
+  const cli = resolveCaptureCli({ repoRoot });
   return {
     writeCell: false,
     capture: Boolean(cli),
@@ -69,8 +68,8 @@ export function detectVoxelCaptureApi({ env = process.env, repoRoot = ROOT } = {
     cli,
     reason: cli
       ? 'Engine capture CLI is present; this script is author-time only (DS restores, does not recompute).'
-      : 'sibling LumioGameEngine has no committed capture CLI (eng/capture-voxel.mjs).',
-    missingCommand: cli ? null : 'sibling LumioGameEngine/eng/capture-voxel.mjs',
+      : 'the Engine/ release ships no capture CLI (Engine/tools/capture-voxel.mjs).',
+    missingCommand: cli ? null : 'Engine/tools/capture-voxel.mjs',
   };
 }
 
@@ -89,7 +88,7 @@ export function runCapture({
   env = process.env,
   spawn = spawnSync,
 } = {}) {
-  const api = detectVoxelCaptureApi({ env, repoRoot });
+  const api = detectVoxelCaptureApi({ repoRoot });
   if (!api.cli) {
     const map = inspectPlaceholderMap(repoRoot);
     throw blocked(

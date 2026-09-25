@@ -164,20 +164,21 @@ public sealed class SourceHygieneTests
     }
 
     [Fact]
-    public void CiTestJobProvisionsNativeForGasActivate()
+    public void CiTakesTheEngineOnlyFromTheEngineSubmodule()
     {
+        // ADR-123: build and test jobs fetch Engine/ with the checkout (submodules: true); no job
+        // checks out a private engine repository or reads the organisation CI token, and the native the GAS
+        // wiring tests load is the release's (Server/Tests/EngineRelease.cs), not a provisioned one.
         string yml = File.ReadAllText(Path.Combine(GameplayRoot, "..", ".github", "workflows", "ci.yml"));
-        Assert.Contains("provision-engine-native.sh", yml);
-        Assert.Contains("repository: LumioGames/LumioNativeCore", yml);
-        Assert.Contains("repository: LumioGames/LumioVoxelEngine", yml);
-        Assert.Contains("path: native-core-src", yml);
-        Assert.Contains("path: voxel-engine-src", yml);
-        Assert.Contains("LUMIO_ENGINE_ROOT", yml);
-        Assert.Contains("LUMIO_NATIVE_CORE_ROOT", yml);
-        Assert.Contains("LUMIO_VOXEL_ROOT", yml);
+        Assert.Contains("submodules: true", yml);
+        Assert.DoesNotContain("provision-engine-native.sh", yml);
+        Assert.DoesNotContain("secrets.LUMIO_" + "CI_PAT", yml);
+        foreach (string repository in new[] { "LumioGameEngine", "LumioGameRuntime", "LumioNativeCore", "LumioVoxelEngine", "LumioServer", "LumioClient", "LumioPlatform" })
+            Assert.DoesNotContain("repository: LumioGames/" + repository, yml);
         Assert.Contains("node --test Tools/server-profile.test.mjs", yml);
         Assert.Contains("node --test Tools/ds-config.test.mjs", yml);
         Assert.Contains("node --test Tools/sync-config-readers.test.mjs", yml);
+        // LumioConfig is public: the zero-diff reader check still drives the real generator.
         Assert.Contains("LUMIO_CONFIG_ROOT", yml);
         Assert.Contains("repository: LumioGames/LumioConfig", yml);
     }

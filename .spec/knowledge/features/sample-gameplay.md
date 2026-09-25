@@ -35,7 +35,7 @@ metadata:
 
 逻辑挖掘 ID 使用 `logical-dig:{world:x16}:{tick:x16}:{serial:x16}`，同 tick 的 serial 单调递增且单次使用，旧 Native Replay 入口不能重放它。Runtime 结果逐条保留逻辑 ID、原输入 operation、物理 `BatchTransactionId` 与原始 Native 回执；共享物理回执不合并玩家的待结算记录。结果被消费后查询为 Unknown，不授权再次执行（R-00647）。
 
-**跨帧待结算属于动态实体快照的一部分**（R-00650）：玩家实体上的 `PendingDigComponent` 与体素改动层、Runtime 未消费的真实事务结果在**同一个切点成组原子换档**（架构仓 [`save-load.md`](../../../../LumioGameEngine/.spec/knowledge/features/save-load.md) ①② 与 M4 / M9）。记录挂在矿工身上，因为成功挖掘会销毁矿脉实体。新 Host 在第一业务帧前恢复有界结果队列，Sample 在第 4 相按原 `TransactionId` 消费：成功才扣原记录的体力、生成掉落，被拒则清记录且不动账本；消费后的快照再次恢复不会重复结算。旧存档没有保存结果时，剩余记录按结果不可得丢弃，不抛异常、不打故障。空气或已清除的绑定不能证明是哪张事务成功，玩法不据此付款；Native 历史回执查询仍可返回 Unknown，不能替代这个同切点的未消费结果队列。
+**跨帧待结算属于动态实体快照的一部分**（R-00650）：玩家实体上的 `PendingDigComponent` 与体素改动层、Runtime 未消费的真实事务结果在**同一个切点成组原子换档**（架构仓 `.spec/knowledge/features/save-load.md` ①② 与 M4 / M9；私有仓，本仓不链过去）。记录挂在矿工身上，因为成功挖掘会销毁矿脉实体。新 Host 在第一业务帧前恢复有界结果队列，Sample 在第 4 相按原 `TransactionId` 消费：成功才扣原记录的体力、生成掉落，被拒则清记录且不动账本；消费后的快照再次恢复不会重复结算。旧存档没有保存结果时，剩余记录按结果不可得丢弃，不抛异常、不打故障。空气或已清除的绑定不能证明是哪张事务成功，玩法不据此付款；Native 历史回执查询仍可返回 Unknown，不能替代这个同切点的未消费结果队列。
 
 玩家准入使用 Runtime 正式控制消息，在正常 Owner Tick 创建实体；生产玩法没有同步准入或隐式推进 Tick 的辅助入口。测试宿主自行显式驱动 Tick。属性名字是声明身份，配表中的名字必须与声明对应；历史上未包含基础账的存档无法还原当时未保存的数值。
 
@@ -49,9 +49,9 @@ metadata:
 
 ## 启动器
 
-`Tools/launcher.mjs` 是判据 2 的内部启动器，也是十四步唯一的驱动：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。第 1 名 Bot 跑 `SampleMiningScenario`（`LUMIO_SCENARIO_DLL`），第 05–13 步只凭 DS 日志与该 Bot 的 `result.ndjson` 判（`Tools/tour-steps.mjs`），结果文件缺了、空了或截断都是 FAIL；第 14 步等导览 Bot 完成后才开始的那次 checkpoint，在同一存储上重启 DS，同一账号以 `SampleRestoreVerifyScenario` 核对世界。DS 配置是模板，每次运行另写一份（新存储、每次开机一个日志目录、launch 应答里的 allocation）；机器相关的 CLR 文件只从变量或模板来，缺了 `BLOCKED_ENV` 点名。进程管理只 import 架构仓 `eng/process-tools.mjs`（`LUMIO_ENGINE_ROOT` 或同级 `LumioGameEngine`）。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`docs/tour.md`](../../../docs/tour.md)。
+`Tools/launcher.mjs` 是判据 2 的启动器，也是十四步唯一的驱动：`--bots N`、`--stagger-ms`、逐步打印 `step=NN`。第 1 名 Bot 跑 `SampleMiningScenario`（`LUMIO_SCENARIO_DLL`），第 05–13 步只凭 DS 日志与该 Bot 的 `result.ndjson` 判（`Tools/tour-steps.mjs`），结果文件缺了、空了或截断都是 FAIL；第 14 步等导览 Bot 完成后才开始的那次 checkpoint，在同一存储上重启 DS，同一账号以 `SampleRestoreVerifyScenario` 核对世界。DS 配置是模板，每次运行另写一份到 `.run/`（新存储、每次开机一个日志目录、launch 应答里的 allocation）；引擎一半（`lumio-ds`、HostEntry、Runtime 三路径、native、Bot.Host、进程管理脚本、Platform compose）只从子模块 `Engine/` 取（ADR-123），缺了 `BLOCKED_ENV` 点名路径。进房票只来自 `account-client.mjs` 的 `loginAndLaunch`，一票一 Bot，禁止复用。前八步的文件与行号、以及每步该看到的日志在 [`sample-tour.md`](sample-tour.md)。
 
-缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。未填的 `replace-*` / `REPLACE_WITH_…` 是 `MISSING_VALUE`（第 03 步 FAIL），不是占位 `BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`Server/Config/Startup/server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`Server/Assets/Maps/sample.voxel` 是作者时 Engine capture CLI 写入的可 restore 快照（Cube 平面；尺寸与矿脉在 `Server/Assets/Maps/sample.layout.json`）；DS 开机只 restore。`capture-basemap.mjs` 只给作者时用，玩法程序集不得引用。第 05 步要首次开机从底图开世界、写出 SectionFrame、导览 Bot 的 scope 已激活；没设 `LUMIO_SCENARIO_DLL` 时第 05–14 步 `BLOCKED_ENV`。Sibling 玩法输出会带上 net10 Simulation，HostEntry 才能反射 `DedicatedServerHostBinding`；nuget 路径不造 Simulation 替身，缺类型由玩法 bin 探测测试失败。
+缺 Platform / `lumio-ds` / Bot.Host 时 exit 2，`BLOCKED_ENV`。未填的 `replace-*` / `REPLACE_WITH_…` 是 `MISSING_VALUE`（第 03 步 FAIL），不是占位 `BLOCKED_ENV`。Bot 启动带 `--gameplay`。live 子进程在验收窗口（`--duration-ms`，未设则 `--timeout-ms`）结束后才 `forceCleanup`。`forceCleanup` 不是通过证据。`Server/Config/Startup/server.json` 已冻成 `runtime+voxel` + `snapshot_only` + 必填 `base_map_*`。本机覆盖 `.run/server.local.json` 不入库。`Server/Assets/Maps/sample.voxel` 是作者时 Engine capture CLI 写入的可 restore 快照（Cube 平面；尺寸与矿脉在 `Server/Assets/Maps/sample.layout.json`）；DS 开机只 restore。`capture-basemap.mjs` 只给作者时用，玩法程序集不得引用。第 05 步要首次开机从底图开世界、写出 SectionFrame、导览 Bot 的 scope 已激活；没设 `LUMIO_SCENARIO_DLL` 时第 05–14 步 `BLOCKED_ENV`。玩法输出要带上 SDK 包里的 net10 Simulation，HostEntry 才能反射 `DedicatedServerHostBinding`；不造 Simulation 替身，缺类型由玩法 bin 探测测试失败。
 
 ## 压测门
 

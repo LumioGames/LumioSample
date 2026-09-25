@@ -8,16 +8,10 @@
     "allocationId": "sample-local"
   },
   "admission_key_id": 1,
-  "admission_public_key_hex": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "admission_public_key_hex": "9593f57065df3c7303d67a27a458cd4ec8c55de7c5e6c6153b80c5a32ef19cd7",
   "clr": {
-    "engine_native": "sdk/liblumio_engine.so",
-    "hostfxr": "dotnet/libhostfxr.so",
-    "runtime_config": "../../../Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.runtimeconfig.json",
-    "assembly": "../../../Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll",
     "entry_type": "Lumio.Server.HostEntry.HostEntry, Lumio.Server.HostEntry",
     "entry_method": "LumioHostEntry",
-    "replication_assembly": "../../../Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Replication.dll",
-    "ecs_assembly": "../../../Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Ecs.dll",
     "registry_assembly": "../../../Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll",
     "kernel_config": {
       "maxContexts": 64,

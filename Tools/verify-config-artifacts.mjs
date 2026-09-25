@@ -1,6 +1,6 @@
-// Explicit integration proof; builds real artifacts without writing sibling bin/obj.
-// node Tools/verify-config-artifacts.mjs <fresh-artifact-root> [SDK-feed]
-// Omit SDK-feed to exercise the public sibling build path.
+// Explicit integration proof; builds real artifacts without writing the tree's bin/obj.
+// node Tools/verify-config-artifacts.mjs <fresh-artifact-root>
+// The engine SDK is the Engine/ release (ADR-123); packages restore into the artifact root.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -13,10 +13,8 @@ assert.ok(process.argv[2], 'Provide a fresh artifact root');
 const artifacts = path.resolve(process.argv[2]);
 assert.ok(!existsSync(artifacts), 'Use a fresh root so clean-output assertions are meaningful');
 mkdirSync(artifacts, { recursive: true });
-const feed = process.argv[3];
 const properties = [`-p:ArtifactsPath=${path.join(artifacts, 'build')}`,
-  ...(feed ? ['-p:LumioSdkMode=nuget', `-p:LumioRuntimeRoot=${path.join(artifacts, 'missing-runtime')}`,
-    `-p:LumioLocalFeed=${path.resolve(feed)}`, `-p:RestorePackagesPath=${path.join(artifacts, 'packages')}`] : [])];
+  `-p:RestorePackagesPath=${path.join(artifacts, 'packages')}`];
 const project = 'Gameplay/Lumio.Sample.Gameplay.csproj';
 function dotnet(args, log) {
   try {
@@ -89,8 +87,8 @@ const identities = {};
 for (const [index, side] of ['client', 'server', 'client', 'server'].entries()) {
   const args = [...properties, `-p:LumioEcsSide=${side}`];
   const evaluation = JSON.parse(dotnet(['msbuild', project, ...args,
-    '-getProperty:LumioSdkMode,TargetDir,IntermediateOutputPath'], `${index}-${side}-evaluation`)).Properties;
-  assert.equal(evaluation.LumioSdkMode, feed ? 'nuget' : 'sibling');
+    '-getProperty:LumioSdkResolved,TargetDir,IntermediateOutputPath'], `${index}-${side}-evaluation`)).Properties;
+  assert.equal(evaluation.LumioSdkResolved, 'true', 'Engine/ release is missing: git submodule update --init --depth 1 Engine');
   dotnet(['build', project, ...args, '--verbosity', 'minimal'], `${index}-${side}-build`);
   const output = evaluation.TargetDir;
   assert.ok(path.resolve(output).startsWith(artifacts));

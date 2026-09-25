@@ -1,42 +1,29 @@
 import { existsSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { BlockedEnvError, blocked, engineDir } from './engine-release.mjs';
 
-export class BlockedEnvError extends Error {
-  constructor(message) {
-    super(`BLOCKED_ENV: ${message}`);
-    this.name = 'BlockedEnvError';
-    this.code = 'BLOCKED_ENV';
-  }
+export { BlockedEnvError, blocked };
+
+/** The process-management helpers every runner uses (ADR-123: from Engine/tools/, nowhere else). */
+export const PROCESS_TOOLS_EXPORTS = Object.freeze(['command', 'startLogged', 'assertAlive', 'waitExit', 'forceCleanup']);
+
+export function processToolsPath(engineRoot) {
+  return join(engineRoot, 'tools', 'process-tools.mjs');
 }
 
-export function blocked(message) {
-  return new BlockedEnvError(message);
-}
-
-export function candidateEngineRoots({ env = process.env, repoRoot } = {}) {
-  const values = [
-    env.LUMIO_ENGINE_ROOT,
-    repoRoot ? resolve(repoRoot, '..', 'LumioGameEngine') : undefined,
-  ].filter((value) => typeof value === 'string' && value.trim() !== '');
-  return values.map((value) => resolve(value));
-}
-
-export function resolveProcessToolsPath({ env = process.env, repoRoot } = {}) {
-  for (const root of candidateEngineRoots({ env, repoRoot })) {
-    const file = join(root, 'eng', 'process-tools.mjs');
-    if (existsSync(file)) return file;
-  }
-  return null;
-}
-
-export async function loadProcessTools({ env = process.env, repoRoot } = {}) {
-  const file = resolveProcessToolsPath({ env, repoRoot });
-  if (!file) {
-    throw blocked('LUMIO_ENGINE_ROOT / sibling LumioGameEngine/eng/process-tools.mjs is missing.');
+/**
+ * Import Engine/tools/process-tools.mjs. `engineRoot` is the verified release root (normally
+ * `prepareEngine(...).dir`); `repoRoot` alone means `<repoRoot>/Engine`.
+ */
+export async function loadProcessTools({ engineRoot, repoRoot } = {}) {
+  const root = engineRoot ?? (repoRoot ? engineDir(repoRoot) : null);
+  const file = root ? processToolsPath(root) : null;
+  if (!file || !existsSync(file)) {
+    throw blocked(`Engine/tools/process-tools.mjs is missing${file ? ` (${file})` : ''}; the Engine/ release is incomplete.`);
   }
   const module = await import(pathToFileURL(file).href);
-  for (const name of ['command', 'startLogged', 'assertAlive', 'waitExit', 'forceCleanup']) {
+  for (const name of PROCESS_TOOLS_EXPORTS) {
     if (typeof module[name] !== 'function') {
       throw blocked(`process-tools.mjs is missing ${name}(); do not rewrite process management here.`);
     }
@@ -54,8 +41,4 @@ export function assertRelativePath(value, label) {
     return text.replaceAll('\\', '/');
   }
   return text;
-}
-
-export function repoSibling(repoRoot, ...parts) {
-  return resolve(dirname(resolve(repoRoot)), ...parts);
 }

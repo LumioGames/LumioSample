@@ -5,14 +5,21 @@ on:
     branches: [main]
   pull_request:
   # ADR-113 决策 6: the zero-skip obligation binds `push` to main and a daily
-  # job, not PRs. The two server-host jobs below are the ones that carry it, so
-  # this workflow needs a daily trigger to have somewhere to carry it to.
+  # job, not PRs. The server-host job below carries it, so this workflow needs a
+  # daily trigger to have somewhere to carry it to.
   schedule:
     - cron: '0 18 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# ADR-123: the engine is the read-only submodule Engine/ (LumioEngineRelease, a public
+# repository pinned at a release tag). Every job gets it with the checkout
+# (`submodules: true`) and nothing else: no private repository is checked out and no
+# secret is read anywhere in this workflow. Until Engine/ is pinned to its first tag
+# (R-00782) the submodule is empty and the build fails with LUMIO_SDK_UNRESOLVED — the
+# designed failure, not a broken job.
 
 jobs:
   build:
@@ -21,50 +28,20 @@ jobs:
     defaults:
       run:
         working-directory: LumioSample
-    env:
-      LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
     steps:
-      # Sibling layout (same as external-clone): Sample's Directory.Packages.props
-      # must not sit above Engine. Checking Engine out under the Sample tree
-      # makes CPM apply to NativeLoader and fails NU1008.
-      # This job's checkout is named `LumioSample`, not `sample-source`: the ADR-115
-      # directory contract check below identifies the repository by its checkout
-      # directory name and skips anything not named Lumio* (R-00719).
+      # This job's checkout is named `LumioSample`: the ADR-115 directory contract check
+      # below identifies the repository by its checkout directory name (R-00719).
       - uses: actions/checkout@v7
         with:
           path: LumioSample
-      - name: Checkout LumioGameRuntime
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameRuntime
-          path: LumioGameRuntime
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      # Runtime net10.0 Ecs/Simulation bind NativeLoader (QueryAabb / clock_now).
-      # They probe ../LumioGameEngine from the Runtime root. That is a CI
-      # sibling checkout, not a Sample ProjectReference.
-      - name: Checkout LumioGameEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameEngine
-          path: LumioGameEngine
-          token: ${{ secrets.LUMIO_CI_PAT }}
+          submodules: true
           persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: LumioSample/global.json
-      - run: dotnet build LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine
+      - run: dotnet build LumioSample.slnx
       # Everything below runs after the build and, on a pull request, cannot fail the
-      # job (continue-on-error, or not run at all): there this job's red or green is
-      # decided by compiling alone (ADR-088: merging only guards "it builds"; R-00739).
-      #
-      # ADR-115 directory contract (R-00719). `lumio-repo-layout` has no implementation
-      # in this repository: it imports `repoLayoutCheck` and reads
-      # `.spec/tools/repo-layout.json` from the LumioGameEngine checkout above,
-      # which is why it runs in this job. A job of its own would need one more
-      # LUMIO_CI_PAT checkout, and this public repository does not widen that
-      # secret's use (Owner 2026-09-23); `.run/LumioGameEngine` inside the Sample
-      # tree is ruled out anyway by the NU1008 note at the top of this job.
+      # job: there this job's red or green is decided by compiling alone (ADR-088; R-00739).
       - name: Checkout Workflow spec-lint
         continue-on-error: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@v7
@@ -78,24 +55,15 @@ jobs:
         with:
           node-version: '22.16.0'
           package-manager-cache: false
-      - name: Spec lint, including the ADR-115 directory contract
+      - name: Spec lint
         # spec-lint reports and does not fail the job (ADR-088): read the output. The
-        # `lumio-repo-layout:` line names the repo-layout.json and Engine HEAD it used.
-        # Its only non-zero exit is an environment block (no plugin).
+        # ADR-115 directory contract lives in the (private) architecture repository, which
+        # this job does not check out, so its `lumio-repo-layout` line reports BLOCKED_ENV
+        # here; the architecture repository's Sample regression runs that check.
         continue-on-error: ${{ github.event_name == 'pull_request' }}
         env:
           WORKFLOW_PLUGIN_ROOT: ${{ github.workspace }}/.run/workflow-plugin
-          LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
         run: node .spec/tools/lint-extensions.mjs
-      - name: Spec-lint extension self-test
-        # Blocking by design, so it stays off pull requests (as Runtime and Client keep
-        # the same step in their push/dispatch-only repository-policy workflow). It
-        # compares .spec/tools/engine-checkout.mjs with the Engine checkout's authority.
-        if: github.event_name != 'pull_request'
-        env:
-          WORKFLOW_PLUGIN_ROOT: ${{ github.workspace }}/.run/workflow-plugin
-          LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
-        run: node --test .spec/tools/lint-extensions.test.mjs
 
   test:
     runs-on: ubuntu-latest
@@ -104,94 +72,42 @@ jobs:
       run:
         working-directory: sample-source
     env:
-      LumioRuntimeRoot: ${{ github.workspace }}/LumioGameRuntime
-      LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
       LUMIO_CONFIG_ROOT: ${{ github.workspace }}/LumioConfig
-      # The spectator page (Client/UI/Spectator, R-00710) is assembled from engine parts
-      # LumioClient ships; its node tests and C# guard read them from this checkout.
-      LUMIO_CLIENT_ROOT: ${{ github.workspace }}/LumioClient
-      # Distinct names so provision-engine-native.sh can ln -sfn them next to Engine.
-      LUMIO_NATIVE_CORE_ROOT: ${{ github.workspace }}/native-core-src
-      LUMIO_VOXEL_ROOT: ${{ github.workspace }}/voxel-engine-src
     steps:
       - uses: actions/checkout@v7
         with:
           path: sample-source
-      - name: Checkout LumioGameRuntime
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameRuntime
-          path: LumioGameRuntime
-          token: ${{ secrets.LUMIO_CI_PAT }}
+          submodules: true
           persist-credentials: false
-      - name: Checkout LumioGameEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameEngine
-          path: LumioGameEngine
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      # GAS Activate has no C# AbilityStateTable fallback. Mine/move wiring
-      # tests load lumio-hfsm from liblumio_engine_native; missing native is
-      # LUMIO_ENGINE_NATIVE_MISSING (non-zero), not a skip.
-      - name: Checkout LumioNativeCore
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioNativeCore
-          path: native-core-src
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioVoxelEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioVoxelEngine
-          path: voxel-engine-src
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      # S2 zero-diff: Tools/sync-config-readers.test.mjs re-runs
-      # LumioConfig `export --csharp-out` against the six committed Readers.
+      # S2 zero-diff: Tools/sync-config-readers.test.mjs re-runs LumioConfig
+      # `export --csharp-out` against the committed Readers. LumioConfig is public.
       - name: Checkout LumioConfig
         uses: actions/checkout@v7
         with:
           repository: LumioGames/LumioConfig
           path: LumioConfig
-          token: ${{ secrets.LUMIO_CI_PAT }}
           persist-credentials: false
-      # R-00710: the spectator page moved here from LumioClient, but its engine parts
-      # (connect-ds / voxel-grid / generated close-code and not_serving tables,
-      # SpectatorSectionFrame, ReplicaApplyTickLoop, the ns2.1 Replica) stay there and
-      # are taken from this checkout, never copied. Same job, no new job: this public
-      # repository does not add another LUMIO_CI_PAT consumer.
-      - name: Checkout LumioClient
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioClient
-          path: LumioClient
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@1.98.0
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: LumioGameEngine/engine/native -> LumioGameEngine/.build/native-target
-          shared-key: lumio-engine-native
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: sample-source/global.json
-      - name: Provision liblumio_engine_native
-        working-directory: ${{ github.workspace }}/LumioGameRuntime
-        run: bash eng/provision-engine-native.sh
-      - name: Provide committed Native scene fixtures
-        run: echo "LUMIO_RT_FIXTURES=${{ github.workspace }}/LumioGameRuntime/modules/coordination/tests/fixtures/voxel-native" >> "$GITHUB_ENV"
-      - run: dotnet test LumioSample.slnx -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine -- --minimum-expected-tests 1
-      # Cross-repo compile guard for the spectator (moved from LumioClient's build job by
-      # R-00710): both game sources and both LumioClient C# parts against this game's
-      # client gameplay. Compile only, as before; the wasm host needs wasm-tools.
-      - name: Build spectator shared sources against LumioClient
-        run: dotnet build Client/UI/Spectator/tests/Lumio.Sample.Client.Spectator.Tests.csproj -c Release -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.16.0'
+          package-manager-cache: false
+      # GAS Activate has no C# AbilityStateTable fallback: the mine/move wiring tests load
+      # lumio-hfsm from the release native (Engine/server/<rid>/SDK/Native/<rid>/) and fail,
+      # never skip, when it is not there (Server/Tests/EngineRelease.cs).
+      - run: dotnet test LumioSample.slnx -- --minimum-expected-tests 1
+      # Compile guard for the spectator: both game sources and both engine C# parts
+      # (Engine/web/spectator/cs/) against this game's client gameplay. Compile only; the
+      # wasm host needs wasm-tools.
+      - name: Build spectator shared sources against the pinned engine
+        run: dotnet build Client/UI/Spectator/tests/Lumio.Sample.Client.Spectator.Tests.csproj -c Release
       - name: Spectator page (node)
         run: node --test Client/UI/Spectator/main.test.mjs
       - run: node --test Tools/verify-evidence.mjs
-      - run: node --test Tools/build-local-sdk.test.mjs
+      - run: node --test Tools/engine-release.test.mjs
+      - run: node --test Tools/update-engine.test.mjs
       - run: node --test Tools/account-client.test.mjs
       - run: node --test Tools/ds-ready.test.mjs
       - run: node --test Tools/launcher.test.mjs
@@ -201,362 +117,87 @@ jobs:
       - run: node --test Tools/server-profile.test.mjs
       - run: node --test Tools/ds-config.test.mjs
       - run: node --test Tools/sync-config-readers.test.mjs
-      # Pure unit checks over the server-host wiring: no LumioServer artifact
-      # and no native needed, so they run on every PR even though the jobs
-      # they guard are push/schedule only.
+      # Pure unit checks over the server-host wiring: no engine binary needed, so they
+      # run on every PR even though the job they guard is push/schedule only.
       - run: node --test Tools/test-server-host.test.mjs
       - run: node --test Tools/prepare-server-host-inputs.test.mjs
 
+  # ADR-123 验证 Fixture 1: what an outsider does. A plain anonymous `git clone
+  # --recursive` of this public repository — no actions/checkout, no token, no other
+  # repository — and `dotnet build`. Before the first engine tag is pinned this is the
+  # LUMIO_SDK_UNRESOLVED failure by design.
   external-clone:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-        with:
-          path: sample-source
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: sample-source/global.json
-      - name: Checkout LumioGameEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameEngine
-          path: LumioGameEngine
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioGameRuntime
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameRuntime
-          path: LumioGameRuntime
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioNativeCore
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioNativeCore
-          path: LumioNativeCore
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioVoxelEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioVoxelEngine
-          path: LumioVoxelEngine
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Clone PR head and pack the SDK locally
-        working-directory: sample-source
+      - name: Clone like an outsider (anonymous, --recursive)
         env:
-          PR_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          git clone --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" /tmp/external
-          cd /tmp/external
-          git fetch --depth 1 origin "${PR_HEAD}"
-          git checkout --detach "${{ github.event.pull_request.head.sha || github.sha }}"
-          test -z "${LumioRuntimeRoot:-}"
-          test -z "${LumioLocalFeed:-}"
-          node "$GITHUB_WORKSPACE/LumioGameEngine/eng/pack-sdk.mjs" --out /tmp/lumio-sdk-feed --identity-output /tmp/lumio-sdk-identity.json --runtime-root "$GITHUB_WORKSPACE/LumioGameRuntime" --native-core-root "$GITHUB_WORKSPACE/LumioNativeCore" --voxel-root "$GITHUB_WORKSPACE/LumioVoxelEngine"
-
-      # 这个作业是全项目唯一真在 Linux x64 上跑 pack-sdk.mjs 的地方，所以它也是
-      # R-00519 AC3（发布的 native 无开发机路径 / 私仓名）唯一能取到受验产物的落点。
-      # 留成制品，验收方才拿得到那份 native 自己复核。if: always() 是因为后面的
-      # dotnet build 可能因别的单（B-00069 / NU1403）红，制品与抽查结论不该被它带走。
-      - name: Upload packed SDK nupkg
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: sdk-nupkg-linux-x64
-          path: /tmp/lumio-sdk-feed/*.nupkg
-          if-no-files-found: error
-
-      # 泄漏抽查：解开刚打出来的包，对 runtimes/<rid>/native/ 下每个二进制扫一遍。
-      # 词表与匹配语义的唯一落点是架构仓的 eng/leak-scan.mjs（R-00561 AC6）——本仓
-      # 曾手抄一份 14 项词表，两处必然漂移（上游已扩到 16 词并加了 UTF-16LE 解码）。
-      # 这里只负责「扫哪些文件」，扫出什么算命中由上游那一份定。
-      # 命中即 exit 1——这是闸门不是提示，绝不能降级成 warning 或改扫描面变绿。
-      # 真命中说明上游 eng/pack-sdk.mjs 的 --remap-path-prefix / HOST_LEAKS 有缺口，
-      # 应停下交回架构仓处理（见任务卡 R-00560「阻塞与升级」）。
-      - name: Scan packed native binaries for host-path and private-repo leaks
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GIT_TERMINAL_PROMPT: '0'
         run: |
           set -euo pipefail
-
-          SCAN_DIR=/tmp/lumio-nupkg-scan
-          rm -rf "$SCAN_DIR"
-          mkdir -p "$SCAN_DIR"
-          for nupkg in /tmp/lumio-sdk-feed/*.nupkg; do
-            echo "unpacking $(basename "$nupkg")"
-            unzip -q -o "$nupkg" -d "$SCAN_DIR"
-          done
-
-          # 只扫 runtimes/<rid>/native/ 下的真二进制；build-info.json 是 sidecar 元数据，
-          # 上游 pack-sdk.mjs 已用 SIDECAR_LEAKS（词表的超集）单独管它，这里跳过免得口径打架。
-          mapfile -t FILES < <(find "$SCAN_DIR" -type f -path '*/runtimes/*/native/*' ! -name 'build-info.json' | sort)
-
-          # 一个文件都没扫到 = 抽查是空的，空的抽查不算证据，判失败。
-          # 扫描器对空输入会打印 PASS，所以这一步必须留在这里，不能交给它。
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "FAIL: no native binaries found under runtimes/<rid>/native/ in the packed nupkg"
-            find "$SCAN_DIR" -maxdepth 3 -type d | sort
-            exit 1
-          fi
-
-          echo "=== scanned native binaries (${#FILES[@]}) ==="
-          for f in "${FILES[@]}"; do
-            printf '%10s bytes  %s\n' "$(stat -c '%s' "$f")" "${f#"$SCAN_DIR"/}"
-          done
-
-          # 词表、UTF-16LE 解码、标识符边界匹配与 RESULT 行全部来自上游这一份。
-          node "$GITHUB_WORKSPACE/LumioGameEngine/eng/leak-scan.mjs" "${FILES[@]}"
-
-      - name: Build the cloned sample against the locally packed SDK
-        working-directory: /tmp/external
-        run: node Tools/build-local-sdk.mjs /tmp/lumio-sdk-identity.json
-
-  # R-00692 moved LumioServer's two engine-level admit/spawn cases here and ran
-  # them once, by hand, on one machine. The two jobs below are where they run
-  # from now on. What they guard is the *engine's* contract, not the game's:
-  # the retained catalog bytes are a defensive copy; a corrupted voxel half
-  # makes restore refuse without changing the live `Manager`; a successful
-  # restore keeps `IngressBudget` identity while `Manager` is new;
-  # `ActivationContextFactory` answers only for `MineAbility`; a `runtime-only`
-  # snapshot carries no `voxelBase64`; `Physics` follows the voxel profile.
-  #
-  # ADR-113 决策 6 binds the zero-skip obligation to `push` on main and the
-  # daily job, and ADR-088 keeps PRs off a must-be-green gate, so both jobs sit
-  # out pull requests. They are split in two because `prepare-host-sdk.mjs`
-  # exports `RestoreConfigFile` / `NUGET_PACKAGES` / `LumioLocalFeed` through
-  # GITHUB_ENV, and those would then govern the Sample's own restores in any
-  # later step of the same job. A separate job plus an intra-run artifact keeps
-  # LumioServer's SDK selection where it belongs and still hands over a
-  # HostEntry built in *this* run, which is what the cases demand.
-  server-hostentry:
-    name: Build Lumio.Server.HostEntry for the moved admit/spawn cases
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      # sdk-native's Cargo.toml walks five parents from
-      # engine/native/modules/sdk-native to the Engine checkout's parent, then
-      # into LumioNativeCore / LumioVoxelEngine. Those three names are load
-      # bearing: pack-sdk cannot build the native payload if they move.
-      - name: Checkout LumioServer
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioServer
-          path: LumioServer
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioGameEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameEngine
-          path: LumioGameEngine
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioGameRuntime
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameRuntime
-          path: LumioGameRuntime
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioNativeCore
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioNativeCore
-          path: LumioNativeCore
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioVoxelEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioVoxelEngine
-          path: LumioVoxelEngine
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@1.98.0
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: LumioGameEngine/engine/native -> LumioGameEngine/.build/native-target
-          shared-key: lumio-engine-native
+          git clone --recursive "https://github.com/${GITHUB_REPOSITORY}.git" "$RUNNER_TEMP/external"
+          cd "$RUNNER_TEMP/external"
+          git fetch --depth 1 origin "$HEAD_SHA"
+          git checkout --detach "$HEAD_SHA"
+          # The commit under test may pin another engine than the default branch.
+          git submodule update --init --depth 1 Engine
+          git submodule status
       - uses: actions/setup-dotnet@v6
         with:
-          global-json-file: LumioServer/global.json
-      # LumioServer's own entry point, run exactly as its repository-policy.yml
-      # runs it. It packs the SDK, verifies the archive identity and rewrites
-      # copies of the committed locks onto that version — which is what keeps
-      # a locally packed SDK from failing the restore with NU1403. Sample owns
-      # no second recipe for this; if it breaks, it breaks in LumioServer.
-      #
-      # pack-sdk only publishes the host RID (linux-x64 / win-x64). That is why
-      # this job cannot exist on a developer's macOS ARM64 machine and why
-      # R-00692 had to hand-build HostEntry to run the cases at all.
-      - name: Prepare the matching local SDK feed
-        working-directory: LumioServer
-        run: node Tools/prepare-host-sdk.mjs ../LumioGameEngine ../LumioGameRuntime ../LumioNativeCore ../LumioVoxelEngine .build/ci-sdk
-      - name: Build HostEntry
-        working-directory: LumioServer
-        run: dotnet build Application/HostEntry/src/Lumio.Server.HostEntry/Lumio.Server.HostEntry.csproj -c Release
-      # The whole output directory, not just the dll. The cases reach HostEntry
-      # through Assembly.LoadFrom, whose probing is directory-scoped, so the
-      # Microsoft.Extensions.Logging assemblies beside it are part of the
-      # artifact. `Lumio.Engine.SDK` is ExcludeAssets=runtime by design and is
-      # not here — the Runtime assemblies arrive as the named three-path.
-      - name: Publish the HostEntry build for the test job
-        uses: actions/upload-artifact@v7
-        with:
-          name: server-hostentry-linux-x64
-          path: LumioServer/Application/HostEntry/src/Lumio.Server.HostEntry/bin/Release/net10.0/**
-          if-no-files-found: error
-          retention-days: 7
-      # ADR-102: HostEntry refuses Runtime assemblies that are not its matched
-      # SDK release — the first CI run of this job failed with
-      # `sdk_version_mismatch: compiled against Lumio.Engine.NativeLoader.Hfsm
-      # 0.1.0 but ... is release 1.0.0`, because the Sample gameplay had been
-      # built in sibling mode against Runtime source. The package that produced
-      # this HostEntry therefore travels with it, and the test job builds the
-      # gameplay against that same package rather than against a checkout.
-      - name: Stage the packed SDK for the test job
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/sdk-feed"
-          cp "$LumioLocalFeed"/*.nupkg "$RUNNER_TEMP/sdk-feed/"
-          cp "$SERVER_SDK_EVIDENCE/engine-identity.json" "$RUNNER_TEMP/sdk-feed/identity.json"
-          ls -l "$RUNNER_TEMP/sdk-feed"
-      - name: Publish the packed SDK for the test job
-        uses: actions/upload-artifact@v7
-        with:
-          name: server-hostentry-sdk-feed
-          path: ${{ runner.temp }}/sdk-feed/**
-          if-no-files-found: error
-          retention-days: 7
-      - name: Retain the SDK selection evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: server-hostentry-sdk-selection
-          path: |
-            LumioServer/.build/ci-sdk/**/identity.json
-            LumioServer/.build/ci-sdk/**/engine-identity.json
-            LumioServer/.build/ci-sdk/**/sdk-selection.props
-            LumioServer/.build/ci-sdk/**/prepare.log
-          if-no-files-found: warn
-          retention-days: 7
+          global-json-file: ${{ runner.temp }}/external/global.json
+      - name: Build the clone
+        working-directory: ${{ runner.temp }}/external
+        run: dotnet build LumioSample.slnx
 
+  # R-00692 moved LumioServer's two engine-level admit/spawn cases here. What they
+  # guard is the engine's contract on this game's registry: the retained catalog bytes
+  # are a defensive copy; a corrupted voxel half makes restore refuse without changing
+  # the live `Manager`; a successful restore keeps `IngressBudget` identity while
+  # `Manager` is new; `ActivationContextFactory` answers only for `MineAbility`; a
+  # `runtime-only` snapshot carries no `voxelBase64`; `Physics` follows the voxel profile.
+  #
+  # ADR-123: HostEntry, the Runtime three-path, the native image and the catalog world
+  # they run on are all the Engine/ release's; the gameplay is built against that
+  # release's SDK, the only one the build knows (ADR-102 matched release).
+  # ADR-113 决策 6 / ADR-088: push to main and the daily job only.
   server-host:
     name: Engine admit/spawn cases on the Sample registry (ADR-115 §3)
     if: github.event_name != 'pull_request'
-    needs: server-hostentry
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      # Deliberately no LumioRuntimeRoot: the gameplay in this job is built
-      # against the packed SDK (ADR-102 matched release), not against the
-      # Runtime checkout. That checkout is here only so
-      # provision-engine-native.sh can run.
-      LUMIO_ENGINE_ROOT: ${{ github.workspace }}/LumioGameEngine
-      LUMIO_NATIVE_CORE_ROOT: ${{ github.workspace }}/native-core-src
-      LUMIO_VOXEL_ROOT: ${{ github.workspace }}/voxel-engine-src
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sample-source
     steps:
       - uses: actions/checkout@v7
         with:
           path: sample-source
-      - name: Checkout LumioGameRuntime
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameRuntime
-          path: LumioGameRuntime
-          token: ${{ secrets.LUMIO_CI_PAT }}
+          submodules: true
           persist-credentials: false
-      - name: Checkout LumioGameEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioGameEngine
-          path: LumioGameEngine
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioNativeCore
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioNativeCore
-          path: native-core-src
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - name: Checkout LumioVoxelEngine
-        uses: actions/checkout@v7
-        with:
-          repository: LumioGames/LumioVoxelEngine
-          path: voxel-engine-src
-          token: ${{ secrets.LUMIO_CI_PAT }}
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@1.98.0
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: LumioGameEngine/engine/native -> LumioGameEngine/.build/native-target
-          shared-key: lumio-engine-native
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: sample-source/global.json
-      # Exports LUMIO_ENGINE_NATIVE_PATH and writes build-info.json beside the
-      # image. The voxel fixture is authored against that identity below.
-      - name: Provision liblumio_engine_native
-        working-directory: ${{ github.workspace }}/LumioGameRuntime
-        run: bash eng/provision-engine-native.sh
-      # No `continue-on-error`: a HostEntry that did not arrive is the failure
-      # this job exists to report, not a reason to run zero cases.
-      - name: Download this run's HostEntry build
-        uses: actions/download-artifact@v7
+      - uses: actions/setup-node@v7
         with:
-          name: server-hostentry-linux-x64
-          path: ${{ runner.temp }}/hostentry
-      - name: Download the packed SDK that produced it
-        uses: actions/download-artifact@v7
-        with:
-          name: server-hostentry-sdk-feed
-          path: ${{ runner.temp }}/sdk-feed
-      # `-p:LumioSdkMode=nuget` is a global property, so it wins over the
-      # sibling probe in Directory.Build.targets even with the Runtime checkout
-      # present. The package's lib/net10.0 assemblies land in this bin/ next to
-      # Lumio.Sample.Gameplay.dll, which is where the named three-path is read
-      # from — one matched set, the same one HostEntry was compiled against.
-      - name: Build the server-side Sample gameplay against that SDK
-        working-directory: sample-source
-        run: |
-          set -euo pipefail
-          FEED="$RUNNER_TEMP/sdk-feed"
-          VERSION="$(node -p "require('$RUNNER_TEMP/sdk-feed/identity.json').version")"
-          echo "matched SDK release: $VERSION"
-          test -f "$FEED/Lumio.Engine.SDK.$VERSION.nupkg"
-          dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -c Release \
-            -p:LumioSdkMode=nuget -p:LumioSdkVersion="$VERSION" -p:LumioLocalFeed="$FEED" \
-            -p:RestorePackagesPath="$RUNNER_TEMP/nuget-packages"
-      # Authors the catalog world against *this run's* native image and refuses
-      # a fixture whose evidence names a different one. The committed
-      # LumioGameRuntime voxel-native fixtures are authored against another
-      # build; the voxel case fails on them with load_suspended_missing_voxel,
-      # which is exactly what R-00692 hit. Every one of the six named inputs is
-      # checked here and fails by name — nothing is skipped.
-      - name: Produce and name the host suite inputs
-        working-directory: sample-source
-        run: |
-          node Tools/prepare-server-host-inputs.mjs \
-            --engine-root ${{ github.workspace }}/LumioGameEngine \
-            --hostentry-dir ${{ runner.temp }}/hostentry \
-            --gameplay-bin Gameplay/bin/Release/net10.0 \
-            --output ${{ runner.temp }}/voxel-fixture
-      # HostEntry is one process-scoped managed context, so the runner gives
-      # each case its own process. The HOST_SUITE line is asserted rather than
-      # trusted: `skipped=0` is the ADR-113 决策 1 measurement, and a run that
-      # filtered both cases away would otherwise exit green with nothing done.
+          node-version: '22.16.0'
+          package-manager-cache: false
+      - name: Build the server-side Sample gameplay against the pinned engine
+        run: dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -c Release
+      # Checks every engine input in Engine/ (fails by name, nothing is skipped) and the
+      # catalog world's evidence against the release native, then exports the game-side
+      # values through GITHUB_ENV.
+      - name: Name the host suite inputs
+        run: node Tools/prepare-server-host-inputs.mjs --gameplay-bin Gameplay/bin/Release/net10.0
+      # HostEntry is one process-scoped managed context, so the runner gives each case its
+      # own process. The HOST_SUITE line is asserted rather than trusted: `skipped=0` is the
+      # ADR-113 决策 1 measurement.
       - name: Run the two engine admit/spawn cases
-        working-directory: sample-source
         run: |
           set -euo pipefail
-          node Tools/test-server-host.mjs "$RUNNER_TEMP/host-results" \
-            -p:LumioArchRoot=${{ github.workspace }}/LumioGameEngine | tee "$RUNNER_TEMP/host-suite.txt"
+          node Tools/test-server-host.mjs "$RUNNER_TEMP/host-results" | tee "$RUNNER_TEMP/host-suite.txt"
           grep -q 'HOST_SUITE cases=2 total=2 passed=2 failed=0 skipped=0' "$RUNNER_TEMP/host-suite.txt"
-      - name: Retain the per-case logs and the fixture provenance
+      - name: Retain the per-case logs
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -564,9 +205,5 @@ jobs:
           path: |
             ${{ runner.temp }}/host-results/**
             ${{ runner.temp }}/host-suite.txt
-            ${{ runner.temp }}/voxel-fixture/catalog-world-evidence.json
-          # warn, not error: this step runs on failure too, and a job that died
-          # before the fixture existed should report that cause, not a second
-          # one from the retention step.
           if-no-files-found: warn
           retention-days: 7

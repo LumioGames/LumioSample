@@ -25,6 +25,7 @@ metadata:
 |------|--------|
 | [`features/_TEMPLATE.md`](features/_TEMPLATE.md) | 新功能文档模板——新增功能记录时照此建,放对 领域 / 模块 |
 | [`features/sample-gameplay.md`](features/sample-gameplay.md) | 示例玩法声明与启动器落点——实体/技能/M9 typed Reader/十四步脚本;底图是作者时 Capture、DS 只 restore;改玩法或启动器时查 |
+| [`features/sample-tour.md`](features/sample-tour.md) | 十四步逐步导览——每步对应的本仓文件与行号、应该看到的日志、缺依赖时的 BLOCKED_ENV 口径;照着走一遍十四步或改启动器步骤时查 |
 
 ## lessons(经验教训 · 复发问题暂存区)
 

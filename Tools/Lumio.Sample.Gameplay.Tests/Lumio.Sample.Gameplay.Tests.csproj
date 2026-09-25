@@ -17,6 +17,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)../../Server/Tests/Gameplay/**/*.cs" Link="Gameplay/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- ADR-123: engine binaries under test come from Engine/ only (shared with the host cases). -->
+    <Compile Include="$(MSBuildThisFileDirectory)../../Server/Tests/EngineRelease.cs" Link="EngineRelease.cs" />
     <!-- The bot scenario's decision procedure. Client/Bots is outside the solution because it
          needs a prebuilt LumioClient artifact; its pure half has no such dependency, so it is
          compiled in here and tested by the same `dotnet test LumioSample.slnx` as gameplay. -->
@@ -26,7 +28,7 @@
     <ProjectReference Include="../../Gameplay/Lumio.Sample.Gameplay.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Testing.Platform" />
-    <!-- WorldManager.Create needs this at runtime; sibling ProjectReference does not copy Ecs NuGet deps. -->
+    <!-- WorldManager.Create needs this at runtime. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="10.0.11" />
   </ItemGroup>
 </Project>

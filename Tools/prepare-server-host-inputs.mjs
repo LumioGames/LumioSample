@@ -1,60 +1,38 @@
 #!/usr/bin/env node
 
 /**
- * Produce and name every input `Tools/test-server-host.mjs` demands, so the two
- * engine-level admit/spawn cases can run in CI (R-00702).
- *
- * R-00692 landed the cases and ran them once, by hand, on one machine. ADR-113
- * 决策 3 puts the obligation on the CI job instead: the job that needs an
- * artifact produces it, verifies it, and exports its path. Nothing here skips —
- * every missing or mismatched input throws with the variable's name and the
- * step that produces it.
+ * Name every game-side input `Tools/test-server-host.mjs` demands, and check the engine-side
+ * ones in the Engine/ release, so the two engine-level admit/spawn cases can run in CI
+ * (R-00702, ADR-123).
  *
  *   node Tools/prepare-server-host-inputs.mjs \
- *     --engine-root <LumioGameEngine> \
- *     --hostentry-dir <dir holding Lumio.Server.HostEntry.dll> \
- *     --gameplay-bin <Gameplay/bin/Release/net10.0> \
- *     --output <scratch dir for the voxel fixture>
+ *     --gameplay-bin <Gameplay/bin/Release/net10.0> [--config-dir <Server/Config/Tables>]
  *
- * `--gameplay-bin` must be a build against the *same* `Lumio.Engine.SDK`
- * release HostEntry was compiled against. HostEntry checks that at boot and
- * answers `sdk_version_mismatch` otherwise (ADR-102) — a sibling-mode gameplay
- * build carries Runtime 1.0.0 assemblies and a packaged HostEntry wants 0.1.0.
- * The three-path Runtime is read out of that same directory for the same
- * reason, so one matched set covers host, runtime and gameplay.
+ * The engine half — HostEntry, the Runtime three-path, the native image — is the Engine/
+ * release for this machine's <rid> (the C# cases read it from there themselves; no variable
+ * names it). `--gameplay-bin` is this repository's server-side gameplay built against that
+ * same release's Lumio.Engine.SDK, which is the only SDK the build knows (ADR-102: HostEntry
+ * answers `sdk_version_mismatch` to anything else).
  *
- * The voxel fixture is *made here, from this run's native image*, never read
- * from a committed directory. `LumioGameRuntime/modules/coordination/tests/
- * fixtures/voxel-native` is authored against a different native build; the
- * voxel case fails on it with `load_suspended_missing_voxel`, which is how
- * R-00692 found the drift. The recipe is the same one LumioServer uses in
- * `Tools/prepare-runtime-test-inputs.mjs`:
- *
- *   1. the native author-time air capture (cargo, `root_api`), then
- *   2. the managed catalog world (Engine `Lumio.Engine.NativeLoader.Tests`),
- *
- * and the emitted `catalog-world-evidence.json` must carry the same
- * `BinarySha256` as the native image's `build-info.json`. Same-source or fail.
+ * The voxel case needs a catalog world authored against the release's own native image. The
+ * game cannot author one (the producers are engine source), so it is an engine-produced input
+ * shipped with the release: Engine/tools/fixtures/catalog-world/ (R-00779 request to the
+ * release pipeline; ADR-117 决策 2 run-time consumption). Its evidence must carry the native
+ * image's `binarySha256` — same-source or fail. Nothing here skips: every missing or
+ * mismatched input throws with the variable's name.
  */
 
-import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hostRid, prepareEngine, releaseLayout } from './engine-release.mjs';
 import { REQUIRED_ENV } from './test-server-host.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(HERE, '..');
 
-/** The three files the fixture producers must leave behind. */
+/** The three files the release's catalog world carries. */
 export const FIXTURE_FILES = ['catalog-world.json', 'catalog-world.capture', 'catalog-world-evidence.json'];
-
-/** `cargo --release` writes the host's own library name; no `--target` is passed. */
-export function nativeLibraryName(platform = process.platform) {
-  if (platform === 'darwin') return 'liblumio_engine_native.dylib';
-  if (platform === 'win32') return 'lumio_engine_native.dll';
-  return 'liblumio_engine_native.so';
-}
 
 export function missing(variable, why) {
   return new Error(`MISSING_INPUT: ${variable} — ${why}. These cases carry engine guarantees (ADR-113): a missing artifact is a failure, never a skip.`);
@@ -74,115 +52,52 @@ function requireDirectory(path, variable, why) {
   return full;
 }
 
-/**
- * The production native image this run built, plus the `build-info.json` the
- * loader's identity check reads. `provision-engine-native.sh` writes both and
- * exports `LUMIO_ENGINE_NATIVE_PATH`; a bare library with no sidecar is not a
- * usable input.
- */
-export function resolveNative({ engineRoot, env = process.env, platform = process.platform } = {}) {
-  const named = env.LUMIO_ENGINE_NATIVE_PATH;
-  const fallback = engineRoot
-    ? join(resolve(engineRoot), '.build', 'native-target', 'release', nativeLibraryName(platform))
-    : undefined;
-  const image = requireFile(named || fallback, 'LUMIO_ENGINE_NATIVE_PATH',
-    'this run\'s production native image, from the "Provision liblumio_engine_native" step');
-  const sidecar = requireFile(join(dirname(image), 'build-info.json'), 'LUMIO_ENGINE_NATIVE_PATH',
+/** The engine files the C# cases load, from the release layout; each must exist. */
+export function resolveRelease(layout) {
+  const label = 'Engine/ release';
+  const hostEntry = requireFile(layout.hostEntry, label, 'server/<rid>/Application/Lumio.Server.HostEntry.dll');
+  requireFile(layout.replicationAssembly, label, 'server/<rid>/SDK/Managed/Lumio.GameRuntime.Replication.dll');
+  requireFile(layout.ecsAssembly, label, 'server/<rid>/SDK/Managed/Lumio.GameRuntime.Ecs.dll');
+  const image = requireFile(layout.engineNative, label, 'server/<rid>/SDK/Native/<rid> native image');
+  const sidecar = requireFile(join(dirname(image), 'build-info.json'), label,
     `the image at ${image} has no build-info.json beside it, so its identity cannot be compared`);
   const info = JSON.parse(readFileSync(sidecar, 'utf8'));
   for (const field of ['buildId', 'abiHash', 'binarySha256']) {
-    if (typeof info[field] !== 'string' || info[field] === '')
-      throw missing('LUMIO_ENGINE_NATIVE_PATH', `build-info.json is missing ${field}: ${sidecar}`);
+    if (typeof info[field] !== 'string' || info[field] === '') throw missing(label, `build-info.json is missing ${field}: ${sidecar}`);
   }
-  return { image, sidecar, info };
+  return { hostEntry, native: { image, sidecar, info } };
 }
 
-/** Run a producer; any non-zero status is a failure named by step. */
-function runner(execute) {
-  return (step, command, args, options) => {
-    const result = execute(command, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...options });
-    process.stdout.write(result.stdout ?? '');
-    process.stderr.write(result.stderr ?? '');
-    if (result.error || result.status !== 0)
-      throw new Error(`FIXTURE_STEP_FAILED: ${step} exited ${result.status}${result.error ? ` (${result.error.message})` : ''}`);
-    return result;
-  };
-}
-
-/**
- * Author the catalog world fixture against `native`, into `output`.
- *
- * Both producers are the upstream ones; this function owns no fixture content
- * of its own. The final check is the one that matters: the evidence file's
- * `BinarySha256` is the image the fixture was authored against, and it must be
- * the image this job is about to run the cases on.
- */
-export function buildVoxelFixture({ engineRoot, native, output, execute = spawnSync, env = process.env } = {}) {
-  const engine = requireDirectory(engineRoot, 'LUMIO_ENGINE_ROOT', 'the LumioGameEngine checkout that owns both fixture producers');
-  const directory = resolve(output);
-  mkdirSync(directory, { recursive: true });
-  const run = runner(execute);
-  const capture = join(directory, 'air.capture');
-  const manifest = join(engine, 'engine/native/Cargo.toml');
-  const targetDirectory = join(engine, '.build/native-target');
-  const producerEnv = {
-    ...env,
-    LUMIO_CATALOG_AIR_CAPTURE: capture,
-    LUMIO_CATALOG_TEST_NATIVE: native.image,
-    LUMIO_CATALOG_TEST_OUTPUT: directory,
-    LUMIO_ENGINE_NATIVE_PATH: native.image,
-    LUMIO_BUILD_ID: native.info.buildId,
-    LUMIO_ABI_HASH: native.info.abiHash,
-  };
-  // 1. Native author-time air snapshot. Same target directory as the provision
-  //    step so the already-built workspace is reused rather than re-stamped.
-  run('air-capture (cargo root_api)', 'cargo',
-    ['test', '--manifest-path', manifest, '-p', 'lumio-engine-native', '--target-dir', targetDirectory,
-      '--test', 'root_api', 'catalog_author_time_air_capture_prerequisite', '--', '--exact'],
-    { cwd: join(engine, 'engine/native'), env: producerEnv });
-  if (!existsSync(capture)) throw new Error('FIXTURE_STEP_FAILED: the native test did not emit air.capture');
-  // 2. Managed catalog world built on top of that snapshot.
-  run('catalog-world (Engine NativeLoader tests)', 'dotnet',
-    ['test', join(engine, 'engine/managed/Lumio.Engine.NativeLoader.Tests/Lumio.Engine.NativeLoader.Tests.csproj'),
-      '-c', 'Release', '--filter', 'FullyQualifiedName~CallerCatalogLifetimeAndPublicMutationProduceRealNonemptyAabb'],
-    { cwd: engine, env: producerEnv });
-  for (const file of FIXTURE_FILES) {
-    if (!existsSync(join(directory, file)))
-      throw new Error(`FIXTURE_STEP_FAILED: the catalog-world producer did not emit ${file} into ${directory}`);
-  }
+/** The release's catalog world, and proof it was authored against this very native image. */
+export function resolveVoxelFixture(layout, native) {
+  const directory = requireDirectory(join(layout.tools, 'fixtures', 'catalog-world'), 'LUMIO_TEST_VOXEL_FIXTURE_DIR',
+    'the catalog world shipped with the Engine/ release (tools/fixtures/catalog-world)');
+  for (const file of FIXTURE_FILES) requireFile(join(directory, file), 'LUMIO_TEST_VOXEL_FIXTURE_DIR', `the release catalog world lacks ${file}`);
   const evidence = JSON.parse(readFileSync(join(directory, 'catalog-world-evidence.json'), 'utf8'));
-  if (evidence.BinarySha256 !== native.info.binarySha256) {
+  if (String(evidence.BinarySha256 ?? '').toLowerCase() !== native.info.binarySha256.toLowerCase()) {
     throw new Error(
-      'VOXEL_FIXTURE_NATIVE_MISMATCH: the catalog world was authored against a different native image '
-      + `(fixture ${evidence.BinarySha256}, this run ${native.info.binarySha256}). `
-      + 'This is the committed-fixture drift R-00692 hit as load_suspended_missing_voxel; author the fixture in this job, do not reuse one.');
+      'VOXEL_FIXTURE_NATIVE_MISMATCH: the release catalog world was authored against a different native image '
+      + `(fixture ${evidence.BinarySha256}, release ${native.info.binarySha256}). `
+      + 'This is the drift R-00692 hit as load_suspended_missing_voxel; the release pipeline must author it against its own native.');
   }
-  return { directory, capture, evidence };
+  return { directory, evidence };
 }
 
 /**
- * The six named values, resolved and checked. Callers get exactly the set
- * `Tools/test-server-host.mjs` requires — no more, no fewer — so a variable
- * added there fails here by name instead of arriving empty.
+ * The named game-side values, resolved and checked. Callers get exactly the set
+ * `Tools/test-server-host.mjs` requires — no more, no fewer — so a variable added there fails
+ * here by name instead of arriving empty.
  */
-export function resolveInputs({ hostEntryDirectory, gameplayBin, configDir, fixtureDirectory } = {}) {
+export function resolveInputs({ gameplayBin, configDir, fixtureDirectory } = {}) {
   const gameplay = requireDirectory(gameplayBin, 'LUMIO_SAMPLE_GAMEPLAY_DLL',
-    'the server-side Gameplay build output of this run, built against the same SDK release as HostEntry (ADR-102)');
+    'the server-side Gameplay build output of this run, built against the Engine/ release SDK (ADR-102)');
   const values = {
-    LUMIO_SERVER_HOSTENTRY_DLL: requireFile(
-      hostEntryDirectory ? join(resolve(hostEntryDirectory), 'Lumio.Server.HostEntry.dll') : undefined,
-      'LUMIO_SERVER_HOSTENTRY_DLL',
-      'this run\'s Lumio.Server.HostEntry.dll, from the server-hostentry job artifact'),
-    LUMIO_RUNTIME_REPLICATION_DLL: requireFile(join(gameplay, 'Lumio.GameRuntime.Replication.dll'),
-      'LUMIO_RUNTIME_REPLICATION_DLL', 'the named three-path Runtime, from the same SDK release, beside the Gameplay build'),
-    LUMIO_RUNTIME_ECS_DLL: requireFile(join(gameplay, 'Lumio.GameRuntime.Ecs.dll'),
-      'LUMIO_RUNTIME_ECS_DLL', 'the named three-path Runtime, from the same SDK release, beside the Gameplay build'),
     LUMIO_SAMPLE_GAMEPLAY_DLL: requireFile(join(gameplay, 'Lumio.Sample.Gameplay.dll'),
       'LUMIO_SAMPLE_GAMEPLAY_DLL', 'this run\'s server-side Sample gameplay assembly'),
     LUMIO_CONFIG_DIR: requireDirectory(configDir ?? join(ROOT, 'Server/Config/Tables'),
       'LUMIO_CONFIG_DIR', 'the server end\'s config export (Server/Config/Tables)'),
     LUMIO_TEST_VOXEL_FIXTURE_DIR: requireDirectory(fixtureDirectory, 'LUMIO_TEST_VOXEL_FIXTURE_DIR',
-      'the catalog world authored in this job against this run\'s native image'),
+      'the catalog world authored against the release native image'),
   };
   const names = Object.keys(values).sort();
   const expected = [...REQUIRED_ENV].sort();
@@ -194,13 +109,10 @@ export function resolveInputs({ hostEntryDirectory, gameplayBin, configDir, fixt
   return values;
 }
 
-/** `--engine-root x` → `{ engineRoot: 'x' }`. Unknown flags are rejected, not ignored. */
+/** `--gameplay-bin x` → `{ gameplayBin: 'x' }`. Unknown flags are rejected, not ignored. */
 export const FLAGS = {
-  '--engine-root': 'engineRoot',
-  '--hostentry-dir': 'hostEntryDirectory',
   '--gameplay-bin': 'gameplayBin',
   '--config-dir': 'configDir',
-  '--output': 'output',
 };
 
 export function parseArguments(argv) {
@@ -216,16 +128,22 @@ export function parseArguments(argv) {
   return options;
 }
 
-export function prepare({ engineRoot, hostEntryDirectory, gameplayBin, output, configDir, env = process.env, execute = spawnSync } = {}) {
-  const native = resolveNative({ engineRoot, env });
-  const fixture = buildVoxelFixture({ engineRoot, native, output, execute, env });
-  const values = resolveInputs({ hostEntryDirectory, gameplayBin, configDir, fixtureDirectory: fixture.directory });
-  const exported = { ...values, LUMIO_ENGINE_NATIVE_PATH: native.image };
+/**
+ * `layout` is the verified release (prepareEngine) unless a test hands in one; everything
+ * engine-side is read from it.
+ */
+export function prepare({ gameplayBin, configDir, layout, root = ROOT, env = process.env } = {}) {
+  const release = layout ?? prepareEngine({ repoRoot: root }).layout;
+  const { native } = resolveRelease(release);
+  const fixture = resolveVoxelFixture(release, native);
+  const values = resolveInputs({ gameplayBin, configDir, fixtureDirectory: fixture.directory });
   if (env.GITHUB_ENV)
-    appendFileSync(env.GITHUB_ENV, Object.entries(exported).map(([key, value]) => `${key}=${value}\n`).join(''));
-  return { ...exported, nativeBuildId: native.info.buildId, nativeSha256: native.info.binarySha256,
+    appendFileSync(env.GITHUB_ENV, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));
+  return { ...values, rid: release.rid, nativeBuildId: native.info.buildId, nativeSha256: native.info.binarySha256,
     fixtureCaptureSha256: fixture.evidence.captureSha256 };
 }
+
+export { hostRid, releaseLayout };
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   console.log(JSON.stringify(prepare(parseArguments(process.argv.slice(2))), null, 2));

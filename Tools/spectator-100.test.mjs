@@ -489,10 +489,15 @@ test('browser evidence gate accepts ticket endpoints carrying the allocator rout
 });
 
 test('missing Bot.Host / DS files stay BLOCKED_ENV and never fake PASS', () => {
-  assert.equal(
-    missingLiveReason({ LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080' }),
-    'LUMIO_DS_EXE is not set or is not a file',
-  );
+  // ADR-123: the engine half is Engine/ only. Empty, the reason is the command that fills it;
+  // a release without this platform's lumio-ds names that path. No variable is consulted.
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-spectator-engine-'));
+  const env = { LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080' };
+  assert.equal(missingLiveReason(env, { root: isolated }), 'Engine/ is empty; run: git submodule update --init --depth 1 Engine');
+  mkdirSync(join(isolated, 'Engine'), { recursive: true });
+  writeFileSync(join(isolated, 'Engine', 'manifest.json'), JSON.stringify({ formatVersion: 1, version: '0.0.1', platforms: [] }));
+  assert.match(missingLiveReason(env, { root: isolated }), /Engine\/server\/[a-z]+-[a-z0-9]+\/lumio-ds(\.exe)? is missing from the Engine\/ release$/);
+  rmSync(isolated, { recursive: true, force: true });
   assert.equal(existsSync(join(SAMPLE_ROOT, 'Tools', 'spectator-100.mjs')), true);
 });
 
@@ -1926,14 +1931,11 @@ test('missingLiveReason and runLiveTopology give one bot voxel budget verdict, d
       const dsConfig = writeDsConfig(`server-${index}.json`, item.worldProfile);
       const preGate = missingLiveReason({
         LUMIO_PLATFORM_ORIGIN: 'http://127.0.0.1:8080',
-        LUMIO_DS_EXE: dsExe,
         LUMIO_DS_CONFIG: dsConfig,
-        LUMIO_BOT_DLL: botDll,
         LUMIO_GAMEPLAY: gameplay,
-        LUMIO_ENGINE_NATIVE: nativePath,
         ...(item.voxelConfig ? { LUMIO_BOT_VOXEL_CONFIG: item.voxelConfig } : {}),
         LIVE_BOTS: '0',
-      });
+      }, { overrides: { dsExe, botDll, engineNative: nativePath } });
       let mintCalled = false;
       const live = await runLiveTopology({
         root: SAMPLE_ROOT,

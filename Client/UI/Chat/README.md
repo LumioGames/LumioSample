@@ -42,9 +42,8 @@ Use these properties for **restore and build**, including from a net10 test host
 ```
 
 NuGet restore does not propagate `ProjectReference.AdditionalProperties`; omitting
-the global projection flags fails explicitly. Existing sibling/package SDK resolution
-remains in charge; sibling validation additionally supplies `LumioRuntimeRoot`,
-`LumioArchRoot` and `LUMIO_ENGINE_SDK_ROOT`. Production is C# 9 / netstandard2.1;
+the global projection flags fails explicitly. The engine SDK resolves from the `Engine/`
+submodule only (ADR-123), like every other project here. Production is C# 9 / netstandard2.1;
 its graph includes the portable HFSM facade, not net10 NativeLoader.
 
 Build `Client/UI/Chat/Lumio.Sample.Client.Chat.csproj`. Run the separate test project

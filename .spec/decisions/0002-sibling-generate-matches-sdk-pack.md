@@ -1,7 +1,7 @@
 # 0002 · sibling 模式调用 Runtime 生成器并对齐 SDK 包分析器豁免
 
 - 日期:2026-09-09
-- 状态:生效
+- 状态:被 [0003](0003-engine-from-submodule-only.md) 取代
 
 ## 背景
 

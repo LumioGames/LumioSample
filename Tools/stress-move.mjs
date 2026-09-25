@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { countAdmittedBots, parseLaunchArgs, runLauncher } from './launcher.mjs';
-import { repoSibling } from './engine-tools.mjs';
+import { engineDir, readManifest } from './engine-release.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const STRESS_BOTS = 100;
@@ -19,36 +19,50 @@ const STRESS_DURATION_SECONDS = 300;
 const TICK_RATE_HZ = 20;
 const FRAME_BUDGET_MS = 1000 / TICK_RATE_HZ;
 
-export const SHA_REPOS = Object.freeze([
-  'LumioSample',
+/**
+ * The code a run is made of: this repository, plus the seven engine repositories the Engine/
+ * release was built from (manifest.json#sources, ADR-123 决策 4). Engine sources are read from
+ * the manifest, never from sibling checkouts.
+ */
+export const ENGINE_SOURCE_REPOS = Object.freeze([
   'LumioGameEngine',
-  'LumioGameRuntime',
   'LumioNativeCore',
   'LumioVoxelEngine',
+  'LumioGameRuntime',
   'LumioServer',
   'LumioClient',
   'LumioPlatform',
-  'LumioConfig',
-  'LumioGame',
 ]);
+export const SHA_REPOS = Object.freeze(['LumioSample', ...ENGINE_SOURCE_REPOS]);
+
+const SHA40 = /^[0-9a-f]{40}$/;
 
 export function collectRepoShas(repoRoot = ROOT) {
-  const shas = {};
-  for (const name of SHA_REPOS) {
-    const path = name === 'LumioSample' ? repoRoot : repoSibling(repoRoot, name);
-    if (!existsSync(path)) {
-      shas[name] = null;
-      continue;
-    }
-    try {
-      const sha = execFileSync('git', ['-C', path, 'rev-parse', 'HEAD'], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim();
-      shas[name] = /^[0-9a-f]{40}$/.test(sha) ? sha : null;
-    } catch {
-      shas[name] = null;
-    }
+  const shas = Object.fromEntries(SHA_REPOS.map((name) => [name, null]));
+  try {
+    const sha = execFileSync('git', ['-C', repoRoot, 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    // Only this repository's own HEAD: an isolated directory inside another work tree
+    // must not report the outer repository's commit.
+    const top = execFileSync('git', ['-C', repoRoot, 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (SHA40.test(sha) && resolve(top) === resolve(repoRoot)) shas.LumioSample = sha;
+  } catch {
+    // not a checkout
+  }
+  let manifest = null;
+  try {
+    manifest = readManifest(engineDir(repoRoot));
+  } catch {
+    manifest = null;
+  }
+  for (const name of ENGINE_SOURCE_REPOS) {
+    const sha = manifest?.sources?.[name];
+    shas[name] = typeof sha === 'string' && SHA40.test(sha) ? sha : null;
   }
   return shas;
 }
@@ -78,7 +92,7 @@ export function createStressDocument({ bots = STRESS_BOTS, durationSeconds = STR
 
 function shaFilled(shas) {
   if (!shas || typeof shas !== 'object') return false;
-  return SHA_REPOS.every((name) => typeof shas[name] === 'string' && /^[0-9a-f]{40}$/.test(shas[name]));
+  return SHA_REPOS.every((name) => typeof shas[name] === 'string' && SHA40.test(shas[name]));
 }
 
 function rssCurvePassed(rss) {

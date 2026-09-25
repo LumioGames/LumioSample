@@ -7,11 +7,9 @@
 // Section: the payload bytes are the engine's own, and even the digest comes
 // from `lumio_voxel_payload_digest` rather than a second SHA-256 (ADR-078 决策 1).
 //
-// It is NOT in the CI node list: CI has no Rust toolchain and no built .wasm.
-// Run it locally after building the module, and it fails (never skips) when the
-// inputs are missing:
+// The module and its .wasm are the Engine/ release's web/ parts (ADR-123); it fails
+// (never skips) when they are missing:
 //
-//   cargo build -p lumio-voxel-wasm --release --target wasm32-unknown-unknown
 //   node --test Client/UI/Spectator/voxel-grid.test.mjs
 
 import test from "node:test";
@@ -22,12 +20,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
-const SIBLINGS = path.resolve(REPO_ROOT, "..");
-const CLIENT_ROOT = process.env.LUMIO_CLIENT_ROOT
-  ? path.resolve(process.env.LUMIO_CLIENT_ROOT)
-  : path.join(SIBLINGS, "LumioClient");
-const VOXEL_GRID = path.join(CLIENT_ROOT, "Client/UI/Spectator/voxel-grid.mjs");
-assert.ok(fs.existsSync(VOXEL_GRID), `LumioClient voxel-grid.mjs not found at ${VOXEL_GRID}; set LUMIO_CLIENT_ROOT.`);
+// ADR-123: the voxel driver and its wasm are the Engine/ release's web/ parts.
+const ENGINE_WEB = path.join(REPO_ROOT, "Engine/web");
+const VOXEL_GRID = path.join(ENGINE_WEB, "spectator/voxel-grid.mjs");
+assert.ok(fs.existsSync(VOXEL_GRID), `engine voxel-grid.mjs not found at ${VOXEL_GRID}; run: git submodule update --init --depth 1 Engine`);
 const {
   openVoxelGrid,
   blockTypeOf,
@@ -38,19 +34,12 @@ const {
 } = await import(pathToFileURL(VOXEL_GRID).href);
 
 function resolveWasm() {
-  const candidates = [
-    process.env.LUMIO_VOXEL_WASM,
-    path.join(HERE, "lumio_voxel_wasm.wasm"),
-    process.env.LUMIO_VOXEL_ROOT
-      && path.join(process.env.LUMIO_VOXEL_ROOT, "target/wasm32-unknown-unknown/release/lumio_voxel_wasm.wasm"),
-    path.join(SIBLINGS, "LumioVoxelEngine/target/wasm32-unknown-unknown/release/lumio_voxel_wasm.wasm"),
-  ].filter(Boolean);
+  const candidates = [path.join(ENGINE_WEB, "lumio_voxel_wasm.wasm")];
   const found = candidates.find((candidate) => fs.existsSync(candidate));
   assert.ok(
     found,
-    `lumio_voxel_wasm.wasm not found. Build it with\n`
-      + `  cargo build -p lumio-voxel-wasm --release --target wasm32-unknown-unknown\n`
-      + `or point LUMIO_VOXEL_WASM at it. Looked in:\n  ${candidates.join("\n  ")}`,
+    `lumio_voxel_wasm.wasm is not in the Engine/ release (run: git submodule update --init --depth 1 Engine). `
+      + `Looked in:\n  ${candidates.join("\n  ")}`,
   );
   return found;
 }

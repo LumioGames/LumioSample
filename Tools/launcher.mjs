@@ -4,8 +4,15 @@
  * The one fourteen-step driver (S-3 / R-00520; ADR-115 acceptance: `node Tools/launcher.mjs`).
  *
  * Real topology: Platform compose + lumio-ds + N C# Bot.Host processes, staggered
- * admit, unique launch tickets. Internal-only while the Platform image is private.
- * Missing process-tools / Platform / DS / Bot.Host is BLOCKED_ENV (exit 2), not a pass.
+ * admit, unique launch tickets. The engine half of every one of them comes from the Engine/
+ * submodule (ADR-123): Engine/tools/verify-release.mjs checks this machine's <rid> first, then
+ * lumio-ds / HostEntry / the Runtime three-path / native come from Engine/server/<rid>/, Bot.Host
+ * from Engine/bot/<rid>/, process-tools from Engine/tools/ and Platform from
+ * `docker compose -f Engine/platform/docker-compose.yml` with this game's Tools/compose/ inputs.
+ * The game half (gameplay build, tables, maps, scenario assembly) is this repository's. The run
+ * directory (configs, store, logs) is under the gitignored .run/.
+ * An empty Engine/ is filled once with `git submodule update --init --depth 1 Engine`; still
+ * empty, or this <rid> not in the manifest, is BLOCKED_ENV (exit 2). Nothing falls back.
  * Bot.Host production mode requires --gameplay (Client FoundationHostCommand).
  *
  * Bot 1 is the tour bot: it runs SampleMiningScenario (LUMIO_SCENARIO_DLL) and steps 05–13 are
@@ -22,6 +29,7 @@
  * local test mode), then prints the page URL. The URL never carries the ticket.
  */
 
+import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
@@ -29,8 +37,9 @@ import { fileURLToPath } from 'node:url';
 import { BINDING_FIELDS, loginAndLaunch } from './account-client.mjs';
 import { LOGIN_NAME_PATTERN, resolvePassword } from './bot-credential.mjs';
 import { buildBotArgs, buildServerArgs, findDsReady, redactArgs, resolveDsEndpoint } from './ds-ready.mjs';
-import { assertDsClrInputs, assertRunnableDsConfig, deriveRunDsConfig, writeKernelConfigForRun } from './ds-config.mjs';
-import { blocked, loadProcessTools } from './engine-tools.mjs';
+import { assertDsClrInputs, assertRunnableDsConfig, deriveRunDsConfig, engineClrInputs, writeKernelConfigForRun } from './ds-config.mjs';
+import { blocked, prepareEngine, resolveHostfxr } from './engine-release.mjs';
+import { loadProcessTools } from './engine-tools.mjs';
 import {
   checkpointGenerations,
   DEFAULT_LOGIN_PREFIX,
@@ -60,6 +69,11 @@ const SPECTATOR_HOST = '127.0.0.1';
 const BOOLEAN_FLAGS = new Set(['spectator']);
 /** Owner frames the tour bot gets for the mining scenario (Bot.Host --ticks; ~16 ms each). */
 const DEFAULT_TOUR_TICKS = 15_000;
+/** Platform from the release compose (ADR-123 决策 8); the game's three inputs live in Tools/compose/. */
+const PLATFORM_PROJECT = 'lumio-sample-platform';
+const PLATFORM_ORIGIN = 'http://127.0.0.1:8080';
+const GAME_PLATFORM_DIR = 'Tools/compose';
+const DEFAULT_PLATFORM_TIMEOUT_MS = 180_000;
 /** Owner frames the step-14 verification bot gets; it completes on its first bound frame. */
 const VERIFY_TICKS = 6_000;
 /** Wall-clock allowance per owner frame when bounding a scenario bot's run, plus a fixed margin. */
@@ -128,15 +142,13 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     staggerMs: Number(environment.LUMIO_STAGGER_MS || DEFAULT_STAGGER_MS),
     durationMs: Number(environment.LUMIO_DURATION_MS || 0),
     origin: environment.LUMIO_PLATFORM_ORIGIN,
+    // No --origin: the launcher starts Platform from Engine/platform itself; --no-platform opts out.
+    startPlatform: true,
     slug: environment.LUMIO_GAME_SLUG || 'sample',
-    composeFile: environment.LUMIO_PLATFORM_COMPOSE,
-    dsExe: environment.LUMIO_DS_EXE,
     dsConfig: environment.LUMIO_DS_CONFIG || DEFAULT_DS_CONFIG,
-    botDll: environment.LUMIO_BOT_DLL,
     gameplay: environment.LUMIO_GAMEPLAY,
     configDir: environment.LUMIO_CONFIG_DIR,
     voxelConfig: environment.LUMIO_BOT_VOXEL_CONFIG,
-    engineNative: environment.LUMIO_ENGINE_NATIVE,
     endpoint: environment.LUMIO_DS_ENDPOINT,
     dotnet: environment.LUMIO_DOTNET || 'dotnet',
     timeoutMs: Number(environment.LUMIO_LAUNCH_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
@@ -157,14 +169,10 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     'duration-ms': 'durationMs',
     origin: 'origin',
     slug: 'slug',
-    compose: 'composeFile',
-    'ds-exe': 'dsExe',
     'ds-config': 'dsConfig',
-    'bot-dll': 'botDll',
     gameplay: 'gameplay',
     'config-dir': 'configDir',
     'voxel-config': 'voxelConfig',
-    'engine-native': 'engineNative',
     endpoint: 'endpoint',
     dotnet: 'dotnet',
     'timeout-ms': 'timeoutMs',
@@ -183,6 +191,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (flag === '--help' || flag === '-h') return { help: true };
+    if (flag === '--no-platform') { options.startPlatform = false; continue; }
     if (!flag.startsWith('--')) throw new UsageError(`unknown option: ${flag}`);
     const key = names[flag.slice(2)];
     if (!key) throw new UsageError(`unknown option: ${flag}`);
@@ -220,6 +229,8 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     }
   }
   if (options.spectatorUrl) options.spectator = true;
+  // An operator-named Platform is used as is; the release compose is only for "no --origin".
+  if (options.origin) options.startPlatform = false;
   return options;
 }
 
@@ -633,11 +644,11 @@ async function runTour(context) {
 }
 
 async function runRestoreStep({
-  options, tools, log, report, evidence, children, env, password,
+  options, origin, tools, log, report, evidence, children, env, password,
   ds, dsExe, bootConfigs, bootLogDirs, runConfig, tourLogin, bot, generationsAtCompletion,
 }) {
-  if (!options.origin) {
-    return { status: 'BLOCKED_ENV', detail: 'LUMIO_PLATFORM_ORIGIN is not set; step 14 re-admits the tour account after the restart.' };
+  if (!origin) {
+    return { status: 'BLOCKED_ENV', detail: 'no Platform (--origin or the release compose); step 14 re-admits the tour account after the restart.' };
   }
   // Two saves after completion, not one: the first may have been running when the bot finished.
   const deadline = Date.now() + (options.checkpointTimeoutMs ?? 2 * runConfig.checkpoint_seconds * 1000 + SCENARIO_MARGIN_MS);
@@ -671,7 +682,7 @@ async function runRestoreStep({
   let relaunch;
   try {
     relaunch = await (options.loginAndLaunch ?? loginAndLaunch)({
-      origin: options.origin, loginName: tourLogin, slug: options.slug, env, password, log: (line) => log(line),
+      origin, loginName: tourLogin, slug: options.slug, env, password, log: (line) => log(line),
     });
   } catch (error) {
     return fail(`re-login of ${tourLogin} failed: ${error.message}`);
@@ -715,6 +726,75 @@ async function runRestoreStep({
   return verdict.status === 'FAIL' ? { ...verdict, detail: `${verdict.detail}${OUTCOME_NOTES[outcome]}` } : verdict;
 }
 
+function commandOutput(result) {
+  return `${result?.stdout ?? ''}${result?.stderr ?? ''}${result?.error ? result.error.message : ''}`.trim();
+}
+
+/**
+ * Step 02's Platform when the operator named none: the release's own compose file
+ * (Engine/platform/docker-compose.yml, image = manifest.platformImage) with this game's three
+ * inputs from Tools/compose/ (platform.env, seed-games.sql, games/; R-00780 contract).
+ * Docker missing or refusing is BLOCKED_ENV: ADR-123 lists Docker as a prerequisite, it is not
+ * this run failing. Returns the origin and a stop() that removes the stack and its data, so a
+ * second run never meets the first run's accounts.
+ */
+export async function startReleasePlatform({
+  layout, manifest, root, evidence, log = () => {}, run = spawnSync, fetchFn = globalThis.fetch,
+  timeoutMs = DEFAULT_PLATFORM_TIMEOUT_MS, env = process.env,
+}) {
+  if (!existsSync(layout.platformCompose)) {
+    throw blocked(`${layout.platformCompose} is missing from the Engine/ release.`);
+  }
+  const gameDir = resolve(root, GAME_PLATFORM_DIR);
+  for (const name of ['platform.env', 'seed-games.sql', 'games']) {
+    if (!existsSync(join(gameDir, name))) throw blocked(`${join(gameDir, name)} is missing (this game's Platform input).`);
+  }
+  const composeEnv = {
+    ...env,
+    LUMIO_PLATFORM_IMAGE: String(manifest.platformImage ?? ''),
+    LUMIO_GAME_PLATFORM_DIR: gameDir,
+  };
+  const base = ['compose', '-f', layout.platformCompose, '-p', PLATFORM_PROJECT];
+  const docker = (args, label) => {
+    const result = run('docker', [...base, ...args], { env: composeEnv, encoding: 'utf8', cwd: root });
+    if (evidence) writeFileSync(join(evidence, `platform.${label}.log`), commandOutput(result));
+    return result;
+  };
+  const version = run('docker', ['compose', 'version'], { env: composeEnv, encoding: 'utf8' });
+  if (version.error || version.status !== 0) {
+    throw blocked(`docker compose is not available (${commandOutput(version) || 'docker not found'}); ADR-123 lists Docker as a prerequisite.`);
+  }
+  const stop = () => { docker(['down', '-v', '--remove-orphans'], 'down'); };
+  log(`platform: docker compose -f ${layout.platformCompose} up (image ${composeEnv.LUMIO_PLATFORM_IMAGE || 'from compose'}, game dir ${gameDir})`);
+  const up = docker(['up', '-d'], 'up');
+  if (up.error || up.status !== 0) {
+    stop();
+    throw blocked(`docker compose up failed: ${commandOutput(up).split('\n').slice(-3).join(' | ')}`);
+  }
+  // games-seed runs once platform is healthy; its exit code is the catalog being in place.
+  const seed = docker(['wait', 'games-seed'], 'seed');
+  if (seed.error || seed.status !== 0 || String(seed.stdout ?? '').trim().split(/\s+/).pop() !== '0') {
+    stop();
+    throw blocked(`games-seed did not finish cleanly: ${commandOutput(seed).split('\n').slice(-3).join(' | ')}`);
+  }
+  const deadline = Date.now() + timeoutMs;
+  let healthy = false;
+  while (!healthy && Date.now() < deadline) {
+    try {
+      const response = await fetchFn(`${PLATFORM_ORIGIN}/healthz`);
+      healthy = response.ok;
+    } catch {
+      healthy = false;
+    }
+    if (!healthy) await sleep(500, { keepAlive: true });
+  }
+  if (!healthy) {
+    stop();
+    throw blocked(`Platform at ${PLATFORM_ORIGIN} did not report /healthz within ${timeoutMs} ms.`);
+  }
+  return { origin: PLATFORM_ORIGIN, stop };
+}
+
 function printStep(log, id, status, detail) {
   const line = formatStep(id, status, detail);
   log(line);
@@ -723,24 +803,26 @@ function printStep(log, id, status, detail) {
 
 function usage() {
   return [
-    'Usage: node Tools/launcher.mjs [--bots N] [--stagger-ms 250] [--origin url] [--scenario-dll path]',
+    'Usage: node Tools/launcher.mjs [--bots N] [--stagger-ms 250] [--origin url | --no-platform] [--scenario-dll path]',
     '  [--spectator] [--spectator-url url] [--duration-ms ms] [--voxel-config path|off]',
     '  [--tour-ticks 15000] [--checkpoint-seconds s] [--login-prefix Bot]',
     'Runs the fourteen sample.md steps. Bot 1 is the tour bot (SampleMiningScenario): steps 05–13 are',
     '  judged from DS logs and its result.ndjson; step 14 restarts lumio-ds on the same store and',
     '  re-admits that account under SampleRestoreVerifyScenario. Bots 2..N are the fleet.',
-    'Internal-only first stage: Platform image is built from a private compose file.',
+    'Engine: everything engine-side comes from the Engine/ submodule (ADR-123). An empty Engine/ is',
+    '  filled once with `git submodule update --init --depth 1 Engine`; Engine/tools/verify-release.mjs',
+    '  then checks this machine\'s platform. lumio-ds, HostEntry and native come from Engine/server/<rid>/,',
+    '  Bot.Host from Engine/bot/<rid>/, hostfxr from this machine\'s dotnet.',
+    'Platform: without --origin the launcher runs `docker compose -f Engine/platform/docker-compose.yml`',
+    '  with this game\'s Tools/compose/ inputs and removes the stack afterwards; --no-platform skips it.',
     `Bots carry ${DEFAULT_BOT_VOXEL_CONFIG} by default; this room is world_profile=runtime+voxel,`,
     '  and a bot with no voxel budget faults on its first SectionFrame (ADR-112 修订 2 ⑨, by design).',
     '  --voxel-config off keeps the entity-only bot for a room that sends no Sections.',
-    'Required for a live run: LUMIO_PLATFORM_ORIGIN, LUMIO_DS_EXE, LUMIO_BOT_DLL, LUMIO_GAMEPLAY,',
-    '  LUMIO_ENGINE_NATIVE, LUMIO_SCENARIO_DLL, sibling process-tools.mjs (or LUMIO_ENGINE_ROOT),',
-    '  LUMIO_BOT_TOOL_CREDENTIAL for Bot* names (or --login-prefix for ordinary accounts).',
+    'Game inputs: --gameplay (default Gameplay/bin/Debug/net10.0), --scenario-dll (Lumio.Sample.Bots.dll,',
+    '  built from Client/Bots), LUMIO_BOT_TOOL_CREDENTIAL for Bot* names (or --login-prefix for ordinary accounts).',
     'DS config: LUMIO_DS_CONFIG (default Server/Config/Startup/server.json) is a template; each run',
-    '  writes its own copy with a fresh store. Its clr files come from LUMIO_HOSTFXR,',
-    '  LUMIO_SERVER_HOSTENTRY_DLL, LUMIO_RUNTIME_REPLICATION_DLL, LUMIO_RUNTIME_ECS_DLL,',
-    '  LUMIO_SAMPLE_GAMEPLAY_DLL, LUMIO_ENGINE_NATIVE, else from the template; a missing one is BLOCKED_ENV.',
-    '  LUMIO_PLATFORM_ADMISSION_KEY replaces the template\'s stand-in admission key.',
+    '  writes its own copy with a fresh store under .run/. LUMIO_PLATFORM_ADMISSION_KEY replaces the',
+    '  template\'s local admission key when the Platform is not the release compose.',
     'Spectator: after step 04 the launcher serves the published page (--spectator-root, default',
     `  ${DEFAULT_SPECTATOR_ROOT}) on http://127.0.0.1:<--spectator-static-port|any>/`,
     '  with the spectator ticket injected as window.__lumioLaunch; --spectator-url only prints a page',
@@ -753,7 +835,8 @@ export async function runLauncher(options = {}) {
   const root = resolve(options.root ?? ROOT);
   const log = options.log ?? ((line) => process.stdout.write(`${line}\n`));
   const env = options.env ?? process.env;
-  const parent = join(root, 'Tools', 'logs');
+  // ADR-123: the run directory (derived configs, store, DS and bot logs) is under the gitignored .run/.
+  const parent = join(root, '.run');
   mkdirSync(parent, { recursive: true });
   const evidence = options.evidenceDir ? resolve(options.evidenceDir) : mkdtempSync(join(parent, 'launch-'));
   mkdirSync(evidence, { recursive: true });
@@ -762,7 +845,6 @@ export async function runLauncher(options = {}) {
     version: 1,
     status: 'RUNNING',
     scope: 'sample-launcher',
-    internalOnly: true,
     evidence,
     steps: [],
   };
@@ -780,6 +862,7 @@ export async function runLauncher(options = {}) {
 
   let tools;
   let spectatorServer = null;
+  let platform = null;
   const children = [];
   try {
     const botCount = options.bots ?? 2;
@@ -814,8 +897,13 @@ export async function runLauncher(options = {}) {
       }
     }
 
+    // ADR-123: the engine is Engine/ and nothing else. `options.engine` is the prepared release
+    // (tests hand in a fake tree); otherwise fill/verify Engine/ for this machine's <rid> now.
+    // A tree verify-release rejects (ENGINE_RELEASE_INVALID) is a failure, not BLOCKED_ENV.
+    let release;
     try {
-      tools = options.processTools ?? await loadProcessTools({ env, repoRoot: root });
+      release = options.engine ?? prepareEngine({ repoRoot: root, rid: options.rid, git: options.git, node: options.node, log });
+      tools = options.processTools ?? await loadProcessTools({ engineRoot: release.dir });
     } catch (error) {
       if (error?.code !== 'BLOCKED_ENV') throw error;
       recordRest(1, 'BLOCKED_ENV', error.message);
@@ -823,17 +911,35 @@ export async function runLauncher(options = {}) {
       report.error = error.message;
       return report;
     }
+    const layout = release.layout;
+    report.engine = { version: release.manifest?.version ?? null, rid: release.rid, dir: release.dir };
+
+    let origin = options.origin;
+    if (!origin && !options.sessions && options.startPlatform === true) {
+      try {
+        platform = await (options.startReleasePlatform ?? startReleasePlatform)({
+          layout, manifest: release.manifest, root, evidence, log, env,
+        });
+        origin = platform.origin;
+      } catch (error) {
+        if (error?.code !== 'BLOCKED_ENV') throw error;
+        record('02', 'BLOCKED_ENV', error.message.replace(/^BLOCKED_ENV: /, ''));
+      }
+    }
+    report.platformOrigin = origin ?? null;
 
     let sessions = options.sessions;
     if (!sessions) {
-      if (!options.origin) {
-        record('02', 'BLOCKED_ENV', 'LUMIO_PLATFORM_ORIGIN is not set (Platform image is not public).');
+      if (!origin) {
+        if (!report.steps.some((step) => step.id === '02')) {
+          record('02', 'BLOCKED_ENV', 'no Platform: pass --origin, or leave it out so the launcher starts Engine/platform/docker-compose.yml.');
+        }
       } else {
         sessions = [];
         for (const [index, loginName] of logins.entries()) {
           if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
           const session = await (options.loginAndLaunch ?? loginAndLaunch)({
-            origin: options.origin,
+            origin,
             loginName,
             slug: options.slug,
             env,
@@ -862,25 +968,34 @@ export async function runLauncher(options = {}) {
       }
     }
 
-    if (!options.dsExe || !existsSync(options.dsExe)) {
-      record('03', 'BLOCKED_ENV', 'LUMIO_DS_EXE is not set or is not a file.');
+    if (!existsSync(layout.dsExe)) {
+      record('03', 'BLOCKED_ENV', `${layout.dsExe} is missing from the Engine/ release.`);
       recordRest(3, 'BLOCKED_ENV', 'waiting for lumio-ds');
       report.status = reportStatusFromSteps(report.steps);
       return report;
     }
 
-    const dsExe = requiredFile(options.dsExe, 'LUMIO_DS_EXE');
+    const dsExe = layout.dsExe;
+    let hostfxr;
+    try {
+      hostfxr = options.hostfxr ?? resolveHostfxr({ dotnet: options.dotnet || 'dotnet', env });
+    } catch (error) {
+      if (error?.code !== 'BLOCKED_ENV') throw error;
+      record('03', 'BLOCKED_ENV', error.message.replace(/^BLOCKED_ENV: /, ''));
+      recordRest(3, 'BLOCKED_ENV', 'waiting for lumio-ds');
+      report.status = reportStatusFromSteps(report.steps);
+      return report;
+    }
     const dsTemplate = requiredFile(options.dsConfig ?? join(root, DEFAULT_DS_CONFIG), 'LUMIO_DS_CONFIG');
     // One run owns one fresh store and one log directory per boot. A reused evidence directory must
     // not hand this run an earlier run's checkpoint (step 05 would boot it instead of the base map)
     // or an earlier run's log lines (every step 05–14 reads them).
     const store = mkdtempSync(join(evidence, 'ds-store-'));
     const bootLogDirs = [freshDir(join(evidence, 'ds-boot-1')), freshDir(join(evidence, 'ds-boot-2'))];
-    const dsEnv = { ...env };
-    if (options.engineNative) dsEnv.LUMIO_ENGINE_NATIVE = options.engineNative;
     const runConfig = deriveRunDsConfig(JSON.parse(readFileSync(dsTemplate, 'utf8')), {
       templatePath: dsTemplate,
-      env: dsEnv,
+      engineClr: engineClrInputs(layout, hostfxr),
+      admissionKey: env.LUMIO_PLATFORM_ADMISSION_KEY,
       storePath: store,
       logDir: bootLogDirs[0],
       launch: sessions?.[0]?.launch,
@@ -918,13 +1033,13 @@ export async function runLauncher(options = {}) {
     const check = tools.command(dsExe, [...buildServerArgs(bootConfigs[0]), '--check-config'], { cwd: dirname(dsExe), log: join(evidence, 'lumio-ds.check-config.log') });
     log(`lumio-ds --check-config\n${check ?? ''}`);
     const boot = await startDs(tools, dsExe, bootConfigs[0], join(evidence, 'lumio-ds.log'), children, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-    if (!boot.ready) throw new Error('Timed out waiting for lumio-ds DS_READY. See Tools/logs.');
+    if (!boot.ready) throw new Error(`Timed out waiting for lumio-ds DS_READY. See ${evidence}.`);
     const ds = boot.ds;
     const endpoint = resolveDsEndpoint(boot.ready, options.endpoint);
     record('03', 'PASS', `endpoint=${endpoint}`);
 
-    if (!options.botDll || !existsSync(options.botDll)) {
-      record('04', 'BLOCKED_ENV', 'LUMIO_BOT_DLL is not set (Client Bot.Host / R-00534).');
+    if (!existsSync(layout.botHost)) {
+      record('04', 'BLOCKED_ENV', `${layout.botHost} is missing from the Engine/ release.`);
       recordRest(4, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
       report.status = reportStatusFromSteps(report.steps);
       return report;
@@ -932,7 +1047,7 @@ export async function runLauncher(options = {}) {
 
     const gameplayCandidate = options.gameplay || defaultGameplayPath(root);
     if (!existsSync(gameplayCandidate)) {
-      record('04', 'BLOCKED_ENV', 'LUMIO_GAMEPLAY is not set (Client Bot.Host requires --gameplay).');
+      record('04', 'BLOCKED_ENV', `gameplay assembly not found: ${gameplayCandidate} (build this repository, or pass --gameplay).`);
       recordRest(4, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
       report.status = reportStatusFromSteps(report.steps);
       return report;
@@ -942,10 +1057,10 @@ export async function runLauncher(options = {}) {
     if (spectatorMode && sessions.length !== botCount + 1) {
       throw new Error(`spectator mode requires ${botCount} bot tickets + 1 spectator ticket.`);
     }
-    const engineNative = requiredFile(options.engineNative, 'LUMIO_ENGINE_NATIVE');
-    const gameplay = requiredFile(gameplayCandidate, 'LUMIO_GAMEPLAY');
+    const engineNative = requiredFile(layout.engineNative, 'Engine/server/<rid>/SDK/Native native library');
+    const gameplay = requiredFile(gameplayCandidate, '--gameplay');
     const dotnet = requiredValue(options.dotnet || 'dotnet', 'LUMIO_DOTNET');
-    const botDll = requiredFile(options.botDll, 'LUMIO_BOT_DLL');
+    const botDll = layout.botHost;
     // The DS loads its own S+V tables through server.json#config_dir. Bots are
     // clients, so they get the C export; split-export/1 keeps the two ends in
     // separate directories and the server end carries no client projection.
@@ -1052,7 +1167,7 @@ export async function runLauncher(options = {}) {
     }
     report.tourLogin = botSessions[0].login.loginName;
     await runTour({
-      options, tools, record, log, report, evidence, children, env, password,
+      options, origin, tools, record, log, report, evidence, children, env, password,
       ds, dsReady: boot.ready, dsExe, bootConfigs, bootLogDirs, runConfig, tourBot, fleet,
       tourLogin: botSessions[0].login.loginName,
       bot: { dotnet, botDll, engineNative, kernelConfigPath, configDir, gameplay, voxelConfig, scenarioDll },
@@ -1070,6 +1185,9 @@ export async function runLauncher(options = {}) {
     }
     throw error;
   } finally {
+    if (platform) {
+      try { platform.stop(); } catch { /* the stack is best-effort teardown; the report is already decided */ }
+    }
     if (spectatorServer) {
       // An open browser tab keeps its connection alive; close() alone would wait for it.
       spectatorServer.closeAllConnections?.();

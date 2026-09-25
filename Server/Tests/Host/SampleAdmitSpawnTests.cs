@@ -62,9 +62,10 @@ public sealed class SampleAdmitSpawnTests : IDisposable
     /// </summary>
     private const string VoxelProfileFields = ",\"worldProfile\":\"runtime+voxel\"";
 
+    // ADR-123: the named three-path is the release's SDK/Managed, the set HostEntry was built with.
     private static (string Replication, string Ecs) RequireRuntime() => (
-        HostEntryBridge.Require("LUMIO_RUNTIME_REPLICATION_DLL", "the host wires Runtime from the named three-path"),
-        HostEntryBridge.Require("LUMIO_RUNTIME_ECS_DLL", "the host wires Runtime from the named three-path"));
+        Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.ReplicationAssembly, "the host wires Runtime from the named three-path"),
+        Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.EcsAssembly, "the host wires Runtime from the named three-path"));
 
     private static string RequireSampleGameplayDll() => HostEntryBridge.Require(
         "LUMIO_SAMPLE_GAMEPLAY_DLL",

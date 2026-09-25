@@ -8,6 +8,8 @@
 2. **当模板**——新游戏直接 `gh repo create --template`，在这个骨架上往下做。
 3. **当尺子**——它是引擎的端到端回归基准：一条命令跑完全程、两轮同底图逐位同哈希；也是 Dedicated Server（`lumio-ds`）第一个真实的端到端启动器。
 
+引擎以编好的二进制随子模块 [`Engine/`](#引擎从哪来) 进来（公开仓 `LumioEngineRelease` 的一个版本），不需要任何引擎源码或私有仓权限。
+
 ## 玩法一句话
 
 登录进场 → 跑动 → 挥镐挖矿脉 → 挖穿了方块变空气 → 掉出矿石 → 走过去捡 → 旁人同帧看到 → 顺便能聊天。
@@ -23,7 +25,7 @@
   → 存档 → 关服重启 → 地图缺口与矿石数都还在 → 两轮同底图同哈希
 ```
 
-每一步对应引擎的一个接缝，逐步导览在 [`docs/tour.md`](docs/tour.md)。其中最要紧的教学点是**世界模型的四类东西各出现一次**：
+每一步对应引擎的一个接缝，逐步导览在 [`sample-tour.md`](.spec/knowledge/features/sample-tour.md)。其中最要紧的教学点是**世界模型的四类东西各出现一次**：
 
 | 东西 | 是什么 | 在示例里 |
 |---|---|---|
@@ -34,87 +36,85 @@
 
 跑动与挖掘是 GAS 技能，拾取是瞬时 Effect；数值全部来自配表，源码里没有数值字面量。
 
+## 五分钟跑起来
+
+**前置条件**：git、.NET SDK（版本见 [`global.json`](global.json)）、Node.js 22、Docker（第 2 步「注册登录」要起 Platform）。
+
+```bash
+git clone --recursive https://github.com/LumioGames/LumioSample && cd LumioSample
+dotnet build LumioSample.slnx
+dotnet test  LumioSample.slnx
+
+# 十四步一条命令：没给 --origin 时自己用 Engine/platform 的 compose 起 Platform，跑完删掉
+dotnet build Client/Bots/Lumio.Sample.Bots.csproj
+node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll Client/Bots/bin/Debug/net10.0/Lumio.Sample.Bots.dll
+```
+
+**clone 时漏了 `--recursive`**：`dotnet build` 会以 `LUMIO_SDK_UNRESOLVED` 失败并打印要跑的命令；启动器会自己先跑一次。手动补：
+
+```bash
+git submodule update --init --depth 1 Engine
+```
+
+缺 Docker / 发布物不含本机平台 / 其他前置条件时，启动器逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出、点名缺的东西，不会假绿。[`Tools/`](Tools/) 里是启动器、账号客户端、证据对账和世界断言，见 [`Tools/README.md`](Tools/README.md)。
+
+## 引擎从哪来
+
+`Engine/` 是只读的 git 子模块，指向公开仓 [`LumioEngineRelease`](https://github.com/LumioGames/LumioEngineRelease) 的一个正式 tag（ADR-123）。一个 tag 就是一整套引擎：SDK 包（`sdk/`）、`lumio-ds` 与托管闭包（`server/<rid>/`）、Bot 宿主（`bot/<rid>/`）、旁观页引擎零件与体素 wasm（`web/`）、运行编排脚本（`tools/`）、Platform 的 compose（`platform/`，镜像同版本公开发布），以及记下源码提交号与每个文件 sha256 的 `manifest.json`。
+
+- **编译**：`Directory.Build.targets` 只认 `Engine/sdk/` 作 `Lumio.Engine.SDK` 的包源（[`NuGet.config`](NuGet.config) 用 package source mapping 限定），版本读 `Engine/manifest.json` 的 `version`；第三方包照常走 nuget.org。没有同级仓、global-packages 或 nuget.org 的第二条路。
+- **运行**：启动器从 `Engine/` 取引擎那一半、从本仓取玩法 / 配表 / 地图，运行目录落在已 gitignore 的 `.run/`；先用发布物自带的 `Engine/tools/verify-release.mjs` 校验本机平台，发布物不含本机平台时 `BLOCKED_ENV` 点名，不拿别的平台凑。
+- **升级引擎**：
+
+  ```bash
+  node Tools/update-engine.mjs 0.0.2     # 浅取 tag v0.0.2 → 用新版自带的 verify-release 校验 → 切换并暂存子模块指针
+  git commit -m "engine: v0.0.2" -- .gitmodules Engine
+  ```
+
+  tag 不存在或校验不过时指针不变。引擎不承诺跨大版本兼容；升级后编不过的玩法代码由本游戏自己改。
+
+`Server/Config/Startup/server.json` 是可运行的 DS 模板（`runtime+voxel` + `snapshot_only`，并要求 `base_map_*`）：只写本仓自己的玩法程序集，引擎一半由启动器从 `Engine/server/<rid>/` 填；准入公钥是 Platform release compose 的本地公钥；本机覆盖在 gitignored 的 `.run/server.local.json`。填我用的 `replace-*` 留在 `Server/Config/Startup/server.sample.json`，未填时报响亮缺值。[`Tools/compose/`](Tools/compose/README.md) 放本游戏给 Platform 的三样输入（分配、目录种子、大厅包）。
+
+**这棵树不写锁文件**（`RestorePackagesWithLockFile=false`）：`Lumio.Engine.SDK` 的版本随子模块指针走，引擎回归还会临时把 `Engine/` 换成同布局的 main 现编产物，钉进锁文件的哈希会让那些 restore 报 `NU1403`。
+
 ## 现在到哪儿了
 
-**今天能做的**：
-
-- 同级开发：设置 `LumioRuntimeRoot`，并且 Runtime 旁边要有 `LumioGameEngine`（Ecs `QueryAabb` / Simulation `clock_now` 绑 NativeLoader，没有 C# 替身）。CI 的 `build` / `test` 作业这样验。
-- 包消费：CI `external-clone` 每次用架构仓现打的 `Lumio.Engine.SDK` nupkg 编过。Owner 还没把这个包发到 nuget.org，所以干净机器上裸 `git clone && dotnet build` 会得到 `LUMIO_SDK_UNRESOLVED`——这是闸门，不是静默降级，也不是「外部 clone 已经能编」。
-- 用它当模板建新仓。
-- 读 [`docs/tour.md`](docs/tour.md) 看十四步各对应引擎哪个接缝。`Server/Config/Startup/server.json` 是可运行的 DS 模板（runtime+voxel + snapshot_only）；allocation / 准入公钥是本机句法 stand-in。填我用的 `replace-*` 留在 `Server/Config/Startup/server.sample.json`，未填时报响亮缺值，不是占位 `BLOCKED_ENV`。
 - 玩法声明已在 `Gameplay/`：世界 / 玩家 / 聊天 / 跑动技能 / 矿脉储量 / 掉落 / 拾取 Effect。数值在两端的 `Config/Tables/*/*.json`（源表在 `Gameplay/Tables/`）。
-- 一条命令的启动器是 `node Tools/launcher.mjs --bots N`，十四步只有它一个驱动：第 1 名 Bot 跑 `SampleMiningScenario`（`LUMIO_SCENARIO_DLL`），第 05–13 步只凭 DS 日志与该 Bot 的 `result.ndjson` 判，结果文件缺了就是 FAIL；第 14 步在同一份存储上重启 DS，让同一账号以 `SampleRestoreVerifyScenario` 核对世界。没有 Platform / `lumio-ds` / Bot.Host / 场景程序集时它会逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出，点名缺的变量，不会假绿。它默认给每名 Bot 带上 `--voxel-config Server/Assets/Maps/bot-voxel-budget.json`：这个房间是 `world_profile=runtime+voxel`，**不带体素预算的 Bot 收到第一帧 SectionFrame 就 `session_faulted`**，那是 ADR-112 修订 2 ⑨ 的 fail-closed 设计行为不是缺陷（详见 [`docs/tour.md` 第 4 步](docs/tour.md)）。旁观者、纯移动压测这类本就不该拥有体素世界的跑法用 `--voxel-config off` 回到 entity-only 形态，但那只对不发 Section 的房间成立。
+- 一条命令的启动器是 `node Tools/launcher.mjs --bots N`，十四步只有它一个驱动：第 1 名 Bot 跑 `SampleMiningScenario`（`--scenario-dll`），第 05–13 步只凭 DS 日志与该 Bot 的 `result.ndjson` 判，结果文件缺了就是 FAIL；第 14 步在同一份存储上重启 DS，让同一账号以 `SampleRestoreVerifyScenario` 核对世界。它默认给每名 Bot 带上 `--voxel-config Server/Assets/Maps/bot-voxel-budget.json`：这个房间是 `world_profile=runtime+voxel`，**不带体素预算的 Bot 收到第一帧 SectionFrame 就 `session_faulted`**，那是 ADR-112 修订 2 ⑨ 的 fail-closed 设计行为不是缺陷（详见 [`sample-tour.md` 第 4 步](.spec/knowledge/features/sample-tour.md)）。旁观者、纯移动压测这类本就不该拥有体素世界的跑法用 `--voxel-config off`，但那只对不发 Section 的房间成立。
+- `Server/Assets/Maps/sample.voxel` 是 Engine capture CLI 产出的可 restore Cube 平面快照（DS 开机只 restore，不重算地形）。
 
-**还没有的**：用 `Tools/launcher.mjs` 对着真 Platform + DS + C# Bot 跑通十四步（2026-09-22 由已删的第二个驱动在 Windows 真机跑通过一次，那些判据并进启动器后还要真机复跑）；100 人移动压测的五条实测证据；存档冷恢复（R-00498 / R-00507）；体素写（R-00469）。`Server/Assets/Maps/sample.voxel` 已是 Engine capture CLI 产出的可 restore Cube 平面快照（DS 开机只 restore，不重算地形）。`Server/Config/Startup/server.json` 已冻成 `world_profile=runtime+voxel`、`durability=snapshot_only`（persistence-container-v1 词表），并要求 `base_map_id` / `base_map_version` / `base_map_content_sha256`。本机覆盖在 gitignored 的 `.run/server.local.json`，须抄这份公共词表，不要再写 `runtime-only` / `process-crash`。旧的程序化地图生成器已删除。
+**还没有的**：`Engine/` 还没钉到第一个正式版本（`v0.0.1`，R-00782）——在那之前 `Engine/` 是空的，`dotnet build` 按设计报 `LUMIO_SDK_UNRESOLVED`，内部开发者用架构仓的 `pack-release --from-main` 填它（见 [`AGENTS.md`](AGENTS.md)）；用启动器对着发布物跑通十四步；100 人移动压测的五条实测证据。
 
-**怎么安排**：2026-09-07 架构讨论把整个里程碑逐题拍板，记录在 [`.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md`](.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md)（架构仓副本）。要点：
+**怎么安排**：2026-09-07 架构讨论把整个里程碑逐题拍板，记录在 [`.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md`](.spec/plans/2026-09-07-sample-milestone-architecture-rulings.md)（架构仓副本；其中关于外部可用性与 Platform 镜像的那条已被 ADR-123 取代）。要点：
 
 - 客户端形态：十四步由 **C# Bot** 执行（引擎的无渲染客户端宿主 + 本仓交的场景类与输入映射）；**浏览器是最终的核心验收场景**，第一阶段先旁观。
 - 一条命令的真拓扑：平台（账号 + 进房票，PostgreSQL 走 docker compose）→ `lumio-ds` → N 个 Bot → 浏览器旁观。
 - 地图是**数据**：底图是一份体素快照文件（一次性脚本经引擎写格再导出，产物不手改），服务器开机加载；不做程序化生成。
 - 配表是**文件**：编译出 JSON，引擎生成只含类型的 C# 读表代码，开机装载一次、帧内不可变。
-- 外部性边界：干净机器、无同级仓时，今天的外部验收是 `LUMIO_SDK_UNRESOLVED`（包未发布）和 CI `external-clone`（现打 nupkg 再编）。裸 `git clone && dotnet build` 在 nuget.org 有包之前不会绿。**一条命令跑完全程第一阶段是内部验收**（平台镜像未公开）。查契约走 SDK 包带的公开使用面，不是回私有仓读。
-- 前置的引擎卡横跨六个仓，按 wave 0–3 排；本仓的实现卡随各 wave 落地。第一阶段的示例是残的（挖不动石头），不当教学材料对外发。
-
-## SDK 解析（S-2）
-
-玩法工程通过双路径解析引擎依赖。`Directory.Packages.props` 登记了 `Lumio.Engine.SDK` `0.1.0`，由 `Directory.Build.targets` 根据环境在 nuget 模式下自动注入 `<PackageReference Include="Lumio.Engine.SDK" />`。
-
-双路径（`Directory.Build.targets`）：
-
-1. 内部开发：设置 `LumioRuntimeRoot` 指向同级仓。目录存在时注入 Runtime `ProjectReference`（Ecs / Replication / Gas / Config / Simulation）并跑 `gen-declarations`。空值不是静默降级。Simulation 必须解析 **net10.0**（`DedicatedServerHostBinding` 只在该 TFM；ns2.1 会 `Compile Remove`）。net10 Simulation 绑 NativeLoader：Runtime 旁边要有 `LumioGameEngine`，或传 `-p:LumioArchRoot=<LumioGameEngine>`（探测的是 Runtime 的 `../LumioGameEngine`，不是本仓源码引用）。
-2. 外部：从 nuget.org restore `Lumio.Engine.SDK`（Owner 未发布前不可用）。已 restore 的 global-packages 或 `LumioLocalFeed` nupkg 视为 NuGet 路径。本仓不另造 Simulation 包或替身；HostEntry 要的是玩法 `bin/<config>/net10.0/Lumio.GameRuntime.Simulation.dll` 里的 `DedicatedServerHostBinding`。包里没有该程序集/类型时，输出探测测试失败，而不是静默降级。
-3. 本地证明：Architecture `node eng/pack-sdk.mjs` 产出 nupkg 后，用 `LumioLocalFeed` 或 NuGet.config folder source。
-
-若两条路径均未命中，构建将失败并输出 `LUMIO_SDK_UNRESOLVED` 检查清单，强制必须选择内部同级仓路径或外部 SDK 包路径之一。
-
-**这棵树不写锁文件**（`Directory.Packages.props` 的 `RestorePackagesWithLockFile=false`）。理由：folder-feed / global-packages 两条路径拿到的 `Lumio.Engine.SDK` 是本地现打的包，`node eng/pack-sdk.mjs` 不产出逐字节确定的 nupkg，打包机器或时间一变 contentHash 就变，钉进锁文件的哈希会让下一次 restore 报 `NU1403`。等这个包正式发到 nuget.org（哈希不可变）之后再回来钉哈希，届时把口径与 `R-00519` 的「包字节可复现」冻结结论对齐。
-
-## 五分钟跑起来
-
-```bash
-git clone https://github.com/LumioGames/LumioSample && cd LumioSample
-# sibling Runtime，或把现打的 nupkg 指给 LumioLocalFeed：
-dotnet build LumioSample.slnx
-dotnet test  LumioSample.slnx
-
-# 内部一条命令。缺 Platform / lumio-ds / Bot.Host / 场景程序集时 exit 2，BLOCKED_ENV。
-node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll <Lumio.Sample.Bots.dll>
-```
-
-[`Tools/`](Tools/) 里是启动器、账号客户端、证据对账和世界断言，见 [`Tools/README.md`](Tools/README.md)。已退役的正式 DS smoke 不要再当启动器。
-
-> **一条命令跑完全程第一阶段只在引擎组的内部机器上跑得起来**：这条链要起账号平台，而平台镜像现在是从私有仓源码构建的，外部机器拿不到 compose 文件（见 [`Tools/compose/README.md`](Tools/compose/README.md)）。让外部也能一条命令跑通，排在对外发布前做。
-> 上面的 `dotnet build` / `dotnet test` 在 sibling 或本地/CI 现打的 SDK feed 下绿。干净机器且 nuget.org 还没有包时，应看到 `LUMIO_SDK_UNRESOLVED`。CI 的 `external-clone` 每次现打再编，证明消费链通，不是证明裸 clone 就能编。
 
 ## 仓库结构
 
 | 目录 | 放什么 |
 |---|---|
+| [`Engine/`](#引擎从哪来) | 只读子模块：引擎发布物（`LumioEngineRelease` 的一个 tag）。不在这里改任何东西 |
 | [`Client/`](Client/) | 客户端侧：Application / Bots / UI，以及 `Config/`（`C` 投影表与生成 Reader）|
-| [`Server/`](Server/) | **只放数据**：`Config/`（启动配置、`S`+`V` 投影表、生成 Reader）、`Assets/Maps/`、`Tests/`。服务端源码在 LumioServer |
+| [`Server/`](Server/) | **只放数据**：`Config/`（启动配置、`S`+`V` 投影表、生成 Reader）、`Assets/Maps/`、`Tests/`。服务端程序在 `Engine/server/<rid>/` |
 | [`Gameplay/`](Gameplay/) | 玩法程序集。服务器与客户端两端共用；`Tables/` 是配表源 |
-| [`Tools/`](Tools/) | 一键启动器、日志、两轮哈希对账与测试工程 |
-| [`docs/`](docs/) | [`tour.md`](docs/tour.md) 逐步导览 |
-| [`.spec/`](.spec/AGENTS.md) | 本仓的规范、决策与计划 |
+| [`Tools/`](Tools/) | 一键启动器、引擎更新命令、Platform 的游戏输入、日志、两轮哈希对账与测试工程 |
+| [`.spec/`](.spec/AGENTS.md) | 本仓的规范、决策与导览（[`sample-tour.md`](.spec/knowledge/features/sample-tour.md) 逐步导览） |
 
 ## 契约来源
 
-**要查字段、错误码或消息 ID，看 SDK 包带的公开使用面**——XML doc，加上由引擎的 ABI 与 wire 契约单源生成的公开 API / 错误码参考，随 `Lumio.Engine.SDK` NuGet 包一起分发。用这个仓当模板的人不需要引擎仓的权限。
+**要查字段、错误码或消息 ID，看 SDK 包带的公开使用面**——XML doc，加上由引擎的 ABI 与 wire 契约单源生成的公开 API / 错误码参考（`content/docs/public-api.md`、`error-codes.md`），随 `Engine/sdk/` 里的 `Lumio.Engine.SDK` 包一起分发。用这个仓当模板的人不需要引擎仓的权限。
 
 **本仓不复述任何公共契约字段**，只写「在示例里这条契约怎么用」。
 
-> 现状：SDK 包内已包含公开使用面文档（`content/docs/public-api.md`、`error-codes.md`）与托管 XML 文档。更深层的事实源仍位于架构仓 `LumioGameEngine`（私有）——ABI 在 `engine/abi/native-abi.json`，线上语义在 `engine/wire/*.json`，设计概要在 `.spec/knowledge/features/`。
-
 ## 许可证
 
-本仓库是 **示例仓库**，采用 **Apache License 2.0** —— 见 [LICENSE](LICENSE)。
-你可以自由 fork、修改、二次创作，并用它开发和商业运营你自己的游戏，无需额外授权。
+本仓有**两层许可**：
 
-> ⚠️ **引擎本体不在本许可证范围内。** 本仓库所依赖的 Lumio 引擎（`Lumio.Engine.*`、`Lumio.GameRuntime.*` 等）单独采用 **Business Source License 1.1（BUSL-1.1）**，条款独立于本仓库：
->
-> - ✅ 允许：用它开发、发行、商业运营你自己的游戏与游戏内容
-> - ❌ 不允许：用它对外提供游戏引擎、游戏开发套件、运行时、服务端框架等与之竞争的面向开发者的产品或服务
-> - 2030-09-07 自动转为 Apache License 2.0
->
-> 完整条款见引擎分发物随附的 LICENSE 文件。
+1. **本仓自己的代码与数据**（`Engine/` 以外的一切）采用 **Apache License 2.0**——见 [LICENSE](LICENSE)。你可以自由 fork、修改、二次创作，并用它开发和商业运营你自己的游戏，无需额外授权。
+2. **`Engine/` 下的引擎二进制**（`LumioEngineRelease`，含 `Lumio.Engine.*`、`Lumio.GameRuntime.*`、`lumio-ds`、Bot 宿主、Platform 镜像等）采用 **Business Source License 1.1（BUSL-1.1）**，条款见 `Engine/LICENSE`，独立于本仓：
+   - ✅ 允许：用它开发、发行、商业运营你自己的游戏与游戏内容
+   - ❌ 不允许：用它对外提供游戏引擎、游戏开发套件、运行时、服务端框架等与之竞争的面向开发者的产品或服务
+   - 2030-09-07 自动转为 Apache License 2.0

@@ -8,17 +8,14 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// The modules main.js imports by relative name are engine parts shipped by LumioClient
-// (R-00710); the publish links them next to main.js. These tests read the very same
-// files from the LumioClient checkout: LUMIO_CLIENT_ROOT, else the sibling checkout.
-// Missing is a failure, never a skip, and never a local copy.
+// The modules main.js imports by relative name are engine parts (R-00710) shipped in the
+// Engine/ release's web/spectator/ (ADR-123); the publish links them next to main.js. These
+// tests read the very same files from there. Missing is a failure, never a skip, and never a
+// local copy.
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const CLIENT_ROOT = process.env.LUMIO_CLIENT_ROOT
-  ? path.resolve(process.env.LUMIO_CLIENT_ROOT)
-  : path.resolve(REPO_ROOT, "../LumioClient");
-const CLIENT_PARTS = path.join(CLIENT_ROOT, "Client/UI/Spectator");
+const CLIENT_PARTS = path.join(REPO_ROOT, "Engine/web/spectator");
 if (!fs.existsSync(path.join(CLIENT_PARTS, "connect-ds.mjs"))) {
-  throw new Error(`BLOCKED_ENV: LumioClient engine parts not found under ${CLIENT_PARTS}; set LUMIO_CLIENT_ROOT.`);
+  throw new Error(`BLOCKED_ENV: engine spectator parts not found under ${CLIENT_PARTS}; run: git submodule update --init --depth 1 Engine`);
 }
 const clientPart = (name) => pathToFileURL(path.join(CLIENT_PARTS, name));
 

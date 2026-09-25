@@ -12,11 +12,11 @@
  *   node Tools/test-server-host.mjs <results-directory> [extra dotnet build args]
  *
  * Required inputs (all named, none optional — a missing one fails by name):
- *   LUMIO_SERVER_HOSTENTRY_DLL   built Lumio.Server.HostEntry.dll
- *   LUMIO_RUNTIME_REPLICATION_DLL / LUMIO_RUNTIME_ECS_DLL   the named three-path
  *   LUMIO_SAMPLE_GAMEPLAY_DLL    this run's Gameplay build (server side)
  *   LUMIO_CONFIG_DIR             Server/Config/Tables (the server end's export)
  *   LUMIO_TEST_VOXEL_FIXTURE_DIR catalog-world.json + catalog-world.capture
+ * HostEntry and the Runtime three-path are the Engine/ release's (ADR-123); the cases read
+ * them from Engine/server/<rid>/ themselves (Server/Tests/EngineRelease.cs).
  */
 
 import { spawnSync } from 'node:child_process';
@@ -35,9 +35,6 @@ export const isolatedCases = [
 ];
 
 export const REQUIRED_ENV = [
-  'LUMIO_SERVER_HOSTENTRY_DLL',
-  'LUMIO_RUNTIME_REPLICATION_DLL',
-  'LUMIO_RUNTIME_ECS_DLL',
   'LUMIO_SAMPLE_GAMEPLAY_DLL',
   'LUMIO_CONFIG_DIR',
   'LUMIO_TEST_VOXEL_FIXTURE_DIR',

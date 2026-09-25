@@ -9,6 +9,9 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- This assembly declares no entities; it only drives the ones the gameplay assembly does. -->
     <LumioEcsGenerate>false</LumioEcsGenerate>
+    <!-- ADR-123: the Bot.Host this plugin loads into is the Engine/ release's bot/<rid>/. -->
+    <LumioClientBotDirectory>$(MSBuildThisFileDirectory)../../Engine/bot/$(NETCoreSdkRuntimeIdentifier)</LumioClientBotDirectory>
+    <LumioClientBotAssembly>$(LumioClientBotDirectory)/Lumio.Client.Bot.dll</LumioClientBotAssembly>
   </PropertyGroup>
   <ItemGroup>
     <!--
@@ -32,14 +35,14 @@
     </ItemGroup>
   </Target>
   <!--
-    Same contract the other Client/ projects use: the prebuilt client artifact is named
-    explicitly, never discovered. This project is deliberately outside LumioSample.slnx for that
-    reason - `dotnet build LumioSample.slnx` must not need a LumioClient checkout.
+    The Bot.Host graph comes from the Engine/ release (bot/<rid>/), the same directory the
+    launcher starts Bot.Host from. This project stays outside LumioSample.slnx so that
+    `dotnet build LumioSample.slnx` does not depend on a Bot.Host build for this platform.
   -->
   <Target Name="RequireClientBotArtifacts" BeforeTargets="PrepareForBuild;ResolveAssemblyReferences">
-    <Error Condition="'$(LumioClientBotAssembly)' == '' or !Exists('$(LumioClientBotAssembly)')"
-           Text="SAMPLE_BOTS_CLIENT_BOT_MISSING: set LumioClientBotAssembly to the exact prebuilt Lumio.Client.Bot.dll." />
-    <Error Condition="'$(LumioClientBotDirectory)' == '' or !Exists('$(LumioClientBotDirectory)/Lumio.Client.Gameplay.Input.dll')"
-           Text="SAMPLE_BOTS_CLIENT_GRAPH_MISSING: set LumioClientBotDirectory to the prebuilt Bot module output directory." />
+    <Error Condition="!Exists('$(LumioClientBotAssembly)')"
+           Text="SAMPLE_BOTS_CLIENT_BOT_MISSING: $(LumioClientBotAssembly) is not in the Engine/ release (Engine/ empty? run: git submodule update --init --depth 1 Engine)." />
+    <Error Condition="!Exists('$(LumioClientBotDirectory)/Lumio.Client.Gameplay.Input.dll')"
+           Text="SAMPLE_BOTS_CLIENT_GRAPH_MISSING: $(LumioClientBotDirectory)/Lumio.Client.Gameplay.Input.dll is not in the Engine/ release." />
   </Target>
 </Project>

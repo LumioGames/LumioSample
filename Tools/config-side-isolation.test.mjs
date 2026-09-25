@@ -18,10 +18,10 @@ const ALLOWED = {
 const FORBIDDEN_PREFIX = { client: ['config/server/', 'config/voxel/'], server: ['config/client/'] };
 
 function evaluate(side, extra = []) {
+  // Evaluation only (no restore, no build): the side selection does not depend on Engine/.
   return JSON.parse(execFileSync('dotnet', ['msbuild', project,
-    '-p:LumioSdkMode=nuget', `-p:LumioRuntimeRoot=${path.join(root, 'missing-runtime')}`,
     ...(side ? [`-p:LumioEcsSide=${side}`] : []), ...extra,
-    '-getProperty:OutputPath,IntermediateOutputPath,LumioSdkMode', '-getItem:Compile,None'],
+    '-getProperty:OutputPath,IntermediateOutputPath', '-getItem:Compile,None'],
   { cwd: root, encoding: 'utf8' }));
 }
 

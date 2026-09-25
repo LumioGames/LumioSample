@@ -13,13 +13,15 @@
          Server/Tests/Host and only this project file sits outside it. -->
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <!-- This project is deliberately NOT in LumioSample.slnx. It drives a built
-         Lumio.Server.HostEntry from another repository, the same way Client/Bots
-         needs a prebuilt LumioClient artifact. `dotnet test LumioSample.slnx`
+         Lumio.Server.HostEntry from the Engine/ release, the same way Client/Bots
+         needs a prebuilt engine artifact. `dotnet test LumioSample.slnx`
          must not change its shape because of it; run it through
          Tools/test-server-host.mjs, which gives each case its own process. -->
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)../../Server/Tests/Host/**/*.cs" Link="Host/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- ADR-123: HostEntry and the Runtime three-path come from Engine/server/<rid>/. -->
+    <Compile Include="$(MSBuildThisFileDirectory)../../Server/Tests/EngineRelease.cs" Link="EngineRelease.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
