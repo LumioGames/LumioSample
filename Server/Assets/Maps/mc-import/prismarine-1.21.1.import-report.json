@@ -1,0 +1,507 @@
+{
+  "blockEntities": {},
+  "catalogSha256": "e4d81595ef179f5071cf1d8fc13b985cf83d6fbd39a579df035a391e3ef2a1bf",
+  "cells": 499827,
+  "entities": {},
+  "lenient": false,
+  "mappingSha256": "8e78b3e918fca860ae32e1a93283595488d0a40a49ca95490d82f141e8fa9f40",
+  "outOfWindow": 0,
+  "output": {
+    "nonAirCells": 499781,
+    "sections": 144
+  },
+  "ratios": {
+    "degraded": 0.643253,
+    "dropped": 0.000092,
+    "exact": 0.356655,
+    "unmapped": 0.0
+  },
+  "source": {
+    "area": null,
+    "chunksRead": 16,
+    "chunksSkippedUnfinished": 209,
+    "dataVersions": [
+      3955
+    ],
+    "entityRegions": [],
+    "nonAirMcY": {
+      "max": 82,
+      "min": -64
+    },
+    "origin": [
+      0,
+      0
+    ],
+    "regions": [
+      {
+        "file": "r.0.0.mca",
+        "sha256": "d48fc0cd4750c8f56d8b729caba4563c163d788268900641abc1ec560b02d4bf"
+      }
+    ],
+    "yWindow": {
+      "maxY": 191,
+      "minY": -64
+    }
+  },
+  "states": {
+    "minecraft:andesite": {
+      "blockId": 65536,
+      "count": 15841,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:azure_bluet": {
+      "blockId": 260864,
+      "count": 1,
+      "tier": "degraded",
+      "to": "lumio.poppy"
+    },
+    "minecraft:bedrock": {
+      "blockId": 65536,
+      "count": 12363,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:birch_leaves[distance=1,persistent=false]": {
+      "blockId": 257280,
+      "count": 99,
+      "tier": "degraded",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:birch_leaves[distance=2,persistent=false]": {
+      "blockId": 257280,
+      "count": 247,
+      "tier": "degraded",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:birch_leaves[distance=3,persistent=false]": {
+      "blockId": 257280,
+      "count": 238,
+      "tier": "degraded",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:birch_leaves[distance=4,persistent=false]": {
+      "blockId": 257280,
+      "count": 163,
+      "tier": "degraded",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:birch_leaves[distance=5,persistent=false]": {
+      "blockId": 257280,
+      "count": 26,
+      "tier": "degraded",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:birch_log[axis=y]": {
+      "blockId": 257024,
+      "count": 91,
+      "tier": "degraded",
+      "to": "lumio.oak_log"
+    },
+    "minecraft:calcite": {
+      "blockId": 65536,
+      "count": 14,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:clay": {
+      "blockId": 256256,
+      "count": 60,
+      "tier": "degraded",
+      "to": "lumio.dirt"
+    },
+    "minecraft:coal_ore": {
+      "blockId": 256000,
+      "count": 1546,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:copper_ore": {
+      "blockId": 256000,
+      "count": 1556,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:cornflower": {
+      "blockId": 260864,
+      "count": 2,
+      "tier": "degraded",
+      "to": "lumio.poppy"
+    },
+    "minecraft:dandelion": {
+      "blockId": 260864,
+      "count": 8,
+      "tier": "degraded",
+      "to": "lumio.poppy"
+    },
+    "minecraft:deepslate[axis=y]": {
+      "blockId": 65536,
+      "count": 222374,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:deepslate_coal_ore": {
+      "blockId": 256000,
+      "count": 10,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:deepslate_copper_ore": {
+      "blockId": 256000,
+      "count": 62,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:deepslate_diamond_ore": {
+      "blockId": 256000,
+      "count": 367,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:deepslate_gold_ore": {
+      "blockId": 256000,
+      "count": 378,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:deepslate_iron_ore": {
+      "blockId": 256000,
+      "count": 408,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:deepslate_lapis_ore": {
+      "blockId": 256000,
+      "count": 221,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:deepslate_redstone_ore[lit=false]": {
+      "blockId": 256000,
+      "count": 501,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:diamond_ore": {
+      "blockId": 256000,
+      "count": 1,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:diorite": {
+      "blockId": 65536,
+      "count": 15693,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:dirt": {
+      "blockId": 256256,
+      "count": 14319,
+      "tier": "exact",
+      "to": "lumio.dirt"
+    },
+    "minecraft:glow_lichen[down=false,east=false,north=false,south=false,up=false,west=true]": {
+      "blockId": 0,
+      "count": 9,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:glow_lichen[down=false,east=false,north=false,south=false,up=true,west=false]": {
+      "blockId": 0,
+      "count": 11,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:glow_lichen[down=false,east=false,north=false,south=true,up=false,west=false]": {
+      "blockId": 0,
+      "count": 2,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:glow_lichen[down=false,east=false,north=false,south=true,up=false,west=true]": {
+      "blockId": 0,
+      "count": 1,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:glow_lichen[down=false,east=false,north=true,south=false,up=false,west=false]": {
+      "blockId": 0,
+      "count": 8,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:glow_lichen[down=false,east=false,north=true,south=false,up=false,west=true]": {
+      "blockId": 0,
+      "count": 1,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:glow_lichen[down=false,east=true,north=false,south=false,up=false,west=false]": {
+      "blockId": 0,
+      "count": 12,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:glow_lichen[down=false,east=true,north=false,south=false,up=true,west=false]": {
+      "blockId": 0,
+      "count": 1,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:glow_lichen[down=false,east=true,north=true,south=false,up=false,west=false]": {
+      "blockId": 0,
+      "count": 1,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:gold_ore": {
+      "blockId": 256000,
+      "count": 61,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:granite": {
+      "blockId": 65536,
+      "count": 17882,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:grass_block[snowy=false]": {
+      "blockId": 256512,
+      "count": 2303,
+      "tier": "exact",
+      "to": "lumio.grass_block"
+    },
+    "minecraft:gravel": {
+      "blockId": 256256,
+      "count": 8070,
+      "tier": "degraded",
+      "to": "lumio.dirt"
+    },
+    "minecraft:iron_ore": {
+      "blockId": 256000,
+      "count": 821,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:lapis_ore": {
+      "blockId": 256000,
+      "count": 164,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:lava[level=0]": {
+      "blockId": 258816,
+      "count": 355,
+      "tier": "exact",
+      "to": "lumio.lava"
+    },
+    "minecraft:lava[level=2]": {
+      "blockId": 258818,
+      "count": 2,
+      "tier": "exact",
+      "to": "lumio.lava"
+    },
+    "minecraft:lava[level=8]": {
+      "blockId": 258824,
+      "count": 2,
+      "tier": "exact",
+      "to": "lumio.lava"
+    },
+    "minecraft:oak_leaves[distance=1,persistent=false]": {
+      "blockId": 257280,
+      "count": 481,
+      "tier": "exact",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:oak_leaves[distance=2,persistent=false]": {
+      "blockId": 257280,
+      "count": 902,
+      "tier": "exact",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:oak_leaves[distance=3,persistent=false]": {
+      "blockId": 257280,
+      "count": 874,
+      "tier": "exact",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:oak_leaves[distance=4,persistent=false]": {
+      "blockId": 257280,
+      "count": 614,
+      "tier": "exact",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:oak_leaves[distance=5,persistent=false]": {
+      "blockId": 257280,
+      "count": 284,
+      "tier": "exact",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:oak_leaves[distance=6,persistent=false]": {
+      "blockId": 257280,
+      "count": 69,
+      "tier": "exact",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:oak_log[axis=x]": {
+      "blockId": 257024,
+      "count": 22,
+      "tier": "degraded",
+      "to": "lumio.oak_log"
+    },
+    "minecraft:oak_log[axis=y]": {
+      "blockId": 257024,
+      "count": 244,
+      "tier": "exact",
+      "to": "lumio.oak_log"
+    },
+    "minecraft:oak_log[axis=z]": {
+      "blockId": 257024,
+      "count": 27,
+      "tier": "degraded",
+      "to": "lumio.oak_log"
+    },
+    "minecraft:oxeye_daisy": {
+      "blockId": 260864,
+      "count": 1,
+      "tier": "degraded",
+      "to": "lumio.poppy"
+    },
+    "minecraft:poppy": {
+      "blockId": 260864,
+      "count": 4,
+      "tier": "exact",
+      "to": "lumio.poppy"
+    },
+    "minecraft:raw_copper_block": {
+      "blockId": 256000,
+      "count": 10,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:redstone_ore[lit=false]": {
+      "blockId": 256000,
+      "count": 55,
+      "tier": "degraded",
+      "to": "lumio.ore"
+    },
+    "minecraft:sand": {
+      "blockId": 256256,
+      "count": 1744,
+      "tier": "degraded",
+      "to": "lumio.dirt"
+    },
+    "minecraft:seagrass": {
+      "blockId": 258560,
+      "count": 57,
+      "tier": "degraded",
+      "to": "lumio.water"
+    },
+    "minecraft:short_grass": {
+      "blockId": 261120,
+      "count": 149,
+      "tier": "exact",
+      "to": "lumio.short_grass"
+    },
+    "minecraft:smooth_basalt": {
+      "blockId": 65536,
+      "count": 43,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:stone": {
+      "blockId": 65536,
+      "count": 148707,
+      "tier": "exact",
+      "to": "lumio.stone"
+    },
+    "minecraft:sugar_cane[age=0]": {
+      "blockId": 261120,
+      "count": 2,
+      "tier": "degraded",
+      "to": "lumio.short_grass"
+    },
+    "minecraft:tall_seagrass[half=lower]": {
+      "blockId": 258560,
+      "count": 28,
+      "tier": "degraded",
+      "to": "lumio.water"
+    },
+    "minecraft:tall_seagrass[half=upper]": {
+      "blockId": 258560,
+      "count": 28,
+      "tier": "degraded",
+      "to": "lumio.water"
+    },
+    "minecraft:tuff": {
+      "blockId": 65536,
+      "count": 20230,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:water[level=0]": {
+      "blockId": 258560,
+      "count": 8900,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=1]": {
+      "blockId": 258561,
+      "count": 7,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=2]": {
+      "blockId": 258562,
+      "count": 7,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=3]": {
+      "blockId": 258563,
+      "count": 9,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=4]": {
+      "blockId": 258564,
+      "count": 7,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=5]": {
+      "blockId": 258565,
+      "count": 7,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=6]": {
+      "blockId": 258566,
+      "count": 8,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=7]": {
+      "blockId": 258567,
+      "count": 8,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=8]": {
+      "blockId": 258568,
+      "count": 4,
+      "tier": "exact",
+      "to": "lumio.water"
+    }
+  },
+  "tiers": {
+    "degraded": 321515,
+    "dropped": 46,
+    "exact": 178266,
+    "unmapped": 0
+  },
+  "tool": "lumio-voxel-mc-import 0.0.0",
+  "unmapped": [],
+  "waterloggedDropped": 1
+}

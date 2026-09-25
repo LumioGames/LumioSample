@@ -12,6 +12,14 @@ ADR-115 把原 `integration/` 归到仓根 `Tools/`（跨端启动器与联测�
 | `Lumio.Sample.Gameplay.Tests` | `Server/Tests/Gameplay/` | `dotnet test LumioSample.slnx` |
 | `Lumio.Sample.Server.HostTests` | `Server/Tests/Host/` | `node Tools/test-server-host.mjs <results-dir>` |
 
+## MC 导入映射表（ADR-124 D10 · R-00797）
+
+`mc-mapping.mjs` 是 `Server/Assets/Maps/mc-import/mc-mapping.json` 的唯一来源：规则写在脚本里，
+`node Tools/mc-mapping.mjs` 重写生成物（不手改），然后用 LumioVoxelEngine 的
+`lumio-voxel-mc-import assess` 重跑同目录的报告。`node --test Tools/mc-mapping.test.mjs` 检查生成物、
+目标方块与字段范围、报告的映射表 / 目录 sha256。来历与结论见
+[`Server/Assets/Maps/mc-import/`](../Server/Assets/Maps/mc-import/README.md)。
+
 ## 从 LumioServer 移来的准入用例（R-00692 / R-00702）
 
 `test-server-host.mjs` 逐条独立进程跑 `AdmitOnSampleRegistryRuntimeOnly` 与
