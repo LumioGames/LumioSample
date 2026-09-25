@@ -1,0 +1,1009 @@
+{
+  "generatedBy": "node Tools/acceptance-map.mjs - generated, do not edit by hand",
+  "map": "acceptance-lakeside.cells.json",
+  "catalog": "official-catalog.json",
+  "coordinates": "x east, y up, z south (north = -z); cell (x, y, z) spans [x, x+1) x [y, y+1) x [z, z+1); camera positions are in cell units",
+  "bounds": {
+    "min": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "max": {
+      "x": 31,
+      "y": 15,
+      "z": 15
+    }
+  },
+  "sections": [
+    {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "z": 0
+    }
+  ],
+  "blocks": {
+    "lumio.stone": {
+      "x": 8,
+      "y": 8,
+      "z": 0
+    },
+    "lumio.hard_wall": {
+      "x": 4,
+      "y": 3,
+      "z": 14
+    },
+    "lumio.ore": {
+      "x": 2,
+      "y": 3,
+      "z": 14
+    },
+    "lumio.dirt": {
+      "x": 1,
+      "y": 3,
+      "z": 13
+    },
+    "lumio.grass_block": {
+      "x": 10,
+      "y": 2,
+      "z": 15
+    },
+    "lumio.oak_planks": {
+      "x": 5,
+      "y": 7,
+      "z": 7
+    },
+    "lumio.oak_log": {
+      "x": 29,
+      "y": 4,
+      "z": 4
+    },
+    "lumio.oak_leaves": {
+      "x": 27,
+      "y": 6,
+      "z": 4
+    },
+    "lumio.glass": {
+      "x": 3,
+      "y": 5,
+      "z": 7
+    },
+    "lumio.blue_stained_glass": {
+      "x": 9,
+      "y": 5,
+      "z": 8
+    },
+    "lumio.ice": {
+      "x": 24,
+      "y": 2,
+      "z": 12
+    },
+    "lumio.glowstone": {
+      "x": 5,
+      "y": 4,
+      "z": 7
+    },
+    "lumio.water": {
+      "x": 22,
+      "y": 2,
+      "z": 11
+    },
+    "lumio.lava": {
+      "x": 28,
+      "y": 2,
+      "z": 11
+    },
+    "lumio.oak_stairs": {
+      "x": 16,
+      "y": 3,
+      "z": 7
+    },
+    "lumio.oak_slab": {
+      "x": 5,
+      "y": 3,
+      "z": 11
+    },
+    "lumio.oak_door": {
+      "x": 5,
+      "y": 4,
+      "z": 10
+    },
+    "lumio.oak_fence": {
+      "x": 15,
+      "y": 3,
+      "z": 9
+    },
+    "lumio.glass_pane": {
+      "x": 14,
+      "y": 3,
+      "z": 3
+    },
+    "lumio.iron_bars": {
+      "x": 17,
+      "y": 3,
+      "z": 3
+    },
+    "lumio.torch": {
+      "x": 6,
+      "y": 3,
+      "z": 11
+    },
+    "lumio.poppy": {
+      "x": 14,
+      "y": 3,
+      "z": 10
+    },
+    "lumio.short_grass": {
+      "x": 15,
+      "y": 3,
+      "z": 11
+    },
+    "lumio.oak_sapling": {
+      "x": 16,
+      "y": 3,
+      "z": 10
+    }
+  },
+  "points": [
+    {
+      "id": "mesh.stone_wall_single_quad",
+      "verify": "ADR-124 验证·网格：整块石墙 16×16 合成 1 个四边形",
+      "cells": [
+        {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "block": "lumio.stone"
+        },
+        {
+          "x": 15,
+          "y": 15,
+          "z": 0,
+          "block": "lumio.stone"
+        }
+      ],
+      "expect": "石墙占 x 0–15、y 0–15、z = 0 整面；北面（−z，z = 0 平面）外侧没有方块，出 1 个 16×16 四边形"
+    },
+    {
+      "id": "cull.stone_wall_beside_lower_slab",
+      "verify": "ADR-124 验证·剔面：石墙挨下半台阶，石墙朝台阶那一面仍然画",
+      "cells": [
+        {
+          "x": 5,
+          "y": 3,
+          "z": 0,
+          "block": "lumio.stone"
+        },
+        {
+          "x": 5,
+          "y": 3,
+          "z": 1,
+          "block": "lumio.oak_slab"
+        }
+      ],
+      "expect": "(5,3,0) 的南面（+z）要画：下半台阶只盖住这一面的下半"
+    },
+    {
+      "id": "cull.leaves_beside_leaves",
+      "verify": "ADR-124 验证·剔面：树叶挨树叶的面不画、挨空气的面画",
+      "cells": [
+        {
+          "x": 27,
+          "y": 6,
+          "z": 4,
+          "block": "lumio.oak_leaves"
+        },
+        {
+          "x": 28,
+          "y": 6,
+          "z": 4,
+          "block": "lumio.oak_leaves"
+        },
+        {
+          "x": 26,
+          "y": 6,
+          "z": 4,
+          "block": "air"
+        }
+      ],
+      "expect": "(27,6,4) 与 (28,6,4) 之间两面都不画；(27,6,4) 的西面（朝空气）画"
+    },
+    {
+      "id": "cull.water_beside_lava",
+      "verify": "ADR-124 验证·剔面：水挨岩浆的面画",
+      "cells": [
+        {
+          "x": 27,
+          "y": 2,
+          "z": 11,
+          "block": "lumio.water"
+        },
+        {
+          "x": 28,
+          "y": 2,
+          "z": 11,
+          "block": "lumio.lava"
+        }
+      ],
+      "expect": "水的东面与岩浆的西面都画（不同种液体）"
+    },
+    {
+      "id": "cull.water_beside_glass",
+      "verify": "ADR-124 验证·剔面：水挨玻璃的面画",
+      "cells": [
+        {
+          "x": 20,
+          "y": 2,
+          "z": 11,
+          "block": "lumio.water"
+        },
+        {
+          "x": 19,
+          "y": 2,
+          "z": 11,
+          "block": "lumio.glass"
+        }
+      ],
+      "expect": "水的西面与玻璃的东面都画"
+    },
+    {
+      "id": "connected.pane_and_bars_segment",
+      "verify": "ADR-124 D2 连接件：玻璃板、铁栏杆彼此相连（不同种也连），并连上满面方块",
+      "cells": [
+        {
+          "x": 13,
+          "y": 3,
+          "z": 3,
+          "block": "lumio.dirt"
+        },
+        {
+          "x": 14,
+          "y": 3,
+          "z": 3,
+          "block": "lumio.glass_pane"
+        },
+        {
+          "x": 15,
+          "y": 3,
+          "z": 3,
+          "block": "lumio.glass_pane"
+        },
+        {
+          "x": 16,
+          "y": 3,
+          "z": 3,
+          "block": "lumio.iron_bars"
+        },
+        {
+          "x": 17,
+          "y": 3,
+          "z": 3,
+          "block": "lumio.iron_bars"
+        },
+        {
+          "x": 18,
+          "y": 3,
+          "z": 3,
+          "block": "air"
+        }
+      ],
+      "expect": "(14..16,3,3) 连西、东两臂；(17,3,3) 只连西臂；四格都不连南北；BlockState 全为 0"
+    },
+    {
+      "id": "connected.section_border_unresolved",
+      "verify": "ADR-124 验证·连接件：邻 Section 缺块时物理回 Unresolved",
+      "cells": [
+        {
+          "x": 15,
+          "y": 3,
+          "z": 3,
+          "block": "lumio.glass_pane"
+        },
+        {
+          "x": 16,
+          "y": 3,
+          "z": 3,
+          "block": "lumio.iron_bars"
+        }
+      ],
+      "expect": "(15,3,3) 在 Section (0,0,0)，东邻在 Section (1,0,0)；只有 (0,0,0) 在切面里时，对 (15,3,3) 的扫掠 / 重叠回 Unresolved 并带 Section (1,0,0)；网格按「不连」出东臂"
+    },
+    {
+      "id": "connected.fence_toggle_full_block",
+      "verify": "ADR-124 验证·连接件：栅栏旁放上 / 拿走整块，连接臂随之出现 / 消失，BlockState 字节不变",
+      "cells": [
+        {
+          "x": 18,
+          "y": 3,
+          "z": 12,
+          "block": "lumio.oak_fence"
+        },
+        {
+          "x": 19,
+          "y": 3,
+          "z": 12,
+          "block": "air"
+        }
+      ],
+      "expect": "在 (19,3,12) 放一块满格 Solid（如 lumio.stone）后 (18,3,12) 出现东臂，拿走后消失；(18,3,12) 的 BlockId 两次读回相同"
+    },
+    {
+      "id": "connected.fence_beside_full_block",
+      "verify": "ADR-124 D2 连接件：邻格朝本格一面是满面就连；普通玻璃（Cutout）不算满面",
+      "cells": [
+        {
+          "x": 18,
+          "y": 3,
+          "z": 13,
+          "block": "lumio.oak_fence"
+        },
+        {
+          "x": 19,
+          "y": 3,
+          "z": 13,
+          "block": "lumio.ore"
+        },
+        {
+          "x": 18,
+          "y": 3,
+          "z": 11,
+          "block": "lumio.oak_fence"
+        },
+        {
+          "x": 19,
+          "y": 3,
+          "z": 11,
+          "block": "lumio.glass"
+        }
+      ],
+      "expect": "(18,3,13) 有东臂（矿石是满面）；(18,3,11) 没有东臂（玻璃不是 absolute 满面）"
+    },
+    {
+      "id": "shape.door_closed_blocks",
+      "verify": "ADR-124 验证·形状与碰撞：门关着挡路",
+      "cells": [
+        {
+          "x": 5,
+          "y": 4,
+          "z": 10,
+          "block": "lumio.oak_door"
+        },
+        {
+          "x": 5,
+          "y": 5,
+          "z": 10,
+          "block": "lumio.oak_door"
+        }
+      ],
+      "expect": "屋门 D2、Open = 0、RightHinge = 0，下格 Up = 0、上格 Up = 1；沿 z 穿门洞的扫掠被挡"
+    },
+    {
+      "id": "shape.door_open_passable",
+      "verify": "ADR-124 验证·形状与碰撞：门开着时门洞可通行、门板一侧仍挡",
+      "cells": [
+        {
+          "x": 13,
+          "y": 3,
+          "z": 11,
+          "block": "lumio.oak_door"
+        },
+        {
+          "x": 13,
+          "y": 4,
+          "z": 11,
+          "block": "lumio.oak_door"
+        }
+      ],
+      "expect": "园门 D3、Open = 1、RightHinge = 0；门板在 z 13–16 一条（按契约变换），沿 x 从 z ≈ 11.5 穿过可通行，贴 z 15 的扫掠被挡"
+    },
+    {
+      "id": "shape.stairs_walk_up",
+      "verify": "ADR-124 验证·形状与碰撞：玩家能走上楼梯",
+      "cells": [
+        {
+          "x": 16,
+          "y": 3,
+          "z": 7,
+          "block": "lumio.oak_stairs"
+        },
+        {
+          "x": 17,
+          "y": 3,
+          "z": 7,
+          "block": "lumio.oak_planks"
+        },
+        {
+          "x": 15,
+          "y": 3,
+          "z": 7,
+          "block": "air"
+        }
+      ],
+      "expect": "楼梯 D1 直形（高的一半在东侧）；从 (15,3,7) 往东走：地面 y 3 → 台阶 3.5 → 4 → 木板顶 4"
+    },
+    {
+      "id": "shape.slab_step",
+      "verify": "ADR-124 验证·形状与碰撞：玩家能踩上台阶",
+      "cells": [
+        {
+          "x": 5,
+          "y": 3,
+          "z": 11,
+          "block": "lumio.oak_slab"
+        },
+        {
+          "x": 5,
+          "y": 3,
+          "z": 10,
+          "block": "lumio.oak_planks"
+        }
+      ],
+      "expect": "门口下半台阶（SubShapeId = 0）：地面 y 3 → 台阶顶 3.5 → 屋内地板顶 4"
+    },
+    {
+      "id": "shape.eaves_ring",
+      "verify": "ADR-124 D2 楼梯转角存在 SubShapeId：屋檐一圈的直段、外转角与内转角",
+      "cells": [
+        {
+          "x": 2,
+          "y": 7,
+          "z": 3,
+          "block": "lumio.oak_stairs",
+          "direction": "D1",
+          "subShape": "outer-right"
+        },
+        {
+          "x": 2,
+          "y": 7,
+          "z": 11,
+          "block": "lumio.oak_stairs",
+          "direction": "D0",
+          "subShape": "outer-right"
+        },
+        {
+          "x": 7,
+          "y": 7,
+          "z": 3,
+          "block": "lumio.oak_stairs",
+          "direction": "D2",
+          "subShape": "outer-right"
+        },
+        {
+          "x": 7,
+          "y": 7,
+          "z": 6,
+          "block": "lumio.oak_stairs",
+          "direction": "D2",
+          "subShape": "inner-right"
+        },
+        {
+          "x": 10,
+          "y": 7,
+          "z": 6,
+          "block": "lumio.oak_stairs",
+          "direction": "D2",
+          "subShape": "outer-right"
+        },
+        {
+          "x": 10,
+          "y": 7,
+          "z": 11,
+          "block": "lumio.oak_stairs",
+          "direction": "D0",
+          "subShape": "outer-left"
+        }
+      ],
+      "expect": "每格高起的那部分都朝向屋顶；外转角只高起朝屋角的四分之一，(7,7,6) 是内转角（高起四分之三）"
+    },
+    {
+      "id": "collision.blocks",
+      "verify": "ADR-124 验证·形状与碰撞：掩码 13 的扫掠会被栅栏、树叶、玻璃挡住",
+      "cells": [
+        {
+          "x": 15,
+          "y": 3,
+          "z": 9,
+          "block": "lumio.oak_fence"
+        },
+        {
+          "x": 26,
+          "y": 3,
+          "z": 6,
+          "block": "lumio.oak_leaves"
+        },
+        {
+          "x": 19,
+          "y": 3,
+          "z": 11,
+          "block": "lumio.glass"
+        },
+        {
+          "x": 14,
+          "y": 3,
+          "z": 3,
+          "block": "lumio.glass_pane"
+        }
+      ],
+      "expect": "四格对掩码 13 的扫掠都是 Hit"
+    },
+    {
+      "id": "collision.passes_through",
+      "verify": "ADR-124 验证·形状与碰撞：会穿过花草（火把也不挡路）",
+      "cells": [
+        {
+          "x": 14,
+          "y": 3,
+          "z": 10,
+          "block": "lumio.poppy"
+        },
+        {
+          "x": 15,
+          "y": 3,
+          "z": 11,
+          "block": "lumio.short_grass"
+        },
+        {
+          "x": 16,
+          "y": 3,
+          "z": 10,
+          "block": "lumio.oak_sapling"
+        },
+        {
+          "x": 6,
+          "y": 3,
+          "z": 11,
+          "block": "lumio.torch"
+        }
+      ],
+      "expect": "四格对掩码 13 的扫掠都是 Miss（形状表只有交叉面片、没有方盒）"
+    },
+    {
+      "id": "light.torch_falloff",
+      "verify": "ADR-124 验证·光照：火把周围块光按每格减 1 衰减",
+      "cells": [
+        {
+          "x": 6,
+          "y": 3,
+          "z": 11,
+          "block": "lumio.torch"
+        },
+        {
+          "x": 7,
+          "y": 3,
+          "z": 11,
+          "block": "air"
+        },
+        {
+          "x": 8,
+          "y": 3,
+          "z": 11,
+          "block": "air"
+        },
+        {
+          "x": 9,
+          "y": 3,
+          "z": 11,
+          "block": "air"
+        },
+        {
+          "x": 10,
+          "y": 3,
+          "z": 11,
+          "block": "air"
+        },
+        {
+          "x": 11,
+          "y": 3,
+          "z": 11,
+          "block": "air"
+        },
+        {
+          "x": 12,
+          "y": 3,
+          "z": 11,
+          "block": "air"
+        }
+      ],
+      "expect": "光源 ec8 = (14, 12, 8)；沿 +x 第 d 格块光 = (14−d, 12−d, 8−d)，各通道下限 0（墙上火把离得更远，不改变这几格的最大值）"
+    },
+    {
+      "id": "light.wall_torch",
+      "verify": "ADR-124 D5 已知限制：墙上的火把是地上火把按 F0 转过去的样子",
+      "cells": [
+        {
+          "x": 4,
+          "y": 5,
+          "z": 11,
+          "block": "lumio.torch"
+        },
+        {
+          "x": 4,
+          "y": 5,
+          "z": 10,
+          "block": "lumio.oak_planks"
+        }
+      ],
+      "expect": "火把 Direction = F0（贴北墙），交叉面片水平伸出墙面；光源同样是 ec8"
+    },
+    {
+      "id": "light.glowstone_neighbours",
+      "verify": "ADR-124 验证·光照：萤石（全阻）周围的邻格被照亮",
+      "cells": [
+        {
+          "x": 5,
+          "y": 4,
+          "z": 7,
+          "block": "lumio.glowstone"
+        },
+        {
+          "x": 4,
+          "y": 4,
+          "z": 7,
+          "block": "air"
+        },
+        {
+          "x": 6,
+          "y": 4,
+          "z": 7,
+          "block": "air"
+        },
+        {
+          "x": 5,
+          "y": 5,
+          "z": 7,
+          "block": "air"
+        },
+        {
+          "x": 5,
+          "y": 4,
+          "z": 6,
+          "block": "air"
+        },
+        {
+          "x": 5,
+          "y": 4,
+          "z": 8,
+          "block": "air"
+        }
+      ],
+      "expect": "萤石 fda = (15, 13, 10)；五个空气邻格块光 = (14, 12, 9)（每格减 1）"
+    },
+    {
+      "id": "light.lava_source",
+      "verify": "ADR-124 例子·光照：岩浆周围亮",
+      "cells": [
+        {
+          "x": 28,
+          "y": 2,
+          "z": 11,
+          "block": "lumio.lava"
+        },
+        {
+          "x": 28,
+          "y": 3,
+          "z": 11,
+          "block": "air"
+        }
+      ],
+      "expect": "岩浆 f60 = (15, 6, 0)；正上方一格块光 = (14, 5, 0)"
+    },
+    {
+      "id": "light.roof_blocks_skylight",
+      "verify": "ADR-124 验证·光照：木板屋顶下天光为 0",
+      "cells": [
+        {
+          "x": 4,
+          "y": 5,
+          "z": 8,
+          "block": "air"
+        },
+        {
+          "x": 7,
+          "y": 5,
+          "z": 9,
+          "block": "air"
+        },
+        {
+          "x": 5,
+          "y": 7,
+          "z": 8,
+          "block": "lumio.oak_planks"
+        }
+      ],
+      "expect": "屋内两格天光 = 0（天光按列从上往下、不横向扩散；窗户不带天光进屋）"
+    },
+    {
+      "id": "light.leaves_keep_skylight",
+      "verify": "ADR-124 验证·光照：透过树叶的天光不衰减",
+      "cells": [
+        {
+          "x": 27,
+          "y": 5,
+          "z": 4,
+          "block": "air"
+        },
+        {
+          "x": 27,
+          "y": 6,
+          "z": 4,
+          "block": "lumio.oak_leaves"
+        },
+        {
+          "x": 22,
+          "y": 3,
+          "z": 5,
+          "block": "air"
+        }
+      ],
+      "expect": "树叶正下方 (27,5,4) 与空地 (22,3,5) 天光都是 15"
+    },
+    {
+      "id": "render.grass_block_sides",
+      "verify": "ADR-124 验证·画面：草方块顶面绿、侧面带土",
+      "cells": [
+        {
+          "x": 10,
+          "y": 2,
+          "z": 15,
+          "block": "lumio.grass_block"
+        },
+        {
+          "x": 10,
+          "y": 1,
+          "z": 15,
+          "block": "lumio.dirt"
+        }
+      ],
+      "expect": "地图南沿 z = 15 的草方块南面外侧没有方块，侧面可见；机位 grass_edge"
+    },
+    {
+      "id": "render.stained_glass_shows_lake",
+      "verify": "ADR-124 验证·画面：透过彩色玻璃能看见后面的湖面",
+      "cells": [
+        {
+          "x": 9,
+          "y": 5,
+          "z": 8,
+          "block": "lumio.blue_stained_glass"
+        },
+        {
+          "x": 22,
+          "y": 2,
+          "z": 11,
+          "block": "lumio.water"
+        }
+      ],
+      "expect": "机位 through_stained_glass：从屋里朝东看，蓝玻璃后面是花园和湖面"
+    }
+  ],
+  "cameras": [
+    {
+      "id": "overview",
+      "position": [
+        16,
+        20,
+        30
+      ],
+      "lookAt": [
+        16,
+        3,
+        8
+      ],
+      "covers": [
+        "lumio.stone",
+        "lumio.hard_wall",
+        "lumio.ore",
+        "lumio.dirt",
+        "lumio.grass_block",
+        "lumio.oak_planks",
+        "lumio.oak_log",
+        "lumio.oak_leaves",
+        "lumio.glass",
+        "lumio.blue_stained_glass",
+        "lumio.ice",
+        "lumio.glowstone",
+        "lumio.water",
+        "lumio.lava",
+        "lumio.oak_stairs",
+        "lumio.oak_slab",
+        "lumio.oak_door",
+        "lumio.oak_fence",
+        "lumio.glass_pane",
+        "lumio.iron_bars",
+        "lumio.torch",
+        "lumio.poppy",
+        "lumio.short_grass",
+        "lumio.oak_sapling"
+      ]
+    },
+    {
+      "id": "stone_wall_north",
+      "position": [
+        8,
+        8,
+        -14
+      ],
+      "lookAt": [
+        8,
+        8,
+        0
+      ],
+      "covers": [
+        "lumio.stone"
+      ]
+    },
+    {
+      "id": "house_front",
+      "position": [
+        5.5,
+        6,
+        17
+      ],
+      "lookAt": [
+        5.5,
+        5,
+        10
+      ],
+      "covers": [
+        "lumio.oak_planks",
+        "lumio.oak_door",
+        "lumio.oak_slab",
+        "lumio.torch",
+        "lumio.oak_stairs",
+        "lumio.grass_block"
+      ]
+    },
+    {
+      "id": "through_stained_glass",
+      "position": [
+        6.5,
+        5.5,
+        8.5
+      ],
+      "lookAt": [
+        24,
+        2.5,
+        11.5
+      ],
+      "covers": [
+        "lumio.blue_stained_glass",
+        "lumio.glowstone",
+        "lumio.water"
+      ]
+    },
+    {
+      "id": "west_window",
+      "position": [
+        0.5,
+        5.5,
+        7.5
+      ],
+      "lookAt": [
+        3.5,
+        5.5,
+        7.5
+      ],
+      "covers": [
+        "lumio.glass",
+        "lumio.oak_planks"
+      ]
+    },
+    {
+      "id": "lake_and_lava",
+      "position": [
+        24,
+        8,
+        20
+      ],
+      "lookAt": [
+        25,
+        2,
+        11
+      ],
+      "covers": [
+        "lumio.water",
+        "lumio.lava",
+        "lumio.ice",
+        "lumio.glass"
+      ]
+    },
+    {
+      "id": "garden",
+      "position": [
+        15.5,
+        8,
+        19
+      ],
+      "lookAt": [
+        15.5,
+        3,
+        11.5
+      ],
+      "covers": [
+        "lumio.oak_fence",
+        "lumio.oak_door",
+        "lumio.poppy",
+        "lumio.short_grass",
+        "lumio.oak_sapling",
+        "lumio.ore"
+      ]
+    },
+    {
+      "id": "tree",
+      "position": [
+        22,
+        7,
+        1
+      ],
+      "lookAt": [
+        29,
+        6,
+        4
+      ],
+      "covers": [
+        "lumio.oak_log",
+        "lumio.oak_leaves"
+      ]
+    },
+    {
+      "id": "connectors",
+      "position": [
+        15.5,
+        6,
+        8
+      ],
+      "lookAt": [
+        15.5,
+        3.5,
+        3
+      ],
+      "covers": [
+        "lumio.glass_pane",
+        "lumio.iron_bars",
+        "lumio.dirt",
+        "lumio.oak_stairs"
+      ]
+    },
+    {
+      "id": "roof_eaves",
+      "position": [
+        12,
+        12,
+        14
+      ],
+      "lookAt": [
+        6,
+        7,
+        7
+      ],
+      "covers": [
+        "lumio.oak_stairs",
+        "lumio.oak_planks"
+      ]
+    },
+    {
+      "id": "grass_edge",
+      "position": [
+        3,
+        5,
+        22
+      ],
+      "lookAt": [
+        3,
+        2.5,
+        14
+      ],
+      "covers": [
+        "lumio.grass_block",
+        "lumio.dirt",
+        "lumio.ore",
+        "lumio.hard_wall"
+      ]
+    }
+  ]
+}
