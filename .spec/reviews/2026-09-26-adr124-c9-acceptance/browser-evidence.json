@@ -21,8 +21,7 @@
   },
   "firstEntry": {
     "lakeside 2 Sections": { "deliverAndLightMs": 14.1, "untilMeshedMs": 18.1 },
-    "test-sections.json 192 Sections": { "deliverAndLightMs(incl. JS encode)": 411.1, "meshMs": 54.1, "faces": { "opaque": 23294, "cutout": 1888, "translucent": 5934 } },
-    "mc-lake-large.sections.json 846 Sections": { "jsEncodeMs": 147.7, "deliverAndLightMs": 1734.4, "meshMs": 250.8, "faces": { "opaque": 29782, "cutout": 53907, "translucent": 25282 } }
+    "test-sections.json 192 Sections": { "deliverAndLightMs(incl. JS encode)": 411.1, "meshMs": 54.1, "faces": { "opaque": 23294, "cutout": 1888, "translucent": 5934 } }
   },
   "missingTexture": {
     "removed": "publish output game-assets/Blocks/textures/trunk_side.png (restored afterwards)",
