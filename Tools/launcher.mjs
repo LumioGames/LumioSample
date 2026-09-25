@@ -33,7 +33,7 @@ import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createServer as createTcpServer } from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BINDING_FIELDS, loginAndLaunch } from './account-client.mjs';
 import { LOGIN_NAME_PATTERN, resolveBotToolCredential, resolvePassword } from './bot-credential.mjs';
@@ -143,6 +143,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
   const options = {
     bots: Number(environment.LUMIO_BOTS || 2),
     staggerMs: Number(environment.LUMIO_STAGGER_MS || DEFAULT_STAGGER_MS),
+    fleetPerProcess: Number(environment.LUMIO_FLEET_PER_PROCESS || 1),
     durationMs: Number(environment.LUMIO_DURATION_MS || 0),
     origin: environment.LUMIO_PLATFORM_ORIGIN,
     // No --origin: the launcher starts Platform from Engine/platform itself; --no-platform opts out.
@@ -172,6 +173,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
   const names = {
     bots: 'bots',
     'stagger-ms': 'staggerMs',
+    'fleet-per-process': 'fleetPerProcess',
     'duration-ms': 'durationMs',
     origin: 'origin',
     slug: 'slug',
@@ -216,6 +218,7 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
   }
   if (!Number.isInteger(options.bots) || options.bots < 1) throw new UsageError('--bots must be a positive integer.');
   if (!Number.isInteger(options.staggerMs) || options.staggerMs < 0) throw new UsageError('--stagger-ms must be a non-negative integer.');
+  if (!Number.isInteger(options.fleetPerProcess) || options.fleetPerProcess < 1) throw new UsageError('--fleet-per-process must be an integer of at least 1.');
   if (!Number.isInteger(options.durationMs) || options.durationMs < 0) throw new UsageError('--duration-ms must be a non-negative integer.');
   if (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 1_000) throw new UsageError('--timeout-ms must be an integer of at least 1000.');
   if (!Number.isInteger(options.tourTicks) || options.tourTicks < 1) throw new UsageError('--tour-ticks must be a positive integer.');
@@ -477,6 +480,34 @@ export function parseBotAdmit(text) {
 
 export function inspectBotAdmit(source) {
   return parseBotAdmit(typeof source === 'string' ? source : collectBotEvidenceText(source ?? {}));
+}
+
+/**
+ * R-00588 fleet packing (--fleet-per-process > 1): one Bot.Host owns several accounts;
+ * its admission-events.ndjson carries one ticket_accepted line per account. The per-bot
+ * dirs do not exist in that layout, so fleet admission is counted per account here.
+ */
+export function countGroupAdmittedBots(groupDirs) {
+  const accounts = new Map();
+  for (const dir of groupDirs ?? []) {
+    const text = readTextIfPresent(join(dir, 'admission-events.ndjson'));
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      try {
+        const event = JSON.parse(line);
+        if (typeof event.account !== 'string' || event.account === 'host') continue;
+        const state = event.meaning === 'ticket_accepted' ? 'admitted' : event.meaning === 'rejected' ? 'rejected' : null;
+        if (state) accounts.set(event.account, state);
+      } catch { /* truncated tail line */ }
+    }
+  }
+  let admitted = 0;
+  let rejected = 0;
+  for (const state of accounts.values()) {
+    if (state === 'admitted') admitted += 1;
+    else if (state === 'rejected') rejected += 1;
+  }
+  return { admitted, rejected, accounts: [...accounts.keys()] };
 }
 
 export function countAdmittedBots(bots, { evidenceDir, children = [] } = {}) {
@@ -948,6 +979,7 @@ export async function runLauncher(options = {}) {
   let spectatorServer = null;
   let platform = null;
   const children = [];
+  const manifestPaths = [];
   try {
     const botCount = options.bots ?? 2;
     const spectatorMode = options.spectator === true;
@@ -1181,8 +1213,14 @@ export async function runLauncher(options = {}) {
       scenarioDll = resolve(options.scenarioDll);
     }
     const botSessions = spectatorMode ? sessions.slice(0, botCount) : sessions;
+    const fleetPerProcess = options.fleetPerProcess ?? 1;
     const botChildren = [];
-    for (const [index, session] of botSessions.entries()) {
+    const fleetGroupDirs = [];
+    // R-00588 fleet packing: >1 packs N accounts per Bot.Host via a ticket manifest;
+    // 一进程一账号(默认)保持逐 Bot 目录不变。
+    const packFleet = !spectatorMode && fleetPerProcess > 1 && botSessions.length > 1;
+    const singleBotSessions = packFleet ? botSessions.slice(0, 1) : botSessions;
+    for (const [index, session] of singleBotSessions.entries()) {
       if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
       const botLogDir = freshDir(join(evidence, `bot-${index + 1}`));
       const tour = index === 0 && scenarioDll != null;
@@ -1208,11 +1246,51 @@ export async function runLauncher(options = {}) {
       botChildren.push(bot);
       children.push(bot);
     }
+    if (packFleet) {
+      // 票清单带凭据:只能落在 gitignored 的 .run 下,收尾删除,绝不进证据目录。
+      const manifestRoot = mkdtempSync(join(root, '.run', 'fleet-manifests-'));
+      manifestPaths.push(manifestRoot);
+      const fleetSessions = botSessions.slice(1);
+      for (let start = 0; start < fleetSessions.length; start += fleetPerProcess) {
+        if (botChildren.length > 0 || start > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
+        const group = fleetSessions.slice(start, start + fleetPerProcess);
+        const groupId = `bot-group-${Math.floor(start / fleetPerProcess) + 1}`;
+        const groupDir = freshDir(join(evidence, groupId));
+        const manifestPath = join(manifestRoot, `${groupId}.json`);
+        writeFileSync(manifestPath, `${JSON.stringify({
+          platformOrigin: origin,
+          game: options.slug,
+          accounts: group.map((session) => ({ loginName: session.login.loginName, launch: { admissionCredential: session.launch.admissionCredential } })),
+        })}\n`);
+        const args = buildBotArgs({
+          botDll,
+          endpoint,
+          admissionTicket: manifestPath,
+          engineNative,
+          kernelConfig: kernelConfigPath,
+          configDir,
+          logDir: groupDir,
+          accountFrom: group[0].login.loginName,
+          accountTo: group[group.length - 1].login.loginName,
+          gameplay,
+          voxelConfig,
+        });
+        log(`$ ${JSON.stringify([dotnet, ...args])} ; accounts=${group.length}`);
+        const bot = tools.startLogged(dotnet, args, {
+          cwd: dirname(botDll),
+          log: join(evidence, `${groupId}.log`),
+        });
+        fleetGroupDirs.push(groupDir);
+        botChildren.push(bot);
+        children.push(bot);
+      }
+      log(`fleet packing: ${fleetSessions.length} accounts in ${fleetGroupDirs.length} Bot.Host processes (${fleetPerProcess} per process)`);
+    }
     // The tour bot exits by design once its scenario completes; only the fleet must stay alive.
     const tourBot = scenarioDll != null ? botChildren[0] : null;
     const fleet = tourBot ? botChildren.slice(1) : botChildren;
     const admit = await waitBotsAdmitted({
-      bots: botSessions.length,
+      bots: packFleet ? 1 : botSessions.length,
       evidenceDir: evidence,
       botChildren,
       liveChildren: [ds, ...fleet],
@@ -1220,22 +1298,36 @@ export async function runLauncher(options = {}) {
       tools,
       sleepFn: sleep,
     });
+    let admittedTotal = admit.admitted;
+    if (packFleet) {
+      // 组进程内逐账号计数:admission-events 每账号一行 ticket_accepted。
+      const groupDeadline = Date.now() + (options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      let groupCount = countGroupAdmittedBots(fleetGroupDirs);
+      while (groupCount.admitted + groupCount.rejected < botSessions.length - 1 && Date.now() < groupDeadline) {
+        for (const child of [ds, ...fleet]) tools.assertAlive(child);
+        await sleep(2000);
+        groupCount = countGroupAdmittedBots(fleetGroupDirs);
+      }
+      admittedTotal += groupCount.admitted;
+      report.fleetRejected = groupCount.rejected;
+      report.fleetGroups = fleetGroupDirs.map((dir) => basename(dir));
+    }
     report.requiredBots = botSessions.length;
-    report.admittedBots = admit.admitted;
+    report.admittedBots = admittedTotal;
     report.botHostsStarted = botChildren.length;
     if (spectatorMode) {
       report.spectatorLogin = sessions[botCount]?.login?.loginName;
       report.loginAndLaunchCount = sessions.length;
     }
-    if (admit.admitted !== botSessions.length) {
-      record('04', 'FAIL', `${admit.admitted} of ${botSessions.length} bots admitted (reject/no welcome/timeout)`);
+    if (admittedTotal !== botSessions.length) {
+      record('04', 'FAIL', `${admittedTotal} of ${botSessions.length} bots admitted (reject/no welcome/timeout)`);
       recordRest(4, 'BLOCKED_ENV', 'waiting for step 04 (every bot admitted)');
       report.status = reportStatusFromSteps(report.steps);
       return report;
     }
     record('04', 'PASS', spectatorMode
-      ? `${admit.admitted} bots admitted; spectator ticket held without Bot.Host`
-      : `${admit.admitted} bots admitted with unique tickets`);
+      ? `${admittedTotal} bots admitted; spectator ticket held without Bot.Host`
+      : `${admittedTotal} bots admitted with unique tickets`);
     if (spectatorMode && !externalSpectatorPage) {
       spectatorServer = await hostSpectatorPage({
         options, root, endpoint, spectatorSession: sessions[botCount], report, log,
@@ -1281,6 +1373,10 @@ export async function runLauncher(options = {}) {
       for (const child of children.reverse()) {
         await tools.forceCleanup(child);
       }
+    }
+    // 票清单目录带凭据:进程全部退出后立即删除,不留副本。
+    for (const manifestRoot of manifestPaths) {
+      try { rmSync(manifestRoot, { recursive: true, force: true }); } catch { /* best effort */ }
     }
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
     process.stdout.write(`VERIFICATION_STATUS=${report.status}\nEVIDENCE_PATH=${evidence}\n`);
