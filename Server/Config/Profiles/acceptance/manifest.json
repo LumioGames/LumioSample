@@ -1,20 +1,20 @@
 {
   "baselineId": "LGE-V1.4-2026-08-27",
   "compilerHash": "63b8c3f3be42e28b9730e46f377a2ed1193e9d6f3b46e5fe33fac91c53c13ff0",
-  "contentFingerprint": "a5bb9ad55a02768d4e102c18bd688c5554a9871496a55832a6c0a892756403f8",
+  "contentFingerprint": "c5e4f117823a847afe8ca0083d221de6255a2e06b789acf6d618821b7635b456",
   "endpoint": "server",
   "formatVersion": 1,
-  "inputHash": "f0eac4d5213ebd7081c846cbb1213ee41ab2cd1d262d3fccb938045c7eb98e37",
+  "inputHash": "64f31da9de8f08f179f09dbf63f59664c08db50fb888d0a216ad82dc3748ee4e",
   "origins": "origins.json",
-  "outputHash": "323f9947ca1fb928fcb248b79bbf6a1b6dad995505531d6202e6720ec5e1d3f6",
-  "packageFingerprint": "eba108cd5f7ee48c0f332aa8d5e081e92963809f530a747287787ca2fab92b09",
+  "outputHash": "f766e0fe35446bed1617e27e49f7c7808a48aa31224706230fcfb1f3fc02d45b",
+  "packageFingerprint": "31a57b93061e06d20cc5128911b60a7831f1f0d19f5d5abb5971f257542aac3c",
   "projectionRoots": {
     "S": "server/manifest.json",
     "V": "voxel/manifest.json"
   },
-  "publicRoot": "eba108cd5f7ee48c0f332aa8d5e081e92963809f530a747287787ca2fab92b09",
-  "releaseFingerprint": "ea1699796e175a7ca09f7abce063d3faea79c89f6a22842e838eeed64fe433d9",
-  "revisionId": "a5bb9ad55a02768d4e102c18bd688c5554a9871496a55832a6c0a892756403f8",
+  "publicRoot": "31a57b93061e06d20cc5128911b60a7831f1f0d19f5d5abb5971f257542aac3c",
+  "releaseFingerprint": "c9a25fceaa7d8ae9b3fac8f1655930919a6af4d39781f9d82ddca5d9d568a455",
+  "revisionId": "c5e4f117823a847afe8ca0083d221de6255a2e06b789acf6d618821b7635b456",
   "sharedPrediction": {
     "columns": [
       "mining.cooldown_ticks",
@@ -44,7 +44,7 @@
       "table": "effects"
     },
     {
-      "contentFingerprint": "cad70e55770cdc1b63120f0c6196bda73002b031016c21d3c706754b81f131e4",
+      "contentFingerprint": "5c18a06580161142f1587ebfd7b39ce6f31c0c0e20d5167d83bf7228e7a31b4e",
       "sourceFingerprint": "ed9b0d9718f41f272cd1a8f1a6d519a70d98f733d9d4909a74775704f6f7135f",
       "table": "map"
     },

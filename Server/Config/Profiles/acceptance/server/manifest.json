@@ -46,12 +46,12 @@
       "chunks": [
         {
           "id": 0,
-          "packageFingerprint": "fec1ed45c154fe2538f838769590bfb8680b2f3be1cdb073ce366c196468e6c3",
+          "packageFingerprint": "eec45d3f61682bd5e6a226bfdb70b8f283665267da1c7c195a0dbfb7d67994bf",
           "path": "server/map.json"
         }
       ],
-      "contentFingerprint": "cad70e55770cdc1b63120f0c6196bda73002b031016c21d3c706754b81f131e4",
-      "packageFingerprint": "fec1ed45c154fe2538f838769590bfb8680b2f3be1cdb073ce366c196468e6c3",
+      "contentFingerprint": "5c18a06580161142f1587ebfd7b39ce6f31c0c0e20d5167d83bf7228e7a31b4e",
+      "packageFingerprint": "eec45d3f61682bd5e6a226bfdb70b8f283665267da1c7c195a0dbfb7d67994bf",
       "path": "server/map.json",
       "sourceFingerprint": "ed9b0d9718f41f272cd1a8f1a6d519a70d98f733d9d4909a74775704f6f7135f",
       "table": "map"

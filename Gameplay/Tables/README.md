@@ -20,7 +20,7 @@ overrides the in-process loader directory. Bots and other clients read
 | `mining` | Stamina cost, vein reserve, ore count, cooldown ticks |
 | `movement` | Step distance and sweep radius |
 | `attributes` | Stamina and ore ledger names and initial values |
-| `map` | Width, depth, vein ratio for author-time map capture |
+| `map` | Width, depth, vein ratio for author-time map capture; server-only admission pose `spawn_x/y/z` |
 
 From the Sample repository root:
 
@@ -46,3 +46,17 @@ preexisting output-tree files in the root `outputHash`, including source tables,
 documentation, and stale exports.
 Never edit a generated manifest. The clean staging tree, not the mixed source/output
 repository directory, defines the reproducible output hash.
+
+## Server profiles (one per extra base map)
+
+A DS that runs another base map points `config_dir` at that map's own server end, so the
+map row can name a pose on that map. A profile is this same source plus LumioConfig overlay
+layers under `profiles/<name>/layers/<layer>/<table>.txt` (override cells of existing rows by
+`name`; no new rows). `node Tools/sync-config-export.mjs` compiles each profile listed in the
+tool, checks its C# Readers equal the default ones, and commits only its server end at
+`Server/Config/Profiles/<name>/`. There is no `layers/` directly under this directory: it would
+apply to every profile.
+
+| Profile | DS config | Overrides |
+|---|---|---|
+| `acceptance` | `Server/Config/Startup/server.acceptance.json` (`acceptance-lakeside.voxel`) | `map.spawn_*` = (5.5, 3.5, 12.5): on the grass in front of the lakeside house door |

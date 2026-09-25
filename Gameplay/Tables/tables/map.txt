@@ -1,6 +1,6 @@
 table: map
 schema: schemas/map.json
 
-| id | name | width | depth | vein_ratio | ore_block_type |
-| --- | --- | --- | --- | --- | --- |
-| 100001 | default | 32 | 32 | 0.00390625 | 1000 |
+| id | name | width | depth | vein_ratio | ore_block_type | spawn_x | spawn_y | spawn_z |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 100001 | default | 32 | 32 | 0.00390625 | 1000 | 16.5 | 1.5 | 16.5 |

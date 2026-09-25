@@ -1,0 +1,6 @@
+table: map
+schema: schemas/map.json
+
+| name | spawn_x | spawn_y | spawn_z |
+| --- | --- | --- | --- |
+| default | 5.5 | 3.5 | 12.5 |
