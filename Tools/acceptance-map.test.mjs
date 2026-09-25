@@ -230,3 +230,22 @@ test('points name a coordinate for every ADR-124 verification item that needs th
   const covered = new Set(map.points.cameras.flatMap((camera) => camera.covers));
   for (const name of C0_NAMES) assert.ok(covered.has(name), `a camera covers ${name}`);
 });
+
+// B-00122: sky light spreads sideways (ADR-124, Owner 2026-09-25), so the roof point is a
+// "spread in through door / windows" probe, not "0 under the roof". The native evidence tool
+// (LumioGameEngine eng/voxel-evidence) judges the values against the linked VoxelEngine: 12, 11.
+test('roof skylight point probes cells under the roof and expects the sideways-spread values', () => {
+  const point = map.points.points.find((p) => p.id === 'light.roof_blocks_skylight');
+  assert.ok(point);
+  const inside = point.cells.filter((cell) => cell.block === 'air');
+  assert.equal(inside.length, 2);
+  for (const cell of inside) {
+    let covered = false;
+    for (let y = cell.y + 1; y <= MAP_BOUNDS.max.y; y += 1) {
+      if (nameAt(cell.x, y, cell.z) !== 'air') covered = true;
+    }
+    assert.ok(covered, `${key(cell.x, cell.y, cell.z)} has a roof above it (column value 0)`);
+  }
+  assert.match(point.expect, /12、11/);
+  assert.doesNotMatch(point.expect, /天光 = 0|不横向扩散/);
+});
