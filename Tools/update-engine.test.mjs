@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -95,4 +95,79 @@ test('a first pin refuses to replace an Engine/ tree git does not own', () => {
   assert.throws(() => updateEngine({ version: '0.0.1', root: repo, rid: RID, git, log: quiet }), /is not empty and is not the submodule/);
   assert.ok(existsSync(join(repo, 'Engine', 'manifest.json')));
   assert.equal(readPointer({ root: repo, git }).gitlink, null);
+});
+
+/** The same git, except the calls `fails(args)` picks exit 1 without running (a git step failing part-way). */
+function failingGit(fails) {
+  return (args, options) => (fails(args, options) ? { status: 1, stdout: '', stderr: `injected failure: git ${args.join(' ')}` } : git(args, options));
+}
+
+const isStageEngine = (args) => args.length === 2 && args[0] === 'add' && args[1] === 'Engine';
+
+/** Everything B-00116 promises to restore, read straight from git and the file system. */
+function observed(repo) {
+  const config = git(['config', '--local', '--get-regexp', '^submodule\\.Engine\\.'], { cwd: repo });
+  return {
+    pointer: readPointer({ root: repo, git }),
+    index: must(['ls-files', '--stage'], repo),
+    status: must(['status', '--porcelain', '--untracked-files=all', '--ignored=no'], repo),
+    gitmodules: readFileSync(join(repo, '.gitmodules'), 'utf8'),
+    config: String(config.stdout).trim(),
+    modules: existsSync(join(repo, '.git', 'modules', 'Engine')),
+    engine: existsSync(join(repo, 'Engine', 'manifest.json')),
+  };
+}
+
+test('B-00116: a first pin that fails after the clone is registered is rolled back completely, and a retry works', () => {
+  const release = releaseRepo([{ version: '0.0.1' }]);
+  for (const step of ['submodule absorbgitdirs', 'submodule add', 'add Engine']) {
+    const repo = gameRepo(release.url);
+    const before = observed(repo);
+    const fails = step === 'add Engine' ? isStageEngine : (args) => args.join(' ').startsWith(step);
+    assert.throws(() => updateEngine({ version: '0.0.1', root: repo, rid: RID, git: failingGit(fails), log: quiet }), (error) => {
+      assert.equal(error.code, 'ENGINE_UPDATE_FAILED');
+      assert.match(error.message, /injected failure/);
+      assert.equal(error.restored, true, `${step}: ${error.message}`);
+      assert.deepEqual(error.stillChanged, []);
+      assert.match(error.message, /Engine\/ pointer unchanged: the index, \.gitmodules and Engine\/'s checkout are as they were/);
+      return true;
+    });
+    assert.deepEqual(observed(repo), before, `${step}: the game repository is exactly as before`);
+    // Nothing left behind blocks the next attempt (no stray .git/modules/Engine, no submodule config).
+    updateEngine({ version: '0.0.1', root: repo, rid: RID, git, log: quiet });
+    assert.deepEqual(readPointer({ root: repo, git }), { gitlink: release.tags['0.0.1'], head: release.tags['0.0.1'] });
+  }
+});
+
+test('B-00116: a switch whose staging fails moves Engine/ back to the pinned commit', () => {
+  const release = releaseRepo([{ version: '0.0.1' }, { version: '0.0.4' }]);
+  const repo = gameRepo(release.url);
+  updateEngine({ version: '0.0.1', root: repo, rid: RID, git, log: quiet });
+  must(['commit', '-q', '-m', 'engine: v0.0.1'], repo);
+  const before = observed(repo);
+  assert.throws(() => updateEngine({ version: '0.0.4', root: repo, rid: RID, git: failingGit(isStageEngine), log: quiet }), (error) => {
+    assert.equal(error.restored, true, error.message);
+    assert.match(error.message, /staging the Engine\/ pointer: injected failure/);
+    return true;
+  });
+  assert.deepEqual(observed(repo), before);
+  assert.deepEqual(readPointer({ root: repo, git }), { gitlink: release.tags['0.0.1'], head: release.tags['0.0.1'] });
+});
+
+test('B-00116: when the rollback itself cannot put the checkout back, the error says so and names what is still changed', () => {
+  const release = releaseRepo([{ version: '0.0.1' }, { version: '0.0.4' }]);
+  const repo = gameRepo(release.url);
+  updateEngine({ version: '0.0.1', root: repo, rid: RID, git, log: quiet });
+  must(['commit', '-q', '-m', 'engine: v0.0.1'], repo);
+  const back = (args) => args[0] === 'checkout' && args.includes(release.tags['0.0.1']);
+  assert.throws(() => updateEngine({ version: '0.0.4', root: repo, rid: RID, git: failingGit((args) => isStageEngine(args) || back(args)), log: quiet }), (error) => {
+    assert.equal(error.restored, false);
+    assert.doesNotMatch(error.message, /pointer unchanged/);
+    assert.match(error.message, /Engine\/ was NOT fully restored\. Still changed: Engine\/'s checkout \(was [0-9a-f]{40}, now [0-9a-f]{40}\)/);
+    assert.match(error.message, /git submodule update --init --depth 1 Engine/);
+    assert.equal(error.stillChanged.length, 1);
+    return true;
+  });
+  // The report matches the repository: the gitlink never moved, the checkout did.
+  assert.deepEqual(readPointer({ root: repo, git }), { gitlink: release.tags['0.0.1'], head: release.tags['0.0.4'] });
 });
