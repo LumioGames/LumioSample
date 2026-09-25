@@ -51,8 +51,8 @@ function pageSourceForVm() {
   // module, not a stand-in for it.
   const inlinedVoxel = VOXEL_SOURCE.replace(/^export /gm, "");
   return MAIN_SOURCE
-    .replace(/import \{ DS_CLOSE_CODES \} from "\.\/ds-close-codes\.mjs";\s*/, CLOSE_SOURCE.replace("export const", "const"))
-    .replace(/import \{ NOT_SERVING_RETRY \} from "\.\/not-serving-retry\.mjs";\s*/, RETRY_SOURCE.replace("export const", "const"))
+    .replace(/import \{ DS_CLOSE_CODES \} from "\.\/ds-close-codes\.mjs";\s*/, CLOSE_SOURCE.replace(/^export /gm, ""))
+    .replace(/import \{ NOT_SERVING_RETRY \} from "\.\/not-serving-retry\.mjs";\s*/, RETRY_SOURCE.replace(/^export /gm, ""))
     .replace(/import \{ connectDs \} from "\.\/connect-ds\.mjs";\s*/, `${inlinedConnect}\n`)
     .replace(/import \{[^}]*\} from "\.\/voxel-grid\.mjs";\s*/, `${inlinedVoxel}\n`)
     .replace(
