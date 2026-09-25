@@ -4,7 +4,7 @@
 
 公共参数（两份相同）：
 
-- 工具：LumioVoxelEngine `crates/lumio-voxel-mc-import`，PR #84（R-00796）提交 `81aaf99`，release 构建；报告 `tool` 字段为 `lumio-voxel-mc-import 0.0.0`。
+- 工具：LumioVoxelEngine `crates/lumio-voxel-mc-import`，release 构建；报告 `tool` 字段为 `lumio-voxel-mc-import 0.0.0`。prismarine 那份由 PR #84（R-00796）提交 `81aaf99` 产出；sample-house 那份由 ADR-124 审查 P2 修复（分支 `fix/adr124-review-p2`）提交 `abe4419` 重跑——该提交让 `gen-test-world` 按 MC 格式给实体区块写 `Position`、生物计数随区块过滤，小屋的 `entities/r.0.0.mca` 字节因此变了，报告其余内容不变；同一提交重跑 prismarine 与原报告逐字节相同。
 - 映射表：本目录 `mc-mapping.json`（由 `Tools/mc-mapping.mjs` 生成），sha256 `8e78b3e918fca860ae32e1a93283595488d0a40a49ca95490d82f141e8fa9f40`。
 - 目录：`Server/Assets/Maps/official-catalog.json`（C8 合入的 v2），sha256 `e4d81595ef179f5071cf1d8fc13b985cf83d6fbd39a579df035a391e3ef2a1bf`。
 - 严格模式（没有 `--lenient`），`--y-window` 取默认 `-64`（MC Y `[-64, 191]` → 我们的 `[0, 255]`），不裁 `--bbox`，`--origin 0,0`，只读 `Status=minecraft:full` 的区块。
@@ -36,10 +36,10 @@ lumio-voxel-mc-import assess --input r.0.0.mca \
 
 | 项 | 值 |
 | --- | --- |
-| 报告 | `sample-house.import-report.json`，sha256 `bcd5fb39df107ab958048cedb756f9ee0a5000c73cdf56bc41a17f498305447a` |
+| 报告 | `sample-house.import-report.json`，sha256 `8075f4a40ffe1526ffbe1bfa1ff2f9b7585aade7579eefcf717c935800f37937` |
 | MC 版本 / DataVersion | 不是 MC 生成的存档：由工具的测试代码合成（`lumio-voxel-mc-import gen-test-world`，`src/testgen.rs` 的 `sample_house()`），区块按 1.18+ 结构写，DataVersion 3700（相当于 Java 1.20.4） |
 | 来源 | 我们自己的测试数据，就是 C10 golden 测试用的那座小屋：门的上下两格、橡木与云杉楼梯（含直梯、外转角左、倒放内转角右）、墙上火把、水源头与 level 3、含水台阶、一个箱子（方块实体）、一头牛（生物）、负坐标区块、一格窗口外的石头 |
-| 区域文件 | `region/r.-1.-1.mca` sha256 `af9760257ac22d16c3ae5545d880a24ae4348812738ce0ca76a4558b19642fd4`；`region/r.0.0.mca` sha256 `79b0b1ea2757b6c4a051c7580347bab484693f23dc911abc67af913043515d58`；`entities/r.0.0.mca` sha256 `4b63db80229a928990dfbaade6282ad32580ed36a5ca31b021d7c12bc2f5c0a1` |
+| 区域文件 | `region/r.-1.-1.mca` sha256 `af9760257ac22d16c3ae5545d880a24ae4348812738ce0ca76a4558b19642fd4`；`region/r.0.0.mca` sha256 `79b0b1ea2757b6c4a051c7580347bab484693f23dc911abc67af913043515d58`；`entities/r.0.0.mca` sha256 `8a9b9dc49e62119df327cbf3a0a1a71f9efb3cfb985dbbb7e553ebc471faa852` |
 | 许可 | 本项目自产数据，不含任何 MC 资源 |
 | 区块 | 2 个，全部 full；非空气 MC Y 范围 56..200 |
 | 窗口参数 | 默认 `-64`，窗口外 1 格（y 200 那格石头，专门用来测窗口） |

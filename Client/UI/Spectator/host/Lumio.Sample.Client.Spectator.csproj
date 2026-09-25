@@ -80,6 +80,22 @@
     <Content Include="$(LumioSampleRepoRoot)Client\Assets\Blocks\*.json" Link="wwwroot\game-assets\Blocks\%(Filename)%(Extension)" />
     <Content Include="$(LumioSampleRepoRoot)Client\Assets\Blocks\textures\*.png" Link="wwwroot\game-assets\Blocks\textures\%(Filename)%(Extension)" />
   </ItemGroup>
+  <!--
+    The three wildcards above match nothing when the Engine/ release lacks those directories,
+    and the page would then 404 on its first import. Fail closed like the wasm module below:
+    one representative module per directory (the ones blocks-view.mjs and block-scene.mjs import).
+  -->
+  <Target Name="RequireEngineBlockRenderer" BeforeTargets="BeforeBuild;Publish">
+    <Error
+      Condition="!Exists('$(LumioEngineWeb)RHI/webgl2-device.mjs')"
+      Text="SPECTATOR_ENGINE_WEB_RHI_MISSING the Engine/ release web/ has no RHI/ (Engine/ empty? run: git submodule update --init --depth 1 Engine). Expected: $(LumioEngineWeb)RHI/webgl2-device.mjs" />
+    <Error
+      Condition="!Exists('$(LumioEngineWeb)Render/block-scene.mjs')"
+      Text="SPECTATOR_ENGINE_WEB_RENDER_MISSING the Engine/ release web/ has no Render/ (Engine/ empty? run: git submodule update --init --depth 1 Engine). Expected: $(LumioEngineWeb)Render/block-scene.mjs" />
+    <Error
+      Condition="!Exists('$(LumioEngineWeb)Assets/block-assets.mjs')"
+      Text="SPECTATOR_ENGINE_WEB_ASSETS_MISSING the Engine/ release web/ has no Assets/ (Engine/ empty? run: git submodule update --init --depth 1 Engine). Expected: $(LumioEngineWeb)Assets/block-assets.mjs" />
+  </Target>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
   </ItemGroup>
