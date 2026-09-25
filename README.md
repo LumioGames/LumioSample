@@ -38,7 +38,14 @@
 
 ## 五分钟跑起来
 
-**前置条件**：git、.NET SDK（版本见 [`global.json`](global.json)）、Node.js 22、Docker（第 2 步「注册登录」要起 Platform）。
+**前置条件**：
+
+- git、.NET SDK（版本见 [`global.json`](global.json)）、Node.js 22、Docker（第 2 步「注册登录」要起 Platform）。
+- **`dotnet test` 还要**：Python 3.11+（Linux / macOS 用 `python3`，Windows 用 `py` 启动器）和一份 [`LumioConfig`](https://github.com/LumioGames/LumioConfig) 检出（公开仓，放在本仓旁边的 `../LumioConfig`，或设 `LUMIO_CONFIG_ROOT` 指向它）。测试里 28 个配表用例用它的编译器现编配表；缺了这些用例失败，其余照常。
+
+  ```bash
+  git clone https://github.com/LumioGames/LumioConfig ../LumioConfig
+  ```
 
 ```bash
 git clone --recursive https://github.com/LumioGames/LumioSample && cd LumioSample
@@ -58,6 +65,8 @@ node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll Client/Bots/bin
 git submodule update --init --depth 1 Engine
 ```
 
+机器人默认用普通账号 `Player1..N` 登录：发布物里的本地 Platform 不签发 Bot 凭据。要用 Bot 命名空间（`Bot1..N`，例如 100 人移动压测）时，设 `LUMIO_BOT_TOOL_CREDENTIAL`（Platform 签发的 bot-tool 凭据，本仓不自己签），启动器就改用 `Bot` 前缀；也可用 `--login-prefix` 指定别的普通前缀。
+
 缺 Docker / 发布物不含本机平台 / 其他前置条件时，启动器逐步打印 `step=NN` 并以 `BLOCKED_ENV`（exit 2）退出、点名缺的东西，不会假绿。[`Tools/`](Tools/) 里是启动器、账号客户端、证据对账和世界断言，见 [`Tools/README.md`](Tools/README.md)。
 
 ## 引擎从哪来
@@ -73,7 +82,7 @@ git submodule update --init --depth 1 Engine
   git commit -m "engine: v0.0.2" -- .gitmodules Engine
   ```
 
-  tag 不存在或校验不过时指针不变。引擎不承诺跨大版本兼容；升级后编不过的玩法代码由本游戏自己改。
+  tag 不存在、校验不过，或后面某一步 git 操作中途失败时，命令把索引里的 `Engine` 指针、`.gitmodules` 与 `Engine/` 的检出恢复到调用前，并在错误里说明已恢复；万一有恢复不了的，错误里逐项点名还变着的部分和补救命令，不会笼统地说「指针不变」。引擎不承诺跨大版本兼容；升级后编不过的玩法代码由本游戏自己改。
 
 `Server/Config/Startup/server.json` 是可运行的 DS 模板（`runtime+voxel` + `snapshot_only`，并要求 `base_map_*`）：只写本仓自己的玩法程序集，引擎一半由启动器从 `Engine/server/<rid>/` 填；准入公钥是 Platform release compose 的本地公钥；本机覆盖在 gitignored 的 `.run/server.local.json`。填我用的 `replace-*` 留在 `Server/Config/Startup/server.sample.json`，未填时报响亮缺值。[`Tools/compose/`](Tools/compose/README.md) 放本游戏给 Platform 的三样输入（分配、目录种子、大厅包）。
 
