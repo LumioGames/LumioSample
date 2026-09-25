@@ -29,7 +29,9 @@ test('repo-layout.json GameWorkspace.configSourceRoot names this repo\'s real co
     return;
   }
   if (!base) {
-    console.error('BLOCKED_ENV: no LumioGameEngine checkout with repo-layout.json found next to this repo; set LUMIO_ENGINE_ROOT.');
+    // Development-only cross-check against the architecture repository's layout contract; a
+    // clone without that checkout (every external one) has nothing to compare with.
+    console.error('BLOCKED_ENV: no LumioGameEngine checkout with repo-layout.json found (.spec/tools/engine-checkout.mjs lookup).');
     return;
   }
 

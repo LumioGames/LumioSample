@@ -37,7 +37,10 @@ import {
   redactArgs,
   resolveDsEndpoint,
 } from './ds-ready.mjs';
-import { assertRunnableDsConfig, writeKernelConfigForRun } from './ds-config.mjs';
+import { assertRunnableDsConfig, deriveRunDsConfig, engineClrInputs, writeKernelConfigForRun } from './ds-config.mjs';
+import {
+  engineDir, hostRid, prepareEngine, readManifest, releaseLayout, resolveHostfxr, SUBMODULE_INIT_COMMAND,
+} from './engine-release.mjs';
 import { blocked, loadProcessTools } from './engine-tools.mjs';
 import {
   DEFAULT_SPECTATOR_ROOT,
@@ -171,16 +174,33 @@ export function planSpectatorLogins(bots = BOTS, spectators = SPECTATORS) {
   return [...botLogins, ...spectatorLogins];
 }
 
+/**
+ * The engine half of the topology, from the Engine/ release for this machine (ADR-123). No
+ * variable names an engine artefact. `overrides` is a test seam only (fixtures hand in files);
+ * the CLI never sets it. Null when Engine/ has no manifest yet.
+ */
+export function releaseLivePaths({ root = ROOT, rid = hostRid(), overrides = {} } = {}) {
+  let layout = null;
+  try {
+    if (readManifest(engineDir(root))) layout = releaseLayout(engineDir(root), rid);
+  } catch {
+    layout = null;
+  }
+  const pick = (key, fromLayout) => overrides[key] ?? (layout ? fromLayout(layout) : undefined);
+  return {
+    layout,
+    dsExe: pick('dsExe', (l) => l.dsExe),
+    botDll: pick('botDll', (l) => l.botHost),
+    engineNative: pick('engineNative', (l) => l.engineNative),
+    composeFile: pick('composeFile', (l) => l.platformCompose),
+  };
+}
+
 export function requiredLivePaths(env = process.env) {
   return {
     origin: env.LUMIO_PLATFORM_ORIGIN,
-    composeFile: env.LUMIO_PLATFORM_COMPOSE,
-    dsExe: env.LUMIO_DS_EXE,
     dsConfig: env.LUMIO_DS_CONFIG,
-    botDll: env.LUMIO_BOT_DLL,
     gameplay: env.LUMIO_GAMEPLAY,
-    engineNative: env.LUMIO_ENGINE_NATIVE,
-    engineNativePath: env.LUMIO_ENGINE_NATIVE_PATH,
     // Same variable the launcher reads (#50): one name for the bot voxel budget across Tools/.
     voxelConfig: env.LUMIO_BOT_VOXEL_CONFIG,
     configDir: env.LUMIO_CONFIG_DIR,
@@ -270,7 +290,7 @@ export function nativeAbiAgreement({ engineNative, gameplay } = {}) {
   const nativePath = resolve(String(engineNative ?? ''));
   const gameplayPath = resolve(String(gameplay ?? ''));
   if (!isFilePath(nativePath)) {
-    return { ok: false, reason: `LUMIO_ENGINE_NATIVE is not a file: ${nativePath}` };
+    return { ok: false, reason: `Engine/ native library is not a file: ${nativePath}` };
   }
   if (!isFilePath(gameplayPath)) {
     return { ok: false, reason: `LUMIO_GAMEPLAY is not a file: ${gameplayPath}` };
@@ -331,7 +351,7 @@ export const DS_TIMER_OWNER_MARKER = 'timer_manager_owner';
 export function dsTimerOwnerAbi(dsExe) {
   const dsPath = resolve(String(dsExe ?? ''));
   if (!isFilePath(dsPath)) {
-    return { ok: false, reason: `LUMIO_DS_EXE is not a file: ${dsPath}` };
+    return { ok: false, reason: `Engine/ lumio-ds is not a file: ${dsPath}` };
   }
   const bytes = readFileSync(dsPath);
   const latin1 = bytes.toString('latin1');
@@ -696,22 +716,28 @@ function botVoxelBudgetReason({ dsConfig, voxelConfig }) {
   return `LUMIO_BOT_VOXEL_CONFIG is not set or is not a file (required: DS world_profile=${worldProfile}; bots session_fault on the first SectionFrame without it, ADR-112 rev2 ix)`;
 }
 
-/** Return the first missing prerequisite without starting anything. */
-export function missingLiveReason(env = process.env, { requireCompose = false, root = ROOT } = {}) {
+/**
+ * Return the first missing prerequisite without starting anything — not even the submodule
+ * init: an empty Engine/ is reported with the command that fills it.
+ */
+export function missingLiveReason(env = process.env, { requireCompose = false, root = ROOT, overrides = {} } = {}) {
   const paths = requiredLivePaths(env);
+  const release = releaseLivePaths({ root, overrides });
   if (!paths.origin) return 'LUMIO_PLATFORM_ORIGIN is not set';
-  if (!paths.dsExe || !isFilePath(paths.dsExe)) return 'LUMIO_DS_EXE is not set or is not a file';
-  if (!paths.botDll || !isFilePath(paths.botDll)) return 'LUMIO_BOT_DLL is not set or is not a file';
+  if (!release.layout && !(release.dsExe && release.botDll && release.engineNative)) {
+    return `Engine/ is empty; run: ${SUBMODULE_INIT_COMMAND}`;
+  }
+  if (!release.dsExe || !isFilePath(release.dsExe)) return `${release.dsExe} is missing from the Engine/ release`;
+  if (!release.botDll || !isFilePath(release.botDll)) return `${release.botDll} is missing from the Engine/ release`;
   if (!paths.gameplay || !isFilePath(paths.gameplay)) return 'LUMIO_GAMEPLAY is not set or is not a file';
-  const native = paths.engineNative || paths.engineNativePath;
-  if (!native || !isFilePath(native)) return 'LUMIO_ENGINE_NATIVE is not set or is not a file';
+  if (!release.engineNative || !isFilePath(release.engineNative)) return `${release.engineNative} is missing from the Engine/ release`;
   const voxelBudget = botVoxelBudgetReason({
     dsConfig: liveDsConfigPath(paths.dsConfig, root),
     voxelConfig: paths.voxelConfig,
   });
   if (voxelBudget) return voxelBudget;
-  if (requireCompose && (!paths.composeFile || !isFilePath(paths.composeFile))) {
-    return 'LUMIO_PLATFORM_COMPOSE is not set or is not a file';
+  if (requireCompose && (!release.composeFile || !isFilePath(release.composeFile))) {
+    return `${release.composeFile ?? 'Engine/platform/docker-compose.yml'} is missing from the Engine/ release`;
   }
   if (String(paths.liveBots ?? '') !== '0') return 'LIVE_BOTS must be exactly 0 before starting the acceptance topology';
   return null;
@@ -1517,11 +1543,10 @@ async function checkHttpListener(origin, options = {}) {
 
 function platformStartRequested(options = {}) {
   return options.startPlatform === true
-    || options.composeFileExplicit === true
     || (Array.isArray(options.platformCommand) && options.platformCommand.length > 0);
 }
 
-function buildChildEnv({ env = process.env, root = ROOT, dsConfig, engineNative } = {}) {
+function buildChildEnv({ env = process.env, root = ROOT, dsConfig } = {}) {
   const output = {};
   for (const [key, value] of Object.entries({ ...process.env, ...(env ?? {}) })) {
     if (value != null) output[key] = String(value);
@@ -1561,11 +1586,6 @@ function buildChildEnv({ env = process.env, root = ROOT, dsConfig, engineNative 
       const sha = String(config.base_map_content_sha256 || '').trim().toLowerCase();
       if (NATIVE_ABI_HEX.test(sha)) output.LUMIO_BASE_MAP_SHA256 = sha;
     } catch { /* config validation reports the useful error later */ }
-  }
-  const native = engineNative ?? output.LUMIO_ENGINE_NATIVE ?? output.LUMIO_ENGINE_NATIVE_PATH;
-  if (native) {
-    output.LUMIO_ENGINE_NATIVE = resolve(String(native));
-    output.LUMIO_ENGINE_NATIVE_PATH = resolve(String(native));
   }
   return output;
 }
@@ -3248,21 +3268,21 @@ function platformCommand(options, root) {
   if (Array.isArray(options.platformCommand) && options.platformCommand.length > 0) {
     return { command: options.platformCommand[0], args: options.platformCommand.slice(1), cwd: options.platformCwd ?? root };
   }
-  // An environment variable describes where compose lives; it is not an
-  // authorization to start a platform.  Starting it requires an explicit
-  // compose path or --start-platform.
-  const composeWasExplicit = options.composeFileExplicit === true;
-  const compose = options.startPlatform === true
-    ? (options.composeFile ?? options.env?.LUMIO_PLATFORM_COMPOSE)
-    : (composeWasExplicit ? options.composeFile : undefined);
-  if (!compose) return null;
-  const composePath = resolve(String(compose));
+  // The release compose (Engine/platform/docker-compose.yml, ADR-123 决策 8) starts only on
+  // --start-platform. Its image is the manifest's platformImage; its game inputs are this
+  // repository's Tools/compose/ (platform.env, seed-games.sql, games/).
+  if (options.startPlatform !== true || !options.composeFile) return null;
+  const composePath = resolve(String(options.composeFile));
   return {
     command: options.docker ?? 'docker',
     args: ['compose', '--file', composePath, 'up', '--remove-orphans'],
     cwd: dirname(composePath),
     composePath,
     composeCommand: options.docker ?? 'docker',
+    env: {
+      LUMIO_PLATFORM_IMAGE: String(options.platformImage ?? ''),
+      LUMIO_GAME_PLATFORM_DIR: resolve(root, 'Tools', 'compose'),
+    },
   };
 }
 
@@ -3424,19 +3444,35 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
   if (!authorization.ok) {
     return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: ${authorization.reasons.join('; ')}` };
   }
-  const tools = options.processTools ?? await loadProcessTools({ env, repoRoot: root });
+  // ADR-123: the engine half comes from Engine/ (filled once and verified for this <rid> here).
+  // dsExe / botDll / engineNative / composeFile options are a test seam: fixtures hand in files
+  // and then no release is prepared. The CLI never sets them.
+  const seamed = Boolean(options.dsExe && options.botDll && options.engineNative);
+  let release = options.engine ?? null;
+  if (!release && !seamed) {
+    try {
+      release = prepareEngine({ repoRoot: root, git: options.git, node: options.node });
+    } catch (error) {
+      return { status: error?.code === 'BLOCKED_ENV' ? 'BLOCKED_ENV' : 'FAIL', error: error.message };
+    }
+  }
+  const layout = release?.layout ?? null;
+  // Engine/tools/process-tools.mjs is imported once every artefact check has passed, right before
+  // the first process starts; a refused topology never needs it.
+  let tools = options.processTools ?? null;
   document ??= createSpectatorDocument();
   document.processes ??= {};
+  if (release) document.processes.engine = { version: release.manifest?.version ?? null, rid: release.rid };
   evidence = resolve(evidence ?? join(root, '.run', 'spectator-100-live'));
   mkdirSync(evidence, { recursive: true });
   const effectiveOrigin = options.origin ?? env.LUMIO_PLATFORM_ORIGIN;
   const effectiveDsConfig = liveDsConfigPath(options.dsConfig ?? env.LUMIO_DS_CONFIG, root);
-  const effectiveNative = options.engineNative ?? env.LUMIO_ENGINE_NATIVE ?? env.LUMIO_ENGINE_NATIVE_PATH;
+  const effectiveNative = options.engineNative ?? layout?.engineNative;
+  const composeFile = options.composeFile ?? layout?.platformCompose;
   const childEnv = buildChildEnv({
     env: { ...env, LUMIO_PLATFORM_ORIGIN: effectiveOrigin },
     root,
     dsConfig: effectiveDsConfig,
-    engineNative: effectiveNative,
   });
   const children = [];
   const secrets = [];
@@ -3457,8 +3493,8 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
   try {
     // Resolve every required artifact before starting Platform or DS.  This
     // keeps an incomplete operator environment side-effect free.
-    const dsExe = effectivePath(options.dsExe ?? env.LUMIO_DS_EXE);
-    const botDll = effectivePath(options.botDll ?? env.LUMIO_BOT_DLL);
+    const dsExe = effectivePath(options.dsExe ?? layout?.dsExe);
+    const botDll = effectivePath(options.botDll ?? layout?.botHost);
     const gameplay = effectivePath(options.gameplay ?? env.LUMIO_GAMEPLAY);
     const engineNative = effectivePath(effectiveNative);
     // ADR-112 rev2 ix: same gate as missingLiveReason (world_profile decides, as in launcher.mjs).
@@ -3466,10 +3502,10 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     const voxelBudget = botVoxelBudgetReason({ dsConfig: effectiveDsConfig, voxelConfig });
     if (voxelBudget) return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: ${voxelBudget}` };
     if (!isFilePath(effectiveDsConfig)) return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: DS config is missing: ${effectiveDsConfig}` };
-    if (!isFilePath(dsExe)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_DS_EXE is not set or is not a file' };
-    if (!isFilePath(botDll)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_BOT_DLL is not set or is not a file' };
+    if (!isFilePath(dsExe)) return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: ${dsExe || 'lumio-ds'} is missing from the Engine/ release` };
+    if (!isFilePath(botDll)) return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: ${botDll || 'Bot.Host'} is missing from the Engine/ release` };
     if (!isFilePath(gameplay)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_GAMEPLAY is not set or is not a file' };
-    if (!isFilePath(engineNative)) return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: LUMIO_ENGINE_NATIVE is not set or is not a file' };
+    if (!isFilePath(engineNative)) return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: ${engineNative || 'native library'} is missing from the Engine/ release` };
     const abi = nativeAbiAgreement({ engineNative, gameplay });
     if (!abi.ok) return { status: 'FAIL', error: abi.reason };
     document.processes.nativeAbi = {
@@ -3504,7 +3540,29 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
       return { status: 'FAIL', error: `DS config is invalid JSON: ${error.message}` };
     }
     assertRunnableDsConfig(dsConfigValue);
-    const kernelConfigPath = writeKernelConfigForRun(effectiveDsConfig, join(evidence, 'kernel-config.json'));
+    // With a release, the DS runs on a derived copy whose engine half of clr is Engine/server/<rid>/
+    // plus this machine's hostfxr (the committed template names only the game's assembly). Store
+    // and log directories stay the template's own, made absolute.
+    let runDsConfig = effectiveDsConfig;
+    if (layout) {
+      let hostfxr;
+      try {
+        hostfxr = options.hostfxr ?? resolveHostfxr({ dotnet: options.dotnet ?? env.LUMIO_DOTNET ?? 'dotnet', env });
+      } catch (error) {
+        return { status: 'BLOCKED_ENV', error: error.message };
+      }
+      const base = dirname(effectiveDsConfig);
+      const derived = deriveRunDsConfig(dsConfigValue, {
+        templatePath: effectiveDsConfig,
+        engineClr: engineClrInputs(layout, hostfxr),
+        admissionKey: env.LUMIO_PLATFORM_ADMISSION_KEY,
+        storePath: resolve(base, String(dsConfigValue.store_path ?? '../../Storage/Worlds')),
+        logDir: resolve(base, String(dsConfigValue.logging?.dir ?? '../../Diagnostics/Logs')),
+      });
+      runDsConfig = join(evidence, 'server.run.json');
+      writeJson(runDsConfig, derived);
+    }
+    const kernelConfigPath = writeKernelConfigForRun(runDsConfig, join(evidence, 'kernel-config.json'));
 
     // The Sample page's publish output (launcher default / --spectator-root /
     // LUMIO_SPECTATOR_ROOT). No bundle is BLOCKED_ENV, never a LumioClient
@@ -3532,14 +3590,12 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     const chrome = options.chrome ?? findChromePath(env);
     if (!chrome && typeof options.startChrome !== 'function') return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: Chrome executable is not available' };
     const hasCustomPlatformCommand = Array.isArray(options.platformCommand) && options.platformCommand.length > 0;
-    const composeRequested = options.startPlatform === true || options.composeFileExplicit === true;
-    if (composeRequested && !hasCustomPlatformCommand) {
-      const composeValue = options.composeFile ?? env.LUMIO_PLATFORM_COMPOSE;
-      if (!composeValue) {
-        return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: --start-platform requires LUMIO_PLATFORM_COMPOSE or an explicit platform command' };
+    if (options.startPlatform === true && !hasCustomPlatformCommand) {
+      if (!composeFile) {
+        return { status: 'BLOCKED_ENV', error: 'BLOCKED_ENV: --start-platform needs Engine/platform/docker-compose.yml (Engine/ release) or an explicit platform command' };
       }
-      if (!isFilePath(composeValue)) {
-        return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: Platform compose file is missing: ${resolve(String(composeValue))}` };
+      if (!isFilePath(composeFile)) {
+        return { status: 'BLOCKED_ENV', error: `BLOCKED_ENV: Platform compose file is missing: ${resolve(String(composeFile))}` };
       }
     }
 
@@ -3574,17 +3630,23 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
       });
     }
 
-    platformSpec = platformCommand({ ...options, env }, root);
+    try {
+      tools ??= await loadProcessTools({ engineRoot: release?.dir ?? engineDir(root) });
+    } catch (error) {
+      return { status: 'BLOCKED_ENV', error: error.message };
+    }
+    platformSpec = platformCommand({ ...options, composeFile, platformImage: release?.manifest?.platformImage, env }, root);
     if (platformSpec) {
+      const platformEnv = { ...childEnv, ...(platformSpec.env ?? {}) };
       const platformChild = await track(() => tools.startLogged(platformSpec.command, platformSpec.args, {
         cwd: platformSpec.cwd,
-        env: childEnv,
+        env: platformEnv,
         log: join(evidence, 'platform.log'),
       }), platformSpec.composePath ? {
         composePath: platformSpec.composePath,
         composeCommand: platformSpec.composeCommand,
         composeCwd: platformSpec.cwd,
-        composeEnv: childEnv,
+        composeEnv: platformEnv,
         composeTeardownTimeoutMs: options.platformTeardownTimeoutMs ?? 30_000,
       } : {});
       document.processes.platformStarted = true;
@@ -3621,7 +3683,7 @@ export async function runLiveTopology({ env = process.env, root = ROOT, evidence
     if (wsUrls.length > 1 && new Set(wsUrls).size !== 1) return { status: 'FAIL', error: 'ticket manifest describes more than one DS endpoint' };
     document.roomId = roomIds[0] ?? null;
 
-    const dsArgs = buildServerArgs(effectiveDsConfig);
+    const dsArgs = buildServerArgs(runDsConfig);
     if (typeof tools.command === 'function') {
       await tools.command(dsExe, [...dsArgs, '--check-config'], {
         cwd: dirname(dsExe), env: childEnv, log: join(evidence, 'lumio-ds.check-config.log'),
@@ -4122,17 +4184,14 @@ export async function runSpectator100(options = {}) {
   const prerequisiteEnv = {
     ...env,
     LUMIO_PLATFORM_ORIGIN: options.origin ?? env.LUMIO_PLATFORM_ORIGIN,
-    LUMIO_DS_EXE: options.dsExe ?? env.LUMIO_DS_EXE,
     LUMIO_DS_CONFIG: options.dsConfig ?? env.LUMIO_DS_CONFIG,
-    LUMIO_BOT_DLL: options.botDll ?? env.LUMIO_BOT_DLL,
     LUMIO_GAMEPLAY: options.gameplay ?? env.LUMIO_GAMEPLAY,
-    LUMIO_ENGINE_NATIVE: options.engineNative ?? env.LUMIO_ENGINE_NATIVE,
-    LUMIO_ENGINE_NATIVE_PATH: options.engineNative ?? env.LUMIO_ENGINE_NATIVE_PATH,
     LUMIO_CHROME: options.chrome ?? env.LUMIO_CHROME,
     // runLiveTopology reads options.voxelConfig first; the pre-gate must judge the same budget.
     LUMIO_BOT_VOXEL_CONFIG: options.voxelConfig ?? env.LUMIO_BOT_VOXEL_CONFIG,
   };
-  const missing = options.missingReason ?? missingLiveReason(prerequisiteEnv, { root });
+  const overrides = { dsExe: options.dsExe, botDll: options.botDll, engineNative: options.engineNative, composeFile: options.composeFile };
+  const missing = options.missingReason ?? missingLiveReason(prerequisiteEnv, { root, overrides });
   if (missing) {
     document.status = 'BLOCKED_ENV';
     document.error = `BLOCKED_ENV: ${missing}`;
@@ -4226,9 +4285,6 @@ export function parseSpectatorCliArgs(argv = process.argv.slice(2), environment 
     // process creation opt-in even when a caller has supplied live paths.
     attachLive: true,
     startPlatform,
-    // parseLaunchArgs populates composeFile from the environment.  Only a
-    // command-line --compose or --start-platform should authorize startup.
-    composeFileExplicit: startPlatform || forwarded.includes('--compose'),
   };
 }
 

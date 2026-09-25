@@ -11,11 +11,11 @@ namespace Lumio.Sample.Server.HostTests;
 /// Reflection-only access to <c>Lumio.Server.HostEntry</c>.
 ///
 /// ADR-115: the game workspace does not own a server host, so it cannot take a
-/// compile-time reference on LumioServer. The host assembly arrives as a path in
-/// <c>LUMIO_SERVER_HOSTENTRY_DLL</c> — the same assembly
-/// <c>Server/Config/Startup/server.json</c> already names as <c>clr.entry_type</c>
-/// — and every call below goes through reflection, exactly as the two cases in
-/// this directory already did for <c>Manager</c> / <c>ActiveWorld</c>.
+/// compile-time reference on LumioServer. The host assembly is the Engine/ release's
+/// <c>server/&lt;rid&gt;/Application/Lumio.Server.HostEntry.dll</c> (ADR-123) — the same
+/// assembly <c>Server/Config/Startup/server.json</c> names as <c>clr.entry_type</c> — and
+/// every call below goes through reflection, exactly as the two cases in this directory
+/// already did for <c>Manager</c> / <c>ActiveWorld</c>.
 ///
 /// Every missing input is a named failure, never a skip: these cases carry engine
 /// guarantees (R-00692 acceptance items 10 and 11) and "did not run" is not a
@@ -42,9 +42,8 @@ internal static class HostEntryBridge
 
     /// <summary>The host assembly, loaded once per process from its named path.</summary>
     internal static Assembly HostEntryAssembly => _hostEntryAssembly ??= Assembly.LoadFrom(
-        System.IO.Path.GetFullPath(Require("LUMIO_SERVER_HOSTENTRY_DLL",
-            "the two cases below drive the real Lumio.Server.HostEntry the DS boots; "
-            + "point it at this run's freshly built Lumio.Server.HostEntry.dll")));
+        System.IO.Path.GetFullPath(Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.HostEntry,
+            "the two cases below drive the real Lumio.Server.HostEntry the DS boots")));
 
     internal static Type HostEntryType => HostEntryAssembly.GetType("Lumio.Server.HostEntry.HostEntry", throwOnError: true)!;
 

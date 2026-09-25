@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Spectator dump / replica-host tests. Not in LumioSample.slnx. Compiles the two
-    game-side sources one level up plus the two engine parts linked from the
-    LumioClient checkout ($(LumioClientSpectatorParts), see ../Directory.Build.props).
-    CI builds this project as the cross-repo compile guard (test job in ci.yml).
+    game-side sources one level up plus the two engine parts from the Engine/ release
+    ($(LumioSpectatorParts), see ../Directory.Build.props). CI builds this project as the
+    compile guard between this game and the pinned engine (test job in ci.yml).
+    LumioEcsGenerate=false: the SDK package enables generation for every consumer, and
+    this assembly declares no entities.
   -->
   <PropertyGroup>
     <LumioProduction>false</LumioProduction>
@@ -13,13 +15,14 @@
     <IsTestProject>true</IsTestProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Lumio.Sample.Client.Spectator.Tests</RootNamespace>
+    <LumioEcsGenerate>false</LumioEcsGenerate>
     <AssemblyName>Lumio.Sample.Client.Spectator.Tests</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../SpectatorDump.cs" Link="Spectator/SpectatorDump.cs" />
     <Compile Include="../SpectatorReplicaHost.cs" Link="Spectator/SpectatorReplicaHost.cs" />
-    <Compile Include="$(LumioClientSpectatorParts)tests/SpectatorSectionFrame.cs" Link="LumioClient/SpectatorSectionFrame.cs" />
-    <Compile Include="$(LumioClientSpectatorParts)tests/ReplicaApplyTickLoop.cs" Link="LumioClient/ReplicaApplyTickLoop.cs" />
+    <Compile Include="$(LumioSpectatorParts)cs/SpectatorSectionFrame.cs" Link="Engine/SpectatorSectionFrame.cs" />
+    <Compile Include="$(LumioSpectatorParts)cs/ReplicaApplyTickLoop.cs" Link="Engine/ReplicaApplyTickLoop.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" Version="3.2.2" />
@@ -31,15 +34,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Same graph the LumioClient-side guard compiled before R-00710, with the sides
-         flipped: the engine Replica comes from the LumioClient checkout, the gameplay
-         is this repository's own. -->
-    <ProjectReference Include="$(LumioClientRoot)/Client/Gameplay/ECS/src/Lumio.Client.Gameplay.ECS.csproj" />
-    <ProjectReference Include="$(LumioRuntimeRoot)/modules/ecs/src/Lumio.GameRuntime.Ecs/Lumio.GameRuntime.Ecs.csproj" />
-    <ProjectReference Include="$(LumioRuntimeRoot)/modules/replication/src/Lumio.GameRuntime.Replication/Lumio.GameRuntime.Replication.csproj" />
-    <ProjectReference Include="$(LumioRuntimeRoot)/modules/simulation/src/Lumio.GameRuntime.Simulation/Lumio.GameRuntime.Simulation.csproj">
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-    </ProjectReference>
+    <!-- ADR-123: the engine is the Engine/ release — the Runtime through Lumio.Engine.SDK
+         (Engine/sdk, NuGet.config source mapping) and the netstandard2.1 Replica from
+         web/replica/. The gameplay is this repository's own. -->
+    <PackageReference Include="Lumio.Engine.SDK" Version="$(LumioSdkVersion)" />
+    <Reference Include="Lumio.Client.Gameplay.ECS" HintPath="$(LumioSpectatorReplicaDir)Lumio.Client.Gameplay.ECS.dll" />
+    <Reference Include="Lumio.Client.Log" HintPath="$(LumioSpectatorReplicaDir)Lumio.Client.Log.dll" />
     <ProjectReference Include="$(LumioSampleRepoRoot)Gameplay/Lumio.Sample.Gameplay.csproj">
       <Properties>LumioEcsSide=client</Properties>
     </ProjectReference>

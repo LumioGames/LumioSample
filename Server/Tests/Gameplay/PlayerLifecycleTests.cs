@@ -26,11 +26,14 @@ public sealed class PlayerLifecycleTests : IDisposable
     [Fact]
     public void RealHostAabbWallAndOpenMovementSurviveColdRestore()
     {
-        string nativePath = Environment.GetEnvironmentVariable("LUMIO_ENGINE_NATIVE_PATH")
-            ?? throw new InvalidOperationException("SMP08 requires explicit LUMIO_ENGINE_NATIVE_PATH.");
+        // ADR-123: the native under test is the Engine/ release's, and the loaded image must be
+        // the one its build-info.json names.
+        string nativePath = Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.NativeLibrary,
+            "SMP08 runs against the release native");
         using NativeEngineLease native = NativeEngineLoader.LoadFromBuildInfo(nativePath);
-        Assert.Equal(Environment.GetEnvironmentVariable("LUMIO_NATIVE_TEST_BUILD_ID"), native.BuildId);
-        Assert.Equal(Environment.GetEnvironmentVariable("LUMIO_NATIVE_TEST_ABI_HASH"), native.AbiHash);
+        (string buildId, string abiHash, string binarySha256) = Lumio.Sample.Tests.EngineRelease.NativeBuildInfo();
+        Assert.Equal(buildId, native.BuildId);
+        Assert.Equal(abiHash, native.AbiHash);
         string? evidencePath = Environment.GetEnvironmentVariable("LUMIO_SAMPLE_HOST_EVIDENCE");
         if (evidencePath is not null)
             File.WriteAllText(evidencePath + ".identity.json", JsonSerializer.Serialize(new
@@ -40,12 +43,17 @@ public sealed class PlayerLifecycleTests : IDisposable
                     .Select(assembly => new { assembly.FullName, assembly.Location, assembly.ManifestModule.ModuleVersionId,
                         Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))) })
             }));
-        string fixtures = Environment.GetEnvironmentVariable("LUMIO_RT_FIXTURES")
-            ?? throw new InvalidOperationException("SMP08 requires explicit LUMIO_RT_FIXTURES pointing to the committed voxel-native scene.");
+        // The wall scene is the release's catalog world, authored against this very native image
+        // (ADR-117 决策 2: an engine-produced input consumed at run time, not an engine test
+        // fixture). Same-source or fail: its evidence must name the native loaded above.
+        string fixtures = Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.CatalogWorldFixture,
+            "SMP08 needs the release's catalog world (the wall scene)");
         byte[] catalog = File.ReadAllBytes(Path.Combine(fixtures, "catalog-world.json"));
         byte[] wall = File.ReadAllBytes(Path.Combine(fixtures, "catalog-world.capture"));
-        Assert.Equal("4B7F9F7127ECA9E9BDAAB54D6E839EB38B45A7147C96B93EE685EA63B5650BEB", Convert.ToHexString(SHA256.HashData(catalog)));
-        Assert.Equal("2D491FB70C5F1353020A3789EE9F579D08A5C8F78D7DCA2D94817726AC12464C", Convert.ToHexString(SHA256.HashData(wall)));
+        using (JsonDocument evidence = JsonDocument.Parse(File.ReadAllText(Path.Combine(fixtures, "catalog-world-evidence.json"))))
+        {
+            Assert.Equal(binarySha256, evidence.RootElement.GetProperty("BinarySha256").GetString(), ignoreCase: true);
+        }
         // Resolve only the frozen public API; absence is an explicit failed test, never a fallback.
         MethodInfo attachMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("TryAttach", new[] { typeof(WorldManager), typeof(KernelConfig), typeof(byte[]) }), exactMatch: false);
         MethodInfo restoreMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("RestoreNew", new[]

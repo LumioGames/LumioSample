@@ -15,24 +15,22 @@
     <LangVersion>14.0</LangVersion>
     <LumioSpectatorRoot>$(MSBuildThisFileDirectory)</LumioSpectatorRoot>
     <LumioSampleRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../../'))</LumioSampleRepoRoot>
-    <LumioRuntimeRoot Condition="'$(LumioRuntimeRoot)' == '' AND '$(LUMIO_RUNTIME_ROOT)' != ''">$(LUMIO_RUNTIME_ROOT)</LumioRuntimeRoot>
-    <LumioRuntimeRoot Condition="'$(LumioRuntimeRoot)' == '' AND Exists('$(LumioSampleRepoRoot)../LumioGameRuntime')">$([System.IO.Path]::GetFullPath('$(LumioSampleRepoRoot)../LumioGameRuntime'))</LumioRuntimeRoot>
     <!--
-      LumioClient checkout that ships the engine parts this page is assembled from
-      (R-00710): connect-ds / voxel-grid / generated close-code and not_serving tables /
-      dev hot-reload bridge (JS), SpectatorSectionFrame and ReplicaApplyTickLoop (C#),
-      and the netstandard2.1 Replica the wasm host references. They are taken from
-      that checkout at build and publish time and never copied into this repository.
-      LUMIO_CLIENT_ROOT when set, else the sibling checkout; missing is BLOCKED.
+      ADR-123: the engine parts this page is assembled from (R-00710: connect-ds /
+      voxel-grid / generated close-code and not_serving tables / dev hot-reload bridge,
+      SpectatorSectionFrame and ReplicaApplyTickLoop, the netstandard2.1 Replica, and the
+      VoxelEngine browser wasm — ADR-078 决策 1) come from the Engine/ release's web/, and
+      from nowhere else. They are read at build and publish time and never copied into this
+      repository. Engine/ empty is BLOCKED with the submodule command (Directory.Build.targets).
     -->
-    <LumioClientRoot Condition="'$(LumioClientRoot)' == '' AND '$(LUMIO_CLIENT_ROOT)' != ''">$(LUMIO_CLIENT_ROOT)</LumioClientRoot>
-    <LumioClientRoot Condition="'$(LumioClientRoot)' == '' AND Exists('$(LumioSampleRepoRoot)../LumioClient')">$([System.IO.Path]::GetFullPath('$(LumioSampleRepoRoot)../LumioClient'))</LumioClientRoot>
-    <LumioClientSpectatorParts Condition="'$(LumioClientRoot)' != ''">$(LumioClientRoot)/Client/UI/Spectator/</LumioClientSpectatorParts>
-    <!-- VoxelEngine checkout the browser voxel .wasm is built from (ADR-078 决策 1:
-         the page runs that repo's own Rust, never a JS re-implementation). -->
-    <LumioVoxelRoot Condition="'$(LumioVoxelRoot)' == '' AND '$(LUMIO_VOXEL_ROOT)' != ''">$(LUMIO_VOXEL_ROOT)</LumioVoxelRoot>
-    <LumioVoxelRoot Condition="'$(LumioVoxelRoot)' == '' AND Exists('$(LumioSampleRepoRoot)../LumioVoxelEngine')">$([System.IO.Path]::GetFullPath('$(LumioSampleRepoRoot)../LumioVoxelEngine'))</LumioVoxelRoot>
-    <LumioVoxelWasm Condition="'$(LumioVoxelWasm)' == '' AND '$(LumioVoxelRoot)' != ''">$(LumioVoxelRoot)/target/wasm32-unknown-unknown/release/lumio_voxel_wasm.wasm</LumioVoxelWasm>
+    <LumioEngineRoot>$(LumioSampleRepoRoot)Engine/</LumioEngineRoot>
+    <LumioEngineWeb>$(LumioEngineRoot)web/</LumioEngineWeb>
+    <LumioSpectatorParts>$(LumioEngineWeb)spectator/</LumioSpectatorParts>
+    <LumioSpectatorReplicaDir>$(LumioEngineWeb)replica/netstandard2.1/</LumioSpectatorReplicaDir>
+    <LumioVoxelWasm>$(LumioEngineWeb)lumio_voxel_wasm.wasm</LumioVoxelWasm>
+    <!-- Same one version as the repo-root build: Engine/manifest.json#version. -->
+    <_LumioEngineManifestText Condition="Exists('$(LumioEngineRoot)manifest.json')">$([System.IO.File]::ReadAllText('$(LumioEngineRoot)manifest.json'))</_LumioEngineManifestText>
+    <LumioSdkVersion Condition="'$(_LumioEngineManifestText)' != ''">$([System.Text.RegularExpressions.Regex]::Match($(_LumioEngineManifestText), '"version"\s*:\s*"([^"]+)"').Groups[1].Value)</LumioSdkVersion>
   </PropertyGroup>
   <!--
     This game's own LumioConfig client export, embedded beside the shared spectator

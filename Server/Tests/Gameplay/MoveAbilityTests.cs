@@ -340,8 +340,8 @@ public sealed class MoveAbilityWorldTests : IDisposable
     [Fact]
     public void NativeSweepAtAdmissionPoseAdmitsAHorizontalStep()
     {
-        string nativePath = Environment.GetEnvironmentVariable("LUMIO_ENGINE_NATIVE_PATH")
-            ?? throw new InvalidOperationException("NativeSweepAtAdmissionPoseAdmitsAHorizontalStep requires LUMIO_ENGINE_NATIVE_PATH.");
+        string nativePath = Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.NativeLibrary,
+            "NativeSweepAtAdmissionPoseAdmitsAHorizontalStep sweeps against the release native");
         using NativeEngineLease native = NativeEngineLoader.LoadFromBuildInfo(nativePath);
         byte[] catalog = File.ReadAllBytes(Path.Combine(RepoRoot(), "Server", "Assets", "Maps", "official-catalog.json"));
         byte[] voxel = File.ReadAllBytes(Path.Combine(RepoRoot(), "Server", "Assets", "Maps", "sample.voxel"));
@@ -385,8 +385,8 @@ public sealed class MoveAbilityWorldTests : IDisposable
     [Fact]
     public void TryAttachRestoresCommittedSampleVoxelAndAdmitsAHorizontalStep()
     {
-        string nativePath = Environment.GetEnvironmentVariable("LUMIO_ENGINE_NATIVE_PATH")
-            ?? throw new InvalidOperationException("TryAttachRestoresCommittedSampleVoxelAndAdmitsAHorizontalStep requires LUMIO_ENGINE_NATIVE_PATH.");
+        string nativePath = Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.NativeLibrary,
+            "TryAttachRestoresCommittedSampleVoxelAndAdmitsAHorizontalStep restores against the release native");
         using NativeEngineLease native = NativeEngineLoader.LoadFromBuildInfo(nativePath);
         byte[] catalog = File.ReadAllBytes(Path.Combine(RepoRoot(), "Server", "Assets", "Maps", "official-catalog.json"));
         byte[] voxel = File.ReadAllBytes(Path.Combine(RepoRoot(), "Server", "Assets", "Maps", "sample.voxel"));
