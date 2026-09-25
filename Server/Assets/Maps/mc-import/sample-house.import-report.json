@@ -1,0 +1,256 @@
+{
+  "blockEntities": {
+    "minecraft:chest": 1
+  },
+  "catalogSha256": "e4d81595ef179f5071cf1d8fc13b985cf83d6fbd39a579df035a391e3ef2a1bf",
+  "cells": 2297,
+  "entities": {
+    "minecraft:cow": 1
+  },
+  "lenient": false,
+  "mappingSha256": "8e78b3e918fca860ae32e1a93283595488d0a40a49ca95490d82f141e8fa9f40",
+  "outOfWindow": 1,
+  "output": {
+    "nonAirCells": 2296,
+    "sections": 3
+  },
+  "ratios": {
+    "degraded": 0.032651,
+    "dropped": 0.000435,
+    "exact": 0.966913,
+    "unmapped": 0.0
+  },
+  "source": {
+    "area": null,
+    "chunksRead": 2,
+    "chunksSkippedUnfinished": 0,
+    "dataVersions": [
+      3700
+    ],
+    "entityRegions": [
+      {
+        "file": "entities/r.0.0.mca",
+        "sha256": "4b63db80229a928990dfbaade6282ad32580ed36a5ca31b021d7c12bc2f5c0a1"
+      }
+    ],
+    "nonAirMcY": {
+      "max": 200,
+      "min": 56
+    },
+    "origin": [
+      0,
+      0
+    ],
+    "regions": [
+      {
+        "file": "region/r.-1.-1.mca",
+        "sha256": "af9760257ac22d16c3ae5545d880a24ae4348812738ce0ca76a4558b19642fd4"
+      },
+      {
+        "file": "region/r.0.0.mca",
+        "sha256": "79b0b1ea2757b6c4a051c7580347bab484693f23dc911abc67af913043515d58"
+      }
+    ],
+    "yWindow": {
+      "maxY": 191,
+      "minY": -64
+    }
+  },
+  "states": {
+    "minecraft:birch_log[axis=y]": {
+      "blockId": 257024,
+      "count": 1,
+      "tier": "degraded",
+      "to": "lumio.oak_log"
+    },
+    "minecraft:blue_stained_glass": {
+      "blockId": 257792,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.blue_stained_glass"
+    },
+    "minecraft:chest[facing=east,type=single]": {
+      "blockId": 0,
+      "count": 1,
+      "tier": "dropped",
+      "to": "air"
+    },
+    "minecraft:cobblestone": {
+      "blockId": 65536,
+      "count": 54,
+      "tier": "degraded",
+      "to": "lumio.stone"
+    },
+    "minecraft:dandelion": {
+      "blockId": 260864,
+      "count": 1,
+      "tier": "degraded",
+      "to": "lumio.poppy"
+    },
+    "minecraft:dirt": {
+      "blockId": 256256,
+      "count": 768,
+      "tier": "exact",
+      "to": "lumio.dirt"
+    },
+    "minecraft:glass": {
+      "blockId": 257536,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.glass"
+    },
+    "minecraft:glass_pane[east=false,north=true,south=true,west=false]": {
+      "blockId": 260096,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.glass_pane"
+    },
+    "minecraft:glowstone": {
+      "blockId": 258304,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.glowstone"
+    },
+    "minecraft:grass_block[snowy=false]": {
+      "blockId": 256512,
+      "count": 249,
+      "tier": "exact",
+      "to": "lumio.grass_block"
+    },
+    "minecraft:lava[level=0]": {
+      "blockId": 258816,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.lava"
+    },
+    "minecraft:oak_door[facing=north,half=lower,hinge=left,open=false,powered=false]": {
+      "blockId": 259584,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.oak_door"
+    },
+    "minecraft:oak_door[facing=north,half=upper,hinge=left,open=false,powered=false]": {
+      "blockId": 259600,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.oak_door"
+    },
+    "minecraft:oak_fence[east=true,north=false,south=false,west=true]": {
+      "blockId": 259840,
+      "count": 5,
+      "tier": "exact",
+      "to": "lumio.oak_fence"
+    },
+    "minecraft:oak_leaves[distance=1,persistent=false]": {
+      "blockId": 257280,
+      "count": 72,
+      "tier": "exact",
+      "to": "lumio.oak_leaves"
+    },
+    "minecraft:oak_log[axis=y]": {
+      "blockId": 257024,
+      "count": 5,
+      "tier": "exact",
+      "to": "lumio.oak_log"
+    },
+    "minecraft:oak_planks": {
+      "blockId": 256768,
+      "count": 49,
+      "tier": "exact",
+      "to": "lumio.oak_planks"
+    },
+    "minecraft:oak_sapling[stage=0]": {
+      "blockId": 261376,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.oak_sapling"
+    },
+    "minecraft:oak_slab[type=bottom]": {
+      "blockId": 259328,
+      "count": 25,
+      "tier": "exact",
+      "to": "lumio.oak_slab"
+    },
+    "minecraft:oak_stairs[facing=north,half=top,shape=inner_right]": {
+      "blockId": 259092,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.oak_stairs"
+    },
+    "minecraft:oak_stairs[facing=south,half=bottom,shape=outer_left]": {
+      "blockId": 259098,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.oak_stairs"
+    },
+    "minecraft:oak_stairs[facing=south,half=bottom,shape=straight]": {
+      "blockId": 259074,
+      "count": 5,
+      "tier": "exact",
+      "to": "lumio.oak_stairs"
+    },
+    "minecraft:poppy": {
+      "blockId": 260864,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.poppy"
+    },
+    "minecraft:short_grass": {
+      "blockId": 261120,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.short_grass"
+    },
+    "minecraft:spruce_stairs[facing=north,half=bottom,shape=straight]": {
+      "blockId": 259072,
+      "count": 5,
+      "tier": "degraded",
+      "to": "lumio.oak_stairs"
+    },
+    "minecraft:stone": {
+      "blockId": 65536,
+      "count": 1024,
+      "tier": "exact",
+      "to": "lumio.stone"
+    },
+    "minecraft:stone_bricks": {
+      "blockId": 66048,
+      "count": 14,
+      "tier": "degraded",
+      "to": "lumio.hard_wall"
+    },
+    "minecraft:torch": {
+      "blockId": 260608,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.torch"
+    },
+    "minecraft:wall_torch[facing=south]": {
+      "blockId": 260609,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.torch"
+    },
+    "minecraft:water[level=0]": {
+      "blockId": 258560,
+      "count": 4,
+      "tier": "exact",
+      "to": "lumio.water"
+    },
+    "minecraft:water[level=3]": {
+      "blockId": 258563,
+      "count": 1,
+      "tier": "exact",
+      "to": "lumio.water"
+    }
+  },
+  "tiers": {
+    "degraded": 75,
+    "dropped": 1,
+    "exact": 2221,
+    "unmapped": 0
+  },
+  "tool": "lumio-voxel-mc-import 0.0.0",
+  "unmapped": [],
+  "waterloggedDropped": 1
+}
