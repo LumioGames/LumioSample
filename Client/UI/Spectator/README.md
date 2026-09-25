@@ -302,7 +302,8 @@ checkerboard, layer 0), per-cell light (`lightAt`) and per-Section light digests
 (`lightDigests()`, to compare with `eng/voxel-evidence.mjs` of the engine), mesh timing.
 
 Acceptance run on the lakeside map: start the DS from
-`Server/Config/Startup/server.acceptance.json` (restores `acceptance-lakeside.voxel`; the
-default `server.json` / `sample.voxel` is unchanged), e.g.
+`Server/Config/Startup/server.acceptance.json` (restores `acceptance-lakeside.voxel` and reads
+the `Server/Config/Profiles/acceptance` config, whose admission pose stands in front of the house
+door; the default `server.json` / `sample.voxel` is unchanged), e.g.
 `LUMIO_DS_CONFIG=Server/Config/Startup/server.acceptance.json node Tools/launcher.mjs --spectator --bots 1`,
 then open the printed page URL with `?view=blocks`.

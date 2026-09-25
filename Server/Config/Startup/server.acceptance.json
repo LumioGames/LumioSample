@@ -24,7 +24,7 @@
     }
   },
   "store_path": "../../Storage/AcceptanceWorlds",
-  "config_dir": "../Tables",
+  "config_dir": "../Profiles/acceptance",
   "world_profile": "runtime+voxel",
   "voxel_catalog": "../../Assets/Maps/official-catalog.json",
   "durability": "snapshot_only",

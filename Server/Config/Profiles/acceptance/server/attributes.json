@@ -1,0 +1,17 @@
+{
+  "contentFingerprint": "25643aa38fc00fb137166d865a4a4c3d2df4b2e539939aae6ae86fe443d336a4",
+  "rows": [
+    {
+      "id": 90001,
+      "initial": 100,
+      "name": "Stamina"
+    },
+    {
+      "id": 90002,
+      "initial": 9,
+      "name": "Ore"
+    }
+  ],
+  "table": "attributes",
+  "target": "S"
+}

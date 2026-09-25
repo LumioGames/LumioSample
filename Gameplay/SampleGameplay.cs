@@ -25,7 +25,7 @@ public static class SampleAbilityAdmission
 }
 
 /// <summary>Sample catalog hooks: Effect register, player seed, and mine Activate with admission owner.</summary>
-public static class SampleGameplay
+public static partial class SampleGameplay
 {
     [SuppressMessage("Usage", "CA2255", Justification = "DS loads this assembly as application code; the catalog must register on load.")]
     [ModuleInitializer]
@@ -70,22 +70,10 @@ public static class SampleGameplay
     }
 
     /// <summary>
-    /// Capture floor is y=0 with a one-cell wall at y=1. Default LogicTransform
-    /// is the origin, which SweepBox cannot answer without sealing the DS.
-    /// MoveAbility is the sole writer; this is the admission pose, not a step.
-    /// The interior cell above the floor keeps the movement AABB clear and the
-    /// floor ore within the configured three-dimensional mining reach.
+    /// Admission pose placement (<c>SampleGameplay.Server.cs</c>). Admission runs only on the
+    /// authoritative world, so the client build carries no implementation and no call.
     /// </summary>
-    internal static readonly Vector3 AdmittedPlayerPosition = new(16.5f, 1.5f, 16.5f);
-
-    private static void PlaceAdmittedPlayer(World world, NetEntityId player)
-    {
-        LogicTransform logic = world.Get<LogicTransform>(player);
-        if (logic.LocalPosition != Vector3.Zero) return;
-        TransformController controller = world.RegisterTransformController(player, nameof(MoveAbility));
-        using (logic.BeginWrite(controller))
-            logic.SetLocalPosition(AdmittedPlayerPosition);
-    }
+    static partial void PlaceAdmittedPlayer(World world, NetEntityId player);
 
     internal static void PlaceDrop(World world, NetEntityId drop, Vector3 position)
     {

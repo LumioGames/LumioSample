@@ -1,18 +1,18 @@
 {
   "baselineId": "LGE-V1.4-2026-08-27",
   "compilerHash": "63b8c3f3be42e28b9730e46f377a2ed1193e9d6f3b46e5fe33fac91c53c13ff0",
-  "contentFingerprint": "9eb25e93d787f5e98771c5e8c73b41fe7b93a2dd5a013c4ca69d8afed7755a92",
+  "contentFingerprint": "a5bb9ad55a02768d4e102c18bd688c5554a9871496a55832a6c0a892756403f8",
   "endpoint": "client",
   "formatVersion": 1,
-  "inputHash": "94d1cf1e73dfac193dc09d0137f0a6133d7af9462ca794e9ee3b7e17b7a3eca2",
-  "outputHash": "bb2609feb87ea3a8551601b72cb99b33a7b83712562eb5216b48e43e9abc58a7",
-  "packageFingerprint": "44cdf87c319d6dec3ae96d4da98844a6513949400e1472bc62b2ea971ca33384",
+  "inputHash": "f0eac4d5213ebd7081c846cbb1213ee41ab2cd1d262d3fccb938045c7eb98e37",
+  "outputHash": "d4c35f531d7ec801ff80d0e7d29f29f346eb9bfb751f7736c571183260d59cab",
+  "packageFingerprint": "6e6a248f4981ff52cf9035bbb8789812feb185541b3d4650fdbcb4810c5eae9a",
   "projectionRoots": {
     "C": "client/manifest.json"
   },
-  "publicRoot": "44cdf87c319d6dec3ae96d4da98844a6513949400e1472bc62b2ea971ca33384",
-  "releaseFingerprint": "606cec181b2724dc4ca106f9b92dcf9d6363ed59303c34f2ac575ea7b6b12473",
-  "revisionId": "9eb25e93d787f5e98771c5e8c73b41fe7b93a2dd5a013c4ca69d8afed7755a92",
+  "publicRoot": "6e6a248f4981ff52cf9035bbb8789812feb185541b3d4650fdbcb4810c5eae9a",
+  "releaseFingerprint": "ea1699796e175a7ca09f7abce063d3faea79c89f6a22842e838eeed64fe433d9",
+  "revisionId": "a5bb9ad55a02768d4e102c18bd688c5554a9871496a55832a6c0a892756403f8",
   "sharedPrediction": {
     "columns": [
       "mining.cooldown_ticks",
@@ -23,7 +23,7 @@
     "fingerprint": "8e526dea15af4d974edf7f3485587605628183e4eaab65c25868cd8058721ec9",
     "specVersion": "split-export/1"
   },
-  "sourceFingerprint": "0b22ce8fcdb51480da4229f987fb3b912d7c813bee6ade07713aa9d1af9c7ec6",
+  "sourceFingerprint": "85f8949a91e579ee95f8f3c8cce608252f090099f1cc9a4de664ac8596a814b7",
   "specVersion": "split-export/1",
   "tables": [
     {
@@ -42,8 +42,8 @@
       "table": "effects"
     },
     {
-      "contentFingerprint": "07d95d7f31d5117d0400d070175b42887f76d97d9b0a1dc7a4e5b980a69f8053",
-      "sourceFingerprint": "f59bf7f4430d7a8ae86f42c316cce059238e2ea16e7baa7c14b1d9147019bc09",
+      "contentFingerprint": "cad70e55770cdc1b63120f0c6196bda73002b031016c21d3c706754b81f131e4",
+      "sourceFingerprint": "ed9b0d9718f41f272cd1a8f1a6d519a70d98f733d9d4909a74775704f6f7135f",
       "table": "map"
     },
     {

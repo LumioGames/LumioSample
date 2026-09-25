@@ -25,6 +25,8 @@ public sealed class SourceHygieneTests
                 continue;
             if (Path.GetFileName(file) == "MoveAbility.cs") continue;
             if (Path.GetFileName(file) == "SampleGameplay.cs") continue;
+            // The admission pose half of SampleGameplay, split out as a server-side file (B-00121).
+            if (Path.GetFileName(file) == "SampleGameplay.Server.cs") continue;
             if (Regex.IsMatch(File.ReadAllText(file), @"SetLocalPosition|SetWorldPosition|Translate\("))
                 hits.Add(file);
         }

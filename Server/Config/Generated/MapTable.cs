@@ -2,7 +2,7 @@
 // 生成物不得手改。由 LumioConfig `export --csharp-out` 重建。
 // table: map
 // target: S
-// schemaFingerprint: 4acdde3e64e6b6870ab20578781d1c209aa761fdb0c76171ce4f6c79661b3c2f
+// schemaFingerprint: 854ced003d0dad8b53dd511f38376b80ac3a31d715b1d775ab6fb2664e60a60f
 // </auto-generated>
 
 #nullable enable
@@ -21,7 +21,10 @@ public readonly struct MapRow
         int width,
         int depth,
         double veinRatio,
-        uint oreBlockType)
+        uint oreBlockType,
+        double spawnX,
+        double spawnY,
+        double spawnZ)
     {
         Id = id;
         Name = name;
@@ -29,6 +32,9 @@ public readonly struct MapRow
         Depth = depth;
         VeinRatio = veinRatio;
         OreBlockType = oreBlockType;
+        SpawnX = spawnX;
+        SpawnY = spawnY;
+        SpawnZ = spawnZ;
     }
 
     public uint Id { get; }
@@ -37,6 +43,9 @@ public readonly struct MapRow
     public int Depth { get; }
     public double VeinRatio { get; }
     public uint OreBlockType { get; }
+    public double SpawnX { get; }
+    public double SpawnY { get; }
+    public double SpawnZ { get; }
 }
 
 public readonly struct MapTable

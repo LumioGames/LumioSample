@@ -1,15 +1,18 @@
 {
-  "contentFingerprint": "cad70e55770cdc1b63120f0c6196bda73002b031016c21d3c706754b81f131e4",
+  "contentFingerprint": "5c18a06580161142f1587ebfd7b39ce6f31c0c0e20d5167d83bf7228e7a31b4e",
   "rows": [
     {
       "depth": 32,
       "id": 100001,
       "name": "default",
       "ore_block_type": 1000,
+      "spawn_x": 5.5,
+      "spawn_y": 3.5,
+      "spawn_z": 12.5,
       "vein_ratio": 0.00390625,
       "width": 32
     }
   ],
   "table": "map",
-  "target": "V"
+  "target": "S"
 }

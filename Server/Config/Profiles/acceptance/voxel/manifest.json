@@ -32,12 +32,12 @@
       "chunks": [
         {
           "id": 0,
-          "packageFingerprint": "2c931b524f72321e454604487ea01d2c116809a90370b874b895680260465bd6",
+          "packageFingerprint": "41b73308fda8650574046b4a10c67efc8019b5f4ab84aa46ebf026cd28f7dabd",
           "path": "voxel/map.json"
         }
       ],
-      "contentFingerprint": "cad70e55770cdc1b63120f0c6196bda73002b031016c21d3c706754b81f131e4",
-      "packageFingerprint": "2c931b524f72321e454604487ea01d2c116809a90370b874b895680260465bd6",
+      "contentFingerprint": "5c18a06580161142f1587ebfd7b39ce6f31c0c0e20d5167d83bf7228e7a31b4e",
+      "packageFingerprint": "41b73308fda8650574046b4a10c67efc8019b5f4ab84aa46ebf026cd28f7dabd",
       "path": "voxel/map.json",
       "sourceFingerprint": "ed9b0d9718f41f272cd1a8f1a6d519a70d98f733d9d4909a74775704f6f7135f",
       "table": "map"

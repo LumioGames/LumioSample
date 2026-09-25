@@ -43,6 +43,27 @@
       "ordinal": 5,
       "required": true,
       "visibility": "CSV"
+    },
+    {
+      "name": "spawn_x",
+      "type": "f64",
+      "ordinal": 6,
+      "required": true,
+      "visibility": "S"
+    },
+    {
+      "name": "spawn_y",
+      "type": "f64",
+      "ordinal": 7,
+      "required": true,
+      "visibility": "S"
+    },
+    {
+      "name": "spawn_z",
+      "type": "f64",
+      "ordinal": 8,
+      "required": true,
+      "visibility": "S"
     }
   ]
 }

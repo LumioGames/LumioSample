@@ -329,12 +329,12 @@ public sealed class MoveAbilityWorldTests : IDisposable
     {
         using SampleWorldHarness world = SampleWorldHarness.BootEmpty();
         NetEntityId player = world.AdmitPlayer("acct-spawn");
-        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, world.World.Get<LogicTransform>(player).LocalPosition);
+        Vector3 spawn = SampleGameplay.AdmittedPlayerPosition(world.World);
+        Assert.Equal(spawn, world.World.Get<LogicTransform>(player).LocalPosition);
         SampleGameplay.BindPlayer(world.World, player);
-        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, world.World.Get<LogicTransform>(player).LocalPosition);
-        Assert.Equal(1.5f, SampleGameplay.AdmittedPlayerPosition.Y);
-        Assert.Equal(16.5f, SampleGameplay.AdmittedPlayerPosition.X);
-        Assert.Equal(16.5f, SampleGameplay.AdmittedPlayerPosition.Z);
+        Assert.Equal(spawn, world.World.Get<LogicTransform>(player).LocalPosition);
+        // The default map row (sample.voxel) keeps the pose it always had.
+        Assert.Equal(new Vector3(16.5f, 1.5f, 16.5f), spawn);
     }
 
     [Fact]
@@ -370,14 +370,14 @@ public sealed class MoveAbilityWorldTests : IDisposable
         manager.Start(Thread.CurrentThread);
         WorldTickBinding.Bind(manager);
         NetEntityId player = order.AssignedId;
-        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, manager.World.Get<LogicTransform>(player).LocalPosition);
+        Assert.Equal(SampleGameplay.AdmittedPlayerPosition(manager.World), manager.World.Get<LogicTransform>(player).LocalPosition);
         AbilityComponent abilities = manager.World.Get<AbilityComponent>(player);
         Assert.Same(AbilityPhysicsBinding.Resolve(manager), abilities.Physics);
         var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
         AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);
         Assert.True(result.Succeeded, result.FailureCode ?? "MoveAbility refused the committed sample.voxel admission pose");
         Assert.Equal(
-            SampleGameplay.AdmittedPlayerPosition + new Vector3((float)SampleConfigBinding.For(manager.World).Movement.StepMeters, 0f, 0f),
+            SampleGameplay.AdmittedPlayerPosition(manager.World) + new Vector3((float)SampleConfigBinding.For(manager.World).Movement.StepMeters, 0f, 0f),
             manager.World.Get<LogicTransform>(player).LocalPosition);
         _ = native;
     }
@@ -399,14 +399,14 @@ public sealed class MoveAbilityWorldTests : IDisposable
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(manager.World, "acct-tryattach-spawn");
         manager.Tick();
         NetEntityId player = order.AssignedId;
-        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, manager.World.Get<LogicTransform>(player).LocalPosition);
+        Assert.Equal(SampleGameplay.AdmittedPlayerPosition(manager.World), manager.World.Get<LogicTransform>(player).LocalPosition);
         AbilityComponent abilities = manager.World.Get<AbilityComponent>(player);
         Assert.Same(AbilityPhysicsBinding.Resolve(manager), abilities.Physics);
         var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
         AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);
         Assert.True(result.Succeeded, result.FailureCode ?? "MoveAbility refused TryAttach-restored sample.voxel");
         Assert.Equal(
-            SampleGameplay.AdmittedPlayerPosition + new Vector3((float)SampleConfigBinding.For(manager.World).Movement.StepMeters, 0f, 0f),
+            SampleGameplay.AdmittedPlayerPosition(manager.World) + new Vector3((float)SampleConfigBinding.For(manager.World).Movement.StepMeters, 0f, 0f),
             manager.World.Get<LogicTransform>(player).LocalPosition);
         _ = native;
     }
@@ -432,7 +432,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         Assert.IsType<RecordingAbilityPhysicsPort>(abilities.Physics);
 
         LogicTransform logic = world.World.Get<LogicTransform>(player);
-        Assert.Equal(SampleGameplay.AdmittedPlayerPosition, logic.LocalPosition);
+        Assert.Equal(SampleGameplay.AdmittedPlayerPosition(world.World), logic.LocalPosition);
         Vector3 origin = logic.LocalPosition;
         var input = new MoveAbility.Input { Dx = 1, Dz = 0 };
         AbilityActivateResult result = abilities.Activate<MoveAbility, MoveAbility.Input>(in input);

@@ -77,7 +77,7 @@ public sealed class SampleTypedTables : ITypedTableSet
                 else if (string.Equals(tbl.TableId, "attributes", StringComparison.OrdinalIgnoreCase))
                     attributes.Add(new AttributesRow(UInt(cells, "id"), Text(cells, "name"), Long(cells, "initial")));
                 else if (string.Equals(tbl.TableId, "map", StringComparison.OrdinalIgnoreCase))
-                    map.Add(new MapRow(UInt(cells, "id"), Text(cells, "name"), Int(cells, "width"), Int(cells, "depth"), Double(cells, "vein_ratio"), UInt(cells, "ore_block_type")));
+                    map.Add(SampleMapRows.Read(cells));
             }
         }
 
@@ -95,18 +95,18 @@ public sealed class SampleTypedTables : ITypedTableSet
         return cells;
     }
 
-    private static string Text(Dictionary<string, string> cells, string column) =>
+    internal static string Text(Dictionary<string, string> cells, string column) =>
         cells.TryGetValue(column, out string? value) ? value : string.Empty;
 
-    private static uint UInt(Dictionary<string, string> cells, string column) =>
+    internal static uint UInt(Dictionary<string, string> cells, string column) =>
         uint.TryParse(Text(cells, column), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint value) ? value : 0u;
 
-    private static int Int(Dictionary<string, string> cells, string column) =>
+    internal static int Int(Dictionary<string, string> cells, string column) =>
         int.TryParse(Text(cells, column), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : 0;
 
-    private static long Long(Dictionary<string, string> cells, string column) =>
+    internal static long Long(Dictionary<string, string> cells, string column) =>
         long.TryParse(Text(cells, column), NumberStyles.Integer, CultureInfo.InvariantCulture, out long value) ? value : 0L;
 
-    private static double Double(Dictionary<string, string> cells, string column) =>
+    internal static double Double(Dictionary<string, string> cells, string column) =>
         double.TryParse(Text(cells, column), NumberStyles.Float, CultureInfo.InvariantCulture, out double value) ? value : 0d;
 }

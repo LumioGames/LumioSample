@@ -49,9 +49,9 @@
       "id": "engine",
       "name": "engine",
       "ore_block_type": "engine",
-      "spawn_x": "engine",
-      "spawn_y": "engine",
-      "spawn_z": "engine",
+      "spawn_x": "environment",
+      "spawn_y": "environment",
+      "spawn_z": "environment",
       "vein_ratio": "engine",
       "width": "engine"
     }
