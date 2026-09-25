@@ -18,7 +18,7 @@ import {
 const BINARY = 'a'.repeat(64);
 const scratch = () => mkdtempSync(join(tmpdir(), 'lumio-hostci-'));
 
-/** A fake Engine/ release for linux-x64 carrying what the host cases load. */
+/** A fake Engine/ release for linux-x64 carrying what the host cases load, plus the game-authored fixture. */
 function releaseTree({ binarySha256 = BINARY, evidenceSha = BINARY, omit = [] } = {}) {
   const layout = releaseLayout(join(scratch(), 'Engine'), 'linux-x64');
   const files = {
@@ -37,7 +37,8 @@ function releaseTree({ binarySha256 = BINARY, evidenceSha = BINARY, omit = [] } 
     writeFileSync(join(dirname(layout.engineNative), 'build-info.json'),
       JSON.stringify({ buildId: 'b'.repeat(32), abiHash: 'c'.repeat(64), binarySha256 }));
   }
-  const fixture = join(layout.tools, 'fixtures', 'catalog-world');
+  // Authored by this game (CatalogWorldTests with LUMIO_SAMPLE_CATALOG_WORLD_OUTPUT), not shipped by the release.
+  const fixture = join(dirname(layout.root), 'catalog-world');
   mkdirSync(fixture, { recursive: true });
   for (const file of FIXTURE_FILES) {
     if (omit.includes(file)) continue;
@@ -45,6 +46,7 @@ function releaseTree({ binarySha256 = BINARY, evidenceSha = BINARY, omit = [] } 
       ? JSON.stringify({ BinarySha256: evidenceSha, captureSha256: 'd'.repeat(64) })
       : 'fixture');
   }
+  layout.fixture = fixture;
   return layout;
 }
 
@@ -76,24 +78,26 @@ test('every engine file the cases load must be in the release; a missing one is 
   assert.equal(resolveRelease(releaseTree()).native.info.binarySha256, BINARY);
 });
 
-test('the release catalog world must be authored against the release native, or it is refused', () => {
+test('the game-authored catalog world must be authored on the release native, or it is refused', () => {
   const layout = releaseTree({ evidenceSha: 'e'.repeat(64) });
   const { native } = resolveRelease(layout);
-  assert.throws(() => resolveVoxelFixture(layout, native), /VOXEL_FIXTURE_NATIVE_MISMATCH/u);
+  assert.throws(() => resolveVoxelFixture(layout.fixture, native), /VOXEL_FIXTURE_NATIVE_MISMATCH/u);
   for (const file of FIXTURE_FILES) {
     const partial = releaseTree({ omit: [file] });
-    assert.throws(() => resolveVoxelFixture(partial, resolveRelease(partial).native), /MISSING_INPUT: LUMIO_TEST_VOXEL_FIXTURE_DIR/u, file);
+    assert.throws(() => resolveVoxelFixture(partial.fixture, resolveRelease(partial).native), /MISSING_INPUT: LUMIO_TEST_VOXEL_FIXTURE_DIR/u, file);
   }
+  // No --voxel-fixture at all: named, not skipped, and the release is never searched for one.
+  assert.throws(() => resolveVoxelFixture(undefined, native), /MISSING_INPUT: LUMIO_TEST_VOXEL_FIXTURE_DIR.*--voxel-fixture/u);
 });
 
 test('prepare exports the game-side values through GITHUB_ENV and names the release identity', () => {
   const layout = releaseTree();
   const githubEnv = join(scratch(), 'github-env');
   writeFileSync(githubEnv, '');
-  const result = prepare({ layout, gameplayBin: gameplayTree(), env: { GITHUB_ENV: githubEnv } });
+  const result = prepare({ layout, gameplayBin: gameplayTree(), voxelFixture: layout.fixture, env: { GITHUB_ENV: githubEnv } });
   const written = new Map(readFileSync(githubEnv, 'utf8').trim().split('\n').map((line) => line.split('=')));
   assert.deepEqual([...written.keys()].sort(), [...REQUIRED_ENV].sort());
-  assert.equal(written.get('LUMIO_TEST_VOXEL_FIXTURE_DIR'), join(layout.tools, 'fixtures', 'catalog-world'));
+  assert.equal(written.get('LUMIO_TEST_VOXEL_FIXTURE_DIR'), layout.fixture);
   assert.equal(result.nativeSha256, BINARY);
   assert.equal(result.rid, 'linux-x64');
 });
@@ -104,8 +108,8 @@ test('an empty Engine/ is refused before any input is named', () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test('arguments are the game-side two; engine paths are not arguments any more', () => {
-  assert.deepEqual(parseArguments(['--gameplay-bin', 'a', '--config-dir', 'b']), { gameplayBin: 'a', configDir: 'b' });
+test('arguments are the game-side inputs; engine paths are not arguments any more', () => {
+  assert.deepEqual(parseArguments(['--gameplay-bin', 'a', '--voxel-fixture', 'f', '--config-dir', 'b']), { gameplayBin: 'a', voxelFixture: 'f', configDir: 'b' });
   for (const flag of ['--engine-root', '--hostentry-dir', '--output']) {
     assert.throws(() => parseArguments([flag, 'x']), /bad argument/u);
   }

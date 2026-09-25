@@ -22,7 +22,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
 // ADR-123: the voxel driver and its wasm are the Engine/ release's web/ parts.
 const ENGINE_WEB = path.join(REPO_ROOT, "Engine/web");
-const VOXEL_GRID = path.join(ENGINE_WEB, "spectator/voxel-grid.mjs");
+const VOXEL_GRID = path.join(ENGINE_WEB, "voxel-grid.mjs");
 assert.ok(fs.existsSync(VOXEL_GRID), `engine voxel-grid.mjs not found at ${VOXEL_GRID}; run: git submodule update --init --depth 1 Engine`);
 const {
   openVoxelGrid,

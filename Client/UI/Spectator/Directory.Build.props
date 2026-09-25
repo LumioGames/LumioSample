@@ -18,14 +18,18 @@
     <!--
       ADR-123: the engine parts this page is assembled from (R-00710: connect-ds /
       voxel-grid / generated close-code and not_serving tables / dev hot-reload bridge,
-      SpectatorSectionFrame and ReplicaApplyTickLoop, the netstandard2.1 Replica, and the
-      VoxelEngine browser wasm — ADR-078 决策 1) come from the Engine/ release's web/, and
-      from nowhere else. They are read at build and publish time and never copied into this
-      repository. Engine/ empty is BLOCKED with the submodule command (Directory.Build.targets).
+      the netstandard2.1 browser replica, and the VoxelEngine browser wasm — ADR-078 决策 1)
+      come from the Engine/ release's web/, and from nowhere else. The release's web/ layout
+      (repository-architecture「引擎发布物」): web/*.mjs flat, web/lumio_voxel_wasm.wasm, and
+      web/replica/netstandard2.1/ with Lumio.Client.Gameplay.ECS.dll, Lumio.Client.Log.dll and
+      Lumio.Client.Spectator.dll (SpectatorSectionFrame, ReplicaApplyTickLoop). The release
+      carries no source: the C# parts are referenced as that DLL, never compiled by link.
+      Nothing is copied into this repository. Engine/ empty is BLOCKED with the submodule
+      command (Directory.Build.targets).
     -->
     <LumioEngineRoot>$(LumioSampleRepoRoot)Engine/</LumioEngineRoot>
     <LumioEngineWeb>$(LumioEngineRoot)web/</LumioEngineWeb>
-    <LumioSpectatorParts>$(LumioEngineWeb)spectator/</LumioSpectatorParts>
+    <LumioSpectatorParts>$(LumioEngineWeb)</LumioSpectatorParts>
     <LumioSpectatorReplicaDir>$(LumioEngineWeb)replica/netstandard2.1/</LumioSpectatorReplicaDir>
     <LumioVoxelWasm>$(LumioEngineWeb)lumio_voxel_wasm.wasm</LumioVoxelWasm>
     <!-- Same one version as the repo-root build: Engine/manifest.json#version. -->

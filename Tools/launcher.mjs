@@ -525,8 +525,13 @@ async function sleep(ms, { keepAlive = true } = {}) {
   });
 }
 
+// Bots are clients: Bot.Host's ReplicaWorld needs the client compile of the gameplay
+// (LumioEcsSide=client, output net10.0-client). The server compile (net10.0) is the DS's,
+// named by the DS template's registry_assembly, and a bot loading it fails its login
+// (spectator-100 GAMEPLAY_CLIENT_MARKER). R-00785.
+export const DEFAULT_BOT_GAMEPLAY = 'Gameplay/bin/Debug/net10.0-client/Lumio.Sample.Gameplay.dll';
 function defaultGameplayPath(root) {
-  return join(root, 'Gameplay', 'bin', 'Debug', 'net10.0', 'Lumio.Sample.Gameplay.dll');
+  return join(root, ...DEFAULT_BOT_GAMEPLAY.split('/'));
 }
 
 function holdWindowMs(options) {
@@ -818,7 +823,7 @@ function usage() {
     `Bots carry ${DEFAULT_BOT_VOXEL_CONFIG} by default; this room is world_profile=runtime+voxel,`,
     '  and a bot with no voxel budget faults on its first SectionFrame (ADR-112 修订 2 ⑨, by design).',
     '  --voxel-config off keeps the entity-only bot for a room that sends no Sections.',
-    'Game inputs: --gameplay (default Gameplay/bin/Debug/net10.0), --scenario-dll (Lumio.Sample.Bots.dll,',
+    `Game inputs: --gameplay (bot gameplay, default ${DEFAULT_BOT_GAMEPLAY}: the client compile), --scenario-dll (Lumio.Sample.Bots.dll,`,
     '  built from Client/Bots), LUMIO_BOT_TOOL_CREDENTIAL for Bot* names (or --login-prefix for ordinary accounts).',
     'DS config: LUMIO_DS_CONFIG (default Server/Config/Startup/server.json) is a template; each run',
     '  writes its own copy with a fresh store under .run/. LUMIO_PLATFORM_ADMISSION_KEY replaces the',
@@ -1047,7 +1052,7 @@ export async function runLauncher(options = {}) {
 
     const gameplayCandidate = options.gameplay || defaultGameplayPath(root);
     if (!existsSync(gameplayCandidate)) {
-      record('04', 'BLOCKED_ENV', `gameplay assembly not found: ${gameplayCandidate} (build this repository, or pass --gameplay).`);
+      record('04', 'BLOCKED_ENV', `bot gameplay assembly not found: ${gameplayCandidate} (build the client side: dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -p:LumioEcsSide=client, or pass --gameplay).`);
       recordRest(4, 'BLOCKED_ENV', 'waiting for Bot.Host Activate');
       report.status = reportStatusFromSteps(report.steps);
       return report;

@@ -6,7 +6,7 @@
  * (R-00702, ADR-123).
  *
  *   node Tools/prepare-server-host-inputs.mjs \
- *     --gameplay-bin <Gameplay/bin/Release/net10.0> [--config-dir <Server/Config/Tables>]
+ *     --gameplay-bin <Gameplay/bin/Release/net10.0> --voxel-fixture <dir> [--config-dir <Server/Config/Tables>]
  *
  * The engine half — HostEntry, the Runtime three-path, the native image — is the Engine/
  * release for this machine's <rid> (the C# cases read it from there themselves; no variable
@@ -14,12 +14,13 @@
  * same release's Lumio.Engine.SDK, which is the only SDK the build knows (ADR-102: HostEntry
  * answers `sdk_version_mismatch` to anything else).
  *
- * The voxel case needs a catalog world authored against the release's own native image. The
- * game cannot author one (the producers are engine source), so it is an engine-produced input
- * shipped with the release: Engine/tools/fixtures/catalog-world/ (R-00779 request to the
- * release pipeline; ADR-117 决策 2 run-time consumption). Its evidence must carry the native
- * image's `binarySha256` — same-source or fail. Nothing here skips: every missing or
- * mismatched input throws with the variable's name.
+ * The voxel case needs a catalog world authored against the release's own native image. This
+ * game authors it itself (R-00785, ADR-117: no engine test fixture): its base map
+ * Server/Assets/Maps/sample.voxel restored on the release native, one public write, one capture
+ * (Server/Tests/Gameplay/CatalogWorld.cs). The Gameplay test `CatalogWorldTests` writes the three
+ * files when LUMIO_SAMPLE_CATALOG_WORLD_OUTPUT names a directory; `--voxel-fixture` is that
+ * directory. Its evidence must carry the release native's `binarySha256` — same-source or fail.
+ * Nothing here skips: every missing or mismatched input throws with the variable's name.
  */
 
 import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
@@ -68,17 +69,18 @@ export function resolveRelease(layout) {
   return { hostEntry, native: { image, sidecar, info } };
 }
 
-/** The release's catalog world, and proof it was authored against this very native image. */
-export function resolveVoxelFixture(layout, native) {
-  const directory = requireDirectory(join(layout.tools, 'fixtures', 'catalog-world'), 'LUMIO_TEST_VOXEL_FIXTURE_DIR',
-    'the catalog world shipped with the Engine/ release (tools/fixtures/catalog-world)');
-  for (const file of FIXTURE_FILES) requireFile(join(directory, file), 'LUMIO_TEST_VOXEL_FIXTURE_DIR', `the release catalog world lacks ${file}`);
+/** This game's catalog world (--voxel-fixture), and proof it was authored on this very native image. */
+export function resolveVoxelFixture(fixtureDirectory, native) {
+  const directory = requireDirectory(fixtureDirectory, 'LUMIO_TEST_VOXEL_FIXTURE_DIR',
+    'the catalog world this game authors on the release native (--voxel-fixture: the directory '
+    + 'LUMIO_SAMPLE_CATALOG_WORLD_OUTPUT gave CatalogWorldTests.AuthorsTheWallSceneOnTheReleaseNative)');
+  for (const file of FIXTURE_FILES) requireFile(join(directory, file), 'LUMIO_TEST_VOXEL_FIXTURE_DIR', `the catalog world lacks ${file}`);
   const evidence = JSON.parse(readFileSync(join(directory, 'catalog-world-evidence.json'), 'utf8'));
   if (String(evidence.BinarySha256 ?? '').toLowerCase() !== native.info.binarySha256.toLowerCase()) {
     throw new Error(
-      'VOXEL_FIXTURE_NATIVE_MISMATCH: the release catalog world was authored against a different native image '
+      'VOXEL_FIXTURE_NATIVE_MISMATCH: the catalog world was authored against a different native image '
       + `(fixture ${evidence.BinarySha256}, release ${native.info.binarySha256}). `
-      + 'This is the drift R-00692 hit as load_suspended_missing_voxel; the release pipeline must author it against its own native.');
+      + 'This is the drift R-00692 hit as load_suspended_missing_voxel; re-author it on this Engine/ release.');
   }
   return { directory, evidence };
 }
@@ -112,6 +114,7 @@ export function resolveInputs({ gameplayBin, configDir, fixtureDirectory } = {})
 /** `--gameplay-bin x` → `{ gameplayBin: 'x' }`. Unknown flags are rejected, not ignored. */
 export const FLAGS = {
   '--gameplay-bin': 'gameplayBin',
+  '--voxel-fixture': 'voxelFixture',
   '--config-dir': 'configDir',
 };
 
@@ -132,10 +135,10 @@ export function parseArguments(argv) {
  * `layout` is the verified release (prepareEngine) unless a test hands in one; everything
  * engine-side is read from it.
  */
-export function prepare({ gameplayBin, configDir, layout, root = ROOT, env = process.env } = {}) {
+export function prepare({ gameplayBin, configDir, voxelFixture, layout, root = ROOT, env = process.env } = {}) {
   const release = layout ?? prepareEngine({ repoRoot: root }).layout;
   const { native } = resolveRelease(release);
-  const fixture = resolveVoxelFixture(release, native);
+  const fixture = resolveVoxelFixture(voxelFixture, native);
   const values = resolveInputs({ gameplayBin, configDir, fixtureDirectory: fixture.directory });
   if (env.GITHUB_ENV)
     appendFileSync(env.GITHUB_ENV, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));

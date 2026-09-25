@@ -8,6 +8,7 @@ import {
   ensureEngine,
   hostRid,
   nativeLibraryName,
+  parseDotnetRid,
   prepareEngine,
   readManifest,
   releaseLayout,
@@ -23,10 +24,34 @@ function writeRelease(root, { version = '0.0.1', platforms = [hostRid()], verify
   if (verify != null) writeFileSync(join(root, 'tools', 'verify-release.mjs'), verify);
 }
 
-test('the host rid is spelled the way the release names platforms', () => {
-  assert.equal(hostRid('win32', 'x64'), 'win-x64');
-  assert.equal(hostRid('darwin', 'arm64'), 'osx-arm64');
-  assert.equal(hostRid('linux', 'x64'), 'linux-x64');
+// R-00785: the platform is the RID of the .NET that runs the engine's managed half, read from
+// `dotnet --info`, never the node process's architecture. An x64 .NET on an Apple silicon Mac
+// (node arm64) is osx-x64; a machine the release does not list is BLOCKED_ENV by name.
+const DOTNET_INFO = (rid) => `.NET SDK:\n Version:           10.0.400\n\nRuntime Environment:\n OS Name:     Mac OS X\n OS Version:  26.5\n OS Platform: Darwin\n RID:         ${rid}\n Base Path:   /usr/local/share/dotnet/sdk/10.0.400/\n`;
+
+test('the host rid is the .NET RID from dotnet --info, not the node architecture', () => {
+  assert.equal(parseDotnetRid(DOTNET_INFO('osx-x64')), 'osx-x64');
+  assert.equal(parseDotnetRid(DOTNET_INFO('linux-x64').replace('\n', '\r\n')), 'linux-x64');
+  assert.equal(parseDotnetRid('no rid here'), null);
+  const calls = [];
+  const info = (dotnet) => { calls.push(dotnet); return { status: 0, stdout: DOTNET_INFO('osx-x64') }; };
+  assert.equal(hostRid({ dotnet: '/opt/dotnet/dotnet', info }), 'osx-x64');
+  assert.deepEqual(calls, ['/opt/dotnet/dotnet']);
+  assert.throws(() => hostRid({ info: () => ({ status: 0, stdout: 'garbage' }) }), (error) => error.code === 'BLOCKED_ENV' && /dotnet --info/.test(error.message));
+  assert.throws(() => hostRid({ info: () => ({ error: new Error('spawn dotnet ENOENT') }) }), (error) => error.code === 'BLOCKED_ENV');
+  // The real host: whatever `dotnet --info` says, spelled <os>-<arch>.
+  assert.match(hostRid(), /^(win|linux|osx)-(x64|arm64)$/);
+});
+
+test('an osx-x64 .NET host against a win-x64 / linux-x64 release is BLOCKED_ENV naming osx-x64, with no fall-back', () => {
+  const info = () => ({ status: 0, stdout: DOTNET_INFO('osx-x64') });
+  assert.throws(
+    () => assertPlatform({ version: '0.0.1', platforms: ['win-x64', 'linux-x64'] }, hostRid({ info })),
+    (error) => error.code === 'BLOCKED_ENV' && /this machine is osx-x64/.test(error.message) && /\[win-x64, linux-x64\]/.test(error.message),
+  );
+});
+
+test('native library names follow the rid', () => {
   assert.equal(nativeLibraryName('win-x64'), 'lumio_engine_native.dll');
   assert.equal(nativeLibraryName('osx-arm64'), 'liblumio_engine_native.dylib');
   assert.equal(nativeLibraryName('linux-x64'), 'liblumio_engine_native.so');

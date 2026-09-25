@@ -34,12 +34,15 @@ internal static class EngineRelease
     internal static string EcsAssembly => Path.Combine(Server, "SDK", "Managed", "Lumio.GameRuntime.Ecs.dll");
 
     /// <summary>
-    /// The catalog world authored against this release's own native image (catalog-world.json,
-    /// catalog-world.capture, catalog-world-evidence.json). An engine test input shipped with the
-    /// release; requested of the release pipeline by R-00779 (ADR-117 决策 2: run-time
-    /// consumption of an engine-produced input, never a compile-time reference).
+    /// The Runtime finds <c>liblumio_engine_native</c> through <c>LUMIO_ENGINE_NATIVE_PATH</c>
+    /// (Ecs spatial index, GAS hfsm, Simulation clock). Every test process points it at the
+    /// release native before any test runs, so a Runtime lease and the cases that load
+    /// <see cref="NativeLibrary"/> directly use the same image (R-00785). Set unconditionally, so
+    /// no value inherited from the shell can point these tests at another image.
     /// </summary>
-    internal static string CatalogWorldFixture => Path.Combine(Root, "tools", "fixtures", "catalog-world");
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void UseReleaseNative() =>
+        Environment.SetEnvironmentVariable("LUMIO_ENGINE_NATIVE_PATH", NativeLibrary);
 
     internal static string Require(string path, string why)
     {

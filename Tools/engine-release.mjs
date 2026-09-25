@@ -43,11 +43,38 @@ export class EngineReleaseError extends Error {
   }
 }
 
-/** The .NET runtime identifier of this machine, spelled the way the release names platforms. */
-export function hostRid(platform = process.platform, arch = process.arch) {
-  const os = { win32: 'win', darwin: 'osx', linux: 'linux' }[platform] ?? platform;
-  const cpu = { x64: 'x64', arm64: 'arm64', ia32: 'x86', arm: 'arm' }[arch] ?? arch;
-  return `${os}-${cpu}`;
+/**
+ * The `RID:` line of `dotnet --info` (the .NET host's own runtime identifier), or null.
+ * `dotnet --info` prints it under "Runtime Environment"; a localized SDK still spells the key `RID`.
+ */
+export function parseDotnetRid(infoText) {
+  const match = /^\s*RID:\s*(\S+)\s*$/m.exec(String(infoText ?? ''));
+  return match ? match[1] : null;
+}
+
+function defaultDotnetInfo(dotnet) {
+  return spawnSync(dotnet, ['--info'], { encoding: 'utf8', env: { ...process.env, DOTNET_CLI_TELEMETRY_OPTOUT: '1', DOTNET_NOLOGO: '1' } });
+}
+
+const ridCache = new Map();
+
+/**
+ * This machine's platform as the release names it: the RID of the .NET that runs the engine's
+ * managed half (DS HostEntry, Bot.Host, tests), read from `dotnet --info` (R-00785). Not the node
+ * process's own architecture: on an Apple silicon Mac an x64 .NET under Rosetta needs `osx-x64`
+ * while node reports arm64. No .NET, or no RID line, is BLOCKED_ENV; there is no guess.
+ */
+export function hostRid({ dotnet = 'dotnet', info = defaultDotnetInfo } = {}) {
+  if (ridCache.has(dotnet) && info === defaultDotnetInfo) return ridCache.get(dotnet);
+  const result = info(dotnet);
+  const rid = result?.error ? null : parseDotnetRid(result?.stdout);
+  if (!rid) {
+    const detail = commandText(result).split('\n').slice(-2).join(' | ');
+    throw blocked(`cannot tell this machine's .NET RID from "${dotnet} --info"${detail ? ` (${detail})` : ''}; `
+      + 'install the .NET SDK named in global.json and put dotnet on PATH.');
+  }
+  if (info === defaultDotnetInfo) ridCache.set(dotnet, rid);
+  return rid;
 }
 
 export function engineDir(repoRoot) {
@@ -92,7 +119,9 @@ export function releaseLayout(root, rid) {
     bot,
     botHost: join(bot, 'Lumio.Client.Bot.Host.dll'),
     web,
-    webSpectator: join(web, 'spectator'),
+    // web/ layout (repository-architecture「引擎发布物」): *.mjs flat, the voxel wasm, and the
+    // netstandard2.1 browser replica (ECS replica, client log, spectator C# parts) as DLLs.
+    webReplica: join(web, 'replica', 'netstandard2.1'),
     voxelWasm: join(web, 'lumio_voxel_wasm.wasm'),
     tools,
     processTools: join(tools, 'process-tools.mjs'),

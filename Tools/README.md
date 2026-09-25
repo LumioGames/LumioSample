@@ -31,7 +31,9 @@ node Tools/test-server-host.mjs <results-dir>
 
 - **引擎一半只来自 `Engine/`**。`Lumio.Server.HostEntry.dll`、Runtime 三路径、native 都在
   `Engine/server/<rid>/`，用例自己从那里读（`Server/Tests/EngineRelease.cs`）；voxel 用例的
-  catalog world 是发布物随带的 `Engine/tools/fixtures/catalog-world/`，它的
+  catalog world 是本仓自己造的（R-00785，ADR-117）：`CatalogWorldTests` 在发布物 native 上把
+  `Server/Assets/Maps/sample.voxel` 还原、经公开 API 写一格墙、再 Capture，
+  `LUMIO_SAMPLE_CATALOG_WORLD_OUTPUT` 给了目录就写出三件文件，经 `--voxel-fixture` 交给本脚本。
   `catalog-world-evidence.json` 的 `BinarySha256` 必须等于发布物 native 的 `build-info.json`，
   不同源就 `VOXEL_FIXTURE_NATIVE_MISMATCH`（R-00692 踩过的 `load_suspended_missing_voxel`）。
 - **缺产物按名字失败，不跳过**（ADR-113 决策 2）。任何一个缺失都是
@@ -118,6 +120,7 @@ appear here.
 
 ```bash
 node --test Tools/launcher.test.mjs
+dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -p:LumioEcsSide=client   # bots run the client compile
 dotnet build Client/Bots/Lumio.Sample.Bots.csproj
 node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll Client/Bots/bin/Debug/net10.0/Lumio.Sample.Bots.dll
 ```
