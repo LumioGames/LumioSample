@@ -1,0 +1,23 @@
+LumioSample block texture pack (Client/Assets/Blocks)
+
+Scope: every PNG under textures/ and preview/, every lumio.*.json block asset
+description and pack.json in this directory, and the generator
+source/generate-textures.mjs.
+
+These files were created from scratch by the LumioSample contributors. The
+textures are drawn procedurally by source/generate-textures.mjs; no external
+image, texture pack, or Minecraft / Mojang asset was used, traced, or referenced.
+
+To the extent possible under law, the LumioSample contributors have waived all
+copyright and related or neighboring rights to these files by dedicating them
+to the public domain under the Creative Commons CC0 1.0 Universal Public Domain
+Dedication (SPDX: CC0-1.0).
+
+Full legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+The rest of the LumioSample repository is licensed separately (see the LICENSE
+file at the repository root).
+
+If a texture from another source is added later, its source, version, author
+and license are recorded per file in SOURCES.md, and CC-BY-4.0 textures are
+credited in ATTRIBUTION.md. Only CC0-1.0 and CC-BY-4.0 are accepted.
