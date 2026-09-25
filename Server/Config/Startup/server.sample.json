@@ -10,14 +10,8 @@
   "admission_key_id": 1,
   "admission_public_key_hex": "REPLACE_WITH_PLATFORM_32_BYTE_PUBLIC_KEY_HEX",
   "clr": {
-    "engine_native": "sdk/liblumio_engine.so",
-    "hostfxr": "dotnet/libhostfxr.so",
-    "runtime_config": "../../../Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.runtimeconfig.json",
-    "assembly": "../../../Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll",
     "entry_type": "Lumio.Server.HostEntry.HostEntry, Lumio.Server.HostEntry",
     "entry_method": "LumioHostEntry",
-    "replication_assembly": "../../../Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Replication.dll",
-    "ecs_assembly": "../../../Gameplay/bin/Debug/net10.0/Lumio.GameRuntime.Ecs.dll",
     "registry_assembly": "../../../Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll",
     "kernel_config": {
       "maxContexts": 64,

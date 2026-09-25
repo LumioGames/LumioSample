@@ -2,19 +2,18 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    <LumioSdkVersion Condition="'$(LumioSdkVersion)' == ''">0.1.0</LumioSdkVersion>
     <!--
-      Option 1 (B-00069): Locally packed Lumio.Engine.SDK produces fluctuating content hashes per build/machine,
-      so a committed lock file would fail restore with NU1403 on every repack. Until the SDK is published to
-      nuget.org with immutable hashes (deferred before S-16 per R-00519/ADR-075), this tree does not lock at all.
-      No lock file is written, so there is nothing to relocate.
+      No lock file. Lumio.Engine.SDK comes from the Engine/ release folder and its version moves
+      with the submodule pin (Tools/update-engine.mjs); the engine regression job also swaps
+      Engine/ for a main build of the same layout (ADR-123 决策 7), whose package has another
+      content hash. A committed lock would fail those restores with NU1403.
     -->
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="xunit.v3" Version="4.0.0" />
     <PackageVersion Include="Microsoft.Testing.Platform" Version="2.3.3" />
-    <!-- Gameplay consumes this package when no sibling Runtime checkout is available. -->
+    <!-- ADR-123: the version is Engine/manifest.json#version (Directory.Build.props). -->
     <PackageVersion Include="Lumio.Engine.SDK" Version="$(LumioSdkVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
     <PackageVersion Include="System.Text.Json" Version="10.0.11" />

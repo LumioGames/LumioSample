@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -24,14 +24,14 @@ function passingCriteria(document) {
   return document;
 }
 
-test('stress evidence schema names ten repos and the NativeCore clock', () => {
+test('stress evidence schema names Sample plus the seven engine source repos and the NativeCore clock', () => {
   const document = createStressDocument();
   assert.equal(document.params.bots, 100);
   assert.equal(document.params.durationSeconds, 300);
   assert.equal(document.clock, 'native-core-clock_now');
   assert.equal(document.criteria.frameBudget.budgetMs, 50);
-  assert.equal(SHA_REPOS.length, 10);
-  assert.equal(Object.keys(document.shas).length, 10);
+  assert.equal(SHA_REPOS.length, 8);
+  assert.equal(Object.keys(document.shas).length, 8);
   assert.equal(criteriaPassed(document), false);
 });
 
@@ -90,13 +90,23 @@ test('criteriaPassed rejects short duration, missing p99, missing SHA, and one r
   assert.equal(criteriaPassed(passingCriteria(createStressDocument())), true);
 });
 
-test('collectRepoShas skips missing siblings without dumping git fatal', () => {
+test('collectRepoShas is null for every repo without a checkout or an Engine/ manifest', () => {
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-sha-root-'));
   const shas = collectRepoShas(isolated);
-  assert.equal(Object.keys(shas).length, 10);
+  assert.equal(Object.keys(shas).length, 8);
   for (const name of SHA_REPOS) {
     assert.equal(shas[name], null);
   }
+});
+
+test('collectRepoShas reads the engine sources from Engine/manifest.json, not sibling checkouts', () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-sha-manifest-'));
+  mkdirSync(join(isolated, 'Engine'), { recursive: true });
+  const sources = Object.fromEntries(SHA_REPOS.slice(1).map((name, index) => [name, String(index).repeat(40)]));
+  writeFileSync(join(isolated, 'Engine', 'manifest.json'), JSON.stringify({ formatVersion: 1, version: '0.0.1', platforms: [], sources }));
+  const shas = collectRepoShas(isolated);
+  for (const [name, sha] of Object.entries(sources)) assert.equal(shas[name], sha);
+  assert.equal(shas.LumioSample, null);
 });
 
 test('collectRepoShas records LumioSample HEAD from a real checkout', () => {

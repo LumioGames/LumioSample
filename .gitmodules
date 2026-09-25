@@ -1,0 +1,4 @@
+[submodule "Engine"]
+	path = Engine
+	url = https://github.com/LumioGames/LumioEngineRelease
+	shallow = true

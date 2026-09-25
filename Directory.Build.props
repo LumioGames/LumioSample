@@ -17,6 +17,22 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
+  <!--
+    ADR-123: the engine comes from one place only, the read-only submodule Engine/
+    (LumioEngineRelease pinned at a release tag). The SDK package is Engine/sdk/ and its
+    version is Engine/manifest.json#version. There is no sibling checkout, global-packages
+    or nuget.org path for Lumio.Engine.SDK; NuGet.config maps that one package to Engine/sdk.
+    Directory.Build.targets turns "not resolved" into LUMIO_SDK_UNRESOLVED.
+  -->
+  <PropertyGroup>
+    <LumioEngineRoot>$(MSBuildThisFileDirectory)Engine/</LumioEngineRoot>
+    <LumioEngineManifest>$(LumioEngineRoot)manifest.json</LumioEngineManifest>
+    <LumioEngineSdkFeed>$(LumioEngineRoot)sdk/</LumioEngineSdkFeed>
+    <_LumioEngineManifestText Condition="Exists('$(LumioEngineManifest)')">$([System.IO.File]::ReadAllText('$(LumioEngineManifest)'))</_LumioEngineManifestText>
+    <LumioSdkVersion Condition="'$(_LumioEngineManifestText)' != ''">$([System.Text.RegularExpressions.Regex]::Match($(_LumioEngineManifestText), '"version"\s*:\s*"([^"]+)"').Groups[1].Value)</LumioSdkVersion>
+    <LumioSdkResolved Condition="'$(LumioSdkVersion)' != '' and Exists('$(LumioEngineSdkFeed)Lumio.Engine.SDK.$(LumioSdkVersion).nupkg')">true</LumioSdkResolved>
+  </PropertyGroup>
+
   <!-- Client compile must not overwrite the default server output DS loads.
        OutputPath has to be set here: Directory.Build.targets runs after the
        SDK already computed bin/$(Configuration)/net10.0/. LumioEcsSide is a
@@ -35,6 +51,10 @@
     <IntermediateOutputPath>$(MSBuildProjectDirectory)/obj/$(Configuration)/net10.0-browser/</IntermediateOutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <!-- A netstandard2.1 library does not copy package assemblies by default. The spectator
+         wasm host references this output directory for the Runtime it runs on, so the
+         Lumio.Engine.SDK netstandard2.1 assemblies have to land here. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <!-- Preserve the SDK's per-project artifact layout when callers isolate the whole graph. -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Lumio.Sample.Gameplay' and '$(ArtifactsPath)' != ''">

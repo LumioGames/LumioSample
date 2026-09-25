@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { candidateEngineRoots, resolveProcessToolsPath } from './engine-tools.mjs';
+import { loadProcessTools, processToolsPath } from './engine-tools.mjs';
+import { hostRid, releaseLayout } from './engine-release.mjs';
 import {
   collectLaunchTickets,
+  startReleasePlatform,
   DEFAULT_SPECTATOR_LOGIN,
   injectSpectatorLaunch,
   normalizeSpectatorPageUrl,
@@ -113,16 +115,29 @@ function processTools({ evidenceDir, botLogs = [] } = {}) {
   };
 }
 
-/** The seven CLR inputs a run config must name as files (ds-config.mjs DS_CLR_INPUTS). */
+/** The game's own CLR input; the engine half comes from the (fake) Engine/ release. */
 const CLR_FILES = {
-  engine_native: 'lumio.dll',
-  hostfxr: 'hostfxr.dll',
-  runtime_config: 'Lumio.Server.HostEntry.runtimeconfig.json',
-  assembly: 'Lumio.Server.HostEntry.dll',
-  replication_assembly: 'Lumio.GameRuntime.Replication.dll',
-  ecs_assembly: 'Lumio.GameRuntime.Ecs.dll',
   registry_assembly: 'Lumio.Sample.Gameplay.Server.dll',
 };
+
+/** Layout fields of the release a run reads; each becomes an empty file in the fake tree. */
+const ENGINE_FILES = ['dsExe', 'hostEntry', 'hostEntryRuntimeConfig', 'replicationAssembly', 'ecsAssembly', 'engineNative', 'botHost'];
+
+/**
+ * An ADR-123 Engine/ tree for this machine's <rid>, already "verified": the shape runLauncher
+ * gets back from prepareEngine. Files are empty; process-tools are injected per test.
+ */
+function fakeEngine(isolated, { rid = hostRid(), platformImage = 'ghcr.io/lumiogames/lumio-platform:0.0.1@sha256:00' } = {}) {
+  const dir = join(isolated, 'Engine');
+  const layout = releaseLayout(dir, rid);
+  for (const key of ENGINE_FILES) {
+    mkdirSync(resolve(layout[key], '..'), { recursive: true });
+    writeFileSync(layout[key], '');
+  }
+  const manifest = { formatVersion: 1, version: '0.0.1', platforms: [rid], platformImage, sources: {}, files: {} };
+  writeFileSync(join(dir, 'manifest.json'), `${JSON.stringify(manifest)}\n`);
+  return { dir, manifest, rid, initialized: false, layout };
+}
 
 function runnableDsConfig() {
   return {
@@ -176,11 +191,10 @@ function launchFiles(isolated) {
   for (const name of Object.values(CLR_FILES)) touch(isolated, name);
   voxelBudgetFiles(isolated);
   return {
-    dsExe: touch(isolated, 'lumio-ds'),
+    engine: fakeEngine(isolated),
+    hostfxr: touch(isolated, 'hostfxr.dll'),
     dsConfig,
-    botDll: touch(isolated, 'Lumio.Client.Bot.Host.dll'),
     gameplay: touch(isolated, 'Lumio.Sample.Gameplay.dll'),
-    engineNative: touch(isolated, 'lumio.dll'),
   };
 }
 
@@ -329,27 +343,46 @@ test('the spectator host serves the bundle on loopback with the launch in index.
   }
 });
 
-test('process-tools resolution is Engine-root only and does not invent a helper', () => {
+test('process-tools come from Engine/tools only and a missing one is BLOCKED_ENV, not a local helper', async () => {
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-'));
-  assert.equal(resolveProcessToolsPath({ env: {}, repoRoot: isolated }), null);
-  const roots = candidateEngineRoots({ env: { LUMIO_ENGINE_ROOT: '/opt/engine' }, repoRoot: isolated });
-  assert.ok(roots.some((root) => root.endsWith('engine') || root.includes('engine')));
+  assert.equal(processToolsPath(join(isolated, 'Engine')), join(isolated, 'Engine', 'tools', 'process-tools.mjs'));
+  await assert.rejects(() => loadProcessTools({ repoRoot: isolated }), (error) => {
+    assert.equal(error.code, 'BLOCKED_ENV');
+    assert.match(error.message, /Engine\/tools\/process-tools\.mjs is missing/);
+    return true;
+  });
+  const tools = join(isolated, 'Engine', 'tools');
+  mkdirSync(tools, { recursive: true });
+  writeFileSync(join(tools, 'process-tools.mjs'), ['command', 'startLogged', 'assertAlive', 'waitExit', 'forceCleanup']
+    .map((name) => `export function ${name}() {}`).join('\n'));
+  const loaded = await loadProcessTools({ repoRoot: isolated });
+  assert.equal(typeof loaded.forceCleanup, 'function');
 });
 
-test('launcher prints every step and exits BLOCKED_ENV without a live Platform', async () => {
+test('an empty Engine/ is filled once with the submodule command, and still empty is BLOCKED_ENV on every step', async () => {
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-root-'));
   writeFileSync(join(isolated, 'movement-placeholder'), '');
   const lines = [];
+  const gitCalls = [];
   const report = await runLauncher({
     root: isolated,
     env: {},
     bots: 2,
+    // No network in a test: the one init attempt fails the way an offline clone would.
+    git: (args, { cwd }) => {
+      gitCalls.push({ args, cwd });
+      return { status: 128, stdout: '', stderr: 'fatal: unable to access github.com' };
+    },
     log: (line) => lines.push(line),
     evidenceDir: join(isolated, 'evidence'),
   });
+  assert.deepEqual(gitCalls, [{ args: ['submodule', 'update', '--init', '--depth', '1', 'Engine'], cwd: isolated }]);
   assert.equal(report.status, 'BLOCKED_ENV');
   assert.equal(report.steps.length, 14);
-  assert.ok(lines.every((line) => line.startsWith('step=')));
+  assert.deepEqual(lines.filter((line) => !line.startsWith('step=')), ['Engine/ is empty; running: git submodule update --init --depth 1 Engine']);
+  for (const step of report.steps.slice(1)) {
+    assert.match(step.detail, /git submodule update --init --depth 1 Engine" did not fill it/);
+  }
   assert.ok(report.steps.every((step) => step.status === 'BLOCKED_ENV'));
   assert.match(report.steps.find((step) => step.id === '01').detail, /typed Reader via M9 loader/);
 });
@@ -389,6 +422,7 @@ test('injected tickets must stay unique per bot', async () => {
       root: isolated,
       env: {},
       bots: 2,
+      engine: fakeEngine(isolated),
       sessions: [session, session],
       processTools: {
         command() { return ''; },
@@ -794,14 +828,17 @@ test('committed server.json and tour no longer claim runtime-only', () => {
   assert.match(readme, /\.run\/server\.local\.json/);
 });
 
-test('without LUMIO_DS_EXE step 03 is BLOCKED_ENV for the binary, not replace-* tokens', async () => {
+test('a release without lumio-ds for this platform is BLOCKED_ENV naming the Engine/ path, not replace-* tokens', async () => {
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-nodye-'));
   const evidenceDir = join(isolated, 'evidence');
+  const engine = fakeEngine(isolated);
+  rmSync(engine.layout.dsExe);
   const report = await runLauncher({
     root: isolated,
     env: {},
     bots: 1,
     staggerMs: 0,
+    engine,
     sessions: [session('Bot1', 'ticket-nodye')],
     processTools: {
       command() { throw new Error('must not run lumio-ds'); },
@@ -813,40 +850,41 @@ test('without LUMIO_DS_EXE step 03 is BLOCKED_ENV for the binary, not replace-* 
     log() {},
     evidenceDir,
   });
-  assert.equal(report.steps.find((step) => step.id === '03').status, 'BLOCKED_ENV');
-  assert.match(report.steps.find((step) => step.id === '03').detail, /LUMIO_DS_EXE/);
-  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /replace-/);
-  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /REPLACE_WITH_PLATFORM/);
-  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /missing required value/);
+  const step03 = report.steps.find((step) => step.id === '03');
+  assert.equal(step03.status, 'BLOCKED_ENV');
+  assert.equal(step03.detail, `${engine.layout.dsExe} is missing from the Engine/ release.`);
+  assert.doesNotMatch(step03.detail, /replace-|REPLACE_WITH_PLATFORM|missing required value|LUMIO_DS_EXE/);
 });
 
-test('step 03 with a live DS exe does not fail on replace-* tokens', async () => {
+test('step 03 with the release lumio-ds boots on the committed template without replace-* tokens', async () => {
   const isolated = mkdtempSync(join(tmpdir(), 'lumio-launch-dsconfig-'));
   const evidenceDir = join(isolated, 'evidence');
   const committed = JSON.parse(readFileSync(new URL('../Server/Config/Startup/server.json', import.meta.url), 'utf8'));
-  writeFileSync(join(isolated, 'server.json'), `${JSON.stringify(committed)}\n`);
-  touch(isolated, 'Lumio.Server.HostEntry.runtimeconfig.json');
+  // The template names only the game's assembly; put it where the template says, relative to itself.
+  const startup = join(isolated, 'Server', 'Config', 'Startup');
+  mkdirSync(startup, { recursive: true });
+  writeFileSync(join(startup, 'server.json'), `${JSON.stringify(committed)}\n`);
+  const registry = resolve(startup, committed.clr.registry_assembly);
+  mkdirSync(resolve(registry, '..'), { recursive: true });
+  writeFileSync(registry, '');
+  voxelBudgetFiles(isolated);
+  const engine = fakeEngine(isolated);
+  const events = [];
   const report = await runLauncher({
     root: isolated,
-    // The committed template names no machine's hostfxr or HostEntry; the operator's variables do.
-    env: {
-      LUMIO_HOSTFXR: touch(isolated, 'hostfxr.dll'),
-      LUMIO_SERVER_HOSTENTRY_DLL: touch(isolated, 'Lumio.Server.HostEntry.dll'),
-      LUMIO_RUNTIME_REPLICATION_DLL: touch(isolated, 'Lumio.GameRuntime.Replication.dll'),
-      LUMIO_RUNTIME_ECS_DLL: touch(isolated, 'Lumio.GameRuntime.Ecs.dll'),
-      LUMIO_SAMPLE_GAMEPLAY_DLL: touch(isolated, 'Lumio.Sample.Gameplay.dll'),
-    },
-    engineNative: touch(isolated, 'lumio.dll'),
+    env: {},
+    engine,
+    hostfxr: touch(isolated, 'hostfxr.dll'),
     bots: 1,
     staggerMs: 0,
     durationMs: 0,
     timeoutMs: 1_000,
     sessions: [session('Bot1', 'ticket-ds')],
-    dsExe: touch(isolated, 'lumio-ds'),
-    dsConfig: join(isolated, 'server.json'),
+    dsConfig: join(startup, 'server.json'),
     processTools: {
       command() { return 'configuration_valid'; },
-      startLogged() {
+      startLogged(exe, args) {
+        events.push({ exe, args });
         return {
           stdout: 'DS_READY {"pid":1,"endpoint":"ws://127.0.0.1:9110"}\n',
           child: { pid: 1, kill() {} },
@@ -860,9 +898,16 @@ test('step 03 with a live DS exe does not fail on replace-* tokens', async () =>
     log() {},
     evidenceDir,
   });
-  assert.equal(report.steps.find((step) => step.id === '03').status, 'PASS');
-  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /replace-/);
-  assert.doesNotMatch(report.steps.find((step) => step.id === '03').detail, /REPLACE_WITH_PLATFORM/);
+  const step03 = report.steps.find((step) => step.id === '03');
+  assert.equal(step03.status, 'PASS');
+  assert.doesNotMatch(step03.detail, /replace-|REPLACE_WITH_PLATFORM/);
+  // The DS that started is the release's, and its run config names the release's engine half.
+  assert.equal(events[0].exe, engine.layout.dsExe);
+  const clr = JSON.parse(readFileSync(events[0].args[1], 'utf8')).clr;
+  assert.equal(clr.engine_native, engine.layout.engineNative);
+  assert.equal(clr.assembly, engine.layout.hostEntry);
+  assert.equal(clr.registry_assembly, registry);
+  assert.deepEqual(report.engine, { version: '0.0.1', rid: engine.rid, dir: engine.dir });
 });
 
 test('unfilled sample tokens on the DS config are a loud missing-value FAIL, not BLOCKED_ENV', async () => {
@@ -878,7 +923,8 @@ test('unfilled sample tokens on the DS config are a loud missing-value FAIL, not
     durationMs: 0,
     timeoutMs: 1_000,
     sessions: [session('Bot1', 'ticket-unfilled')],
-    dsExe: touch(isolated, 'lumio-ds'),
+    engine: fakeEngine(isolated),
+    hostfxr: touch(isolated, 'hostfxr.dll'),
     dsConfig: join(isolated, 'server.json'),
     processTools: {
       command() { return ''; },
@@ -1239,7 +1285,7 @@ test('step 14 is BLOCKED_ENV without a Platform to re-admit the tour account', a
   });
   assert.equal(status('13'), 'PASS');
   assert.equal(status('14'), 'BLOCKED_ENV');
-  assert.match(detail('14'), /LUMIO_PLATFORM_ORIGIN is not set/);
+  assert.match(detail('14'), /no Platform/);
 });
 
 test('a re-launch bound to another room than the restarted DS is FAIL', async () => {
@@ -1290,51 +1336,58 @@ test('without LUMIO_SCENARIO_DLL bots still prove step 04 and 05–14 are BLOCKE
   assert.ok(!tools.events.some((event) => event.kind === 'start' && event.args.includes('--scenario')));
 });
 
-test('every CLR input the DS needs is BLOCKED_ENV by variable when missing, with no fallback path', async (t) => {
+test('every CLR input the DS needs is BLOCKED_ENV by field when missing, with no fallback path', async () => {
+  const engineField = {
+    engine_native: 'engineNative',
+    assembly: 'hostEntry',
+    runtime_config: 'hostEntryRuntimeConfig',
+    replication_assembly: 'replicationAssembly',
+    ecs_assembly: 'ecsAssembly',
+  };
   for (const input of DS_CLR_INPUTS) {
     const isolated = mkdtempSync(join(tmpdir(), 'lumio-tour-clr-'));
     const files = tourFiles(isolated);
-    const config = JSON.parse(readFileSync(files.dsConfig, 'utf8'));
-    config.clr[input.field] = `missing/${input.field}`;
-    writeFileSync(files.dsConfig, `${JSON.stringify(config)}\n`);
+    if (input.source === 'engine') rmSync(files.engine.layout[engineField[input.field]]);
+    if (input.source === 'dotnet') files.hostfxr = join(isolated, 'no-dotnet', 'hostfxr.dll');
+    if (input.source === 'game') {
+      const config = JSON.parse(readFileSync(files.dsConfig, 'utf8'));
+      config.clr.registry_assembly = 'missing/Lumio.Sample.Gameplay.dll';
+      writeFileSync(files.dsConfig, `${JSON.stringify(config)}\n`);
+    }
     const tools = tourTools();
-    const { status, detail, lines } = await runTour(tools, {
-      isolated,
-      files: { ...files, engineNative: input.field === 'engine_native' ? undefined : files.engineNative },
-    });
-    if (input.field === 'hostfxr') t.diagnostic(lines.find((line) => line.startsWith('step=03 ')));
+    const { status, detail } = await runTour(tools, { isolated, files });
     assert.equal(status('03'), 'BLOCKED_ENV', input.field);
-    assert.match(detail('03'), new RegExp(`^${input.env} is not set and DS config clr\\.${input.field} is not a file`));
+    assert.match(detail('03'), new RegExp(`^DS config clr\\.${input.field} is not a file`));
     assert.ok(!tools.events.some((event) => event.kind === 'start'), `${input.field}: nothing may start`);
   }
 });
 
-test('CLR variables override the template, and HostEntry brings its runtimeconfig', async () => {
-  const isolated = mkdtempSync(join(tmpdir(), 'lumio-tour-env-'));
+test('the engine half of clr is the release for this platform, whatever the template says', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-tour-release-'));
   const files = tourFiles(isolated);
   const config = JSON.parse(readFileSync(files.dsConfig, 'utf8'));
-  for (const field of Object.keys(CLR_FILES)) config.clr[field] = `not-here/${field}`;
+  for (const field of ['engine_native', 'hostfxr', 'assembly', 'runtime_config', 'replication_assembly', 'ecs_assembly']) {
+    config.clr[field] = `not-here/${field}`;
+  }
   writeFileSync(files.dsConfig, `${JSON.stringify(config)}\n`);
-  const machine = join(isolated, 'machine');
-  mkdirSync(machine);
-  const env = {
-    LUMIO_HOSTFXR: touch(machine, 'hostfxr.dll'),
-    LUMIO_SERVER_HOSTENTRY_DLL: touch(machine, 'Lumio.Server.HostEntry.dll'),
-    LUMIO_RUNTIME_REPLICATION_DLL: touch(machine, 'Lumio.GameRuntime.Replication.dll'),
-    LUMIO_RUNTIME_ECS_DLL: touch(machine, 'Lumio.GameRuntime.Ecs.dll'),
-    LUMIO_SAMPLE_GAMEPLAY_DLL: touch(machine, 'Lumio.Sample.Gameplay.dll'),
-  };
-  touch(machine, 'Lumio.Server.HostEntry.runtimeconfig.json');
   const tools = tourTools();
-  const { status } = await runTour(tools, { isolated, files, env });
+  const { status } = await runTour(tools, { isolated, files });
   assert.equal(status('03'), 'PASS');
   const boot1 = tools.events.find((event) => event.kind === 'start' && event.args[0] === '--config');
+  assert.equal(boot1.exe, files.engine.layout.dsExe);
   const clr = JSON.parse(readFileSync(boot1.args[1], 'utf8')).clr;
-  assert.equal(clr.hostfxr, env.LUMIO_HOSTFXR);
-  assert.equal(clr.assembly, env.LUMIO_SERVER_HOSTENTRY_DLL);
-  assert.equal(clr.runtime_config, join(machine, 'Lumio.Server.HostEntry.runtimeconfig.json'));
-  assert.equal(clr.engine_native, files.engineNative);
-  assert.equal(clr.registry_assembly, env.LUMIO_SAMPLE_GAMEPLAY_DLL);
+  const { layout } = files.engine;
+  assert.equal(clr.hostfxr, files.hostfxr);
+  assert.equal(clr.assembly, layout.hostEntry);
+  assert.equal(clr.runtime_config, layout.hostEntryRuntimeConfig);
+  assert.equal(clr.engine_native, layout.engineNative);
+  assert.equal(clr.replication_assembly, layout.replicationAssembly);
+  assert.equal(clr.ecs_assembly, layout.ecsAssembly);
+  assert.equal(clr.registry_assembly, join(isolated, CLR_FILES.registry_assembly));
+  // Bots are the release's Bot.Host with the release's native.
+  const bot = tools.events.find((event) => event.kind === 'start' && event.args.includes('--gameplay'));
+  assert.equal(bot.args[0], layout.botHost);
+  assert.equal(bot.args[bot.args.indexOf('--engine-native') + 1], layout.engineNative);
 });
 
 test('judgeTourSteps passes 05–13 on green artefacts', () => {

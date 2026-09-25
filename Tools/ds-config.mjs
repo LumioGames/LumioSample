@@ -97,21 +97,30 @@ const CLR_PATH_FIELDS = Object.freeze([
 ]);
 
 /**
- * The machine-specific CLR inputs of one launcher run. Each comes from its variable, else from the
- * operator's DS config (resolved against that file), and must be a file either way: a missing one is
- * BLOCKED_ENV naming the variable, never a path baked into a script. Variable names are the ones
- * `test-server-host.mjs` already uses for the same artefacts, plus LUMIO_HOSTFXR (the name Engine's
- * clr-host test fixture reads).
+ * Where each CLR file of a run comes from (ADR-123). The engine half is the Engine/ release for
+ * this machine's <rid>; hostfxr is this machine's own .NET install; the registry assembly is
+ * this repository's server-side gameplay build, named relative to the template. No variable
+ * names any of them.
  */
 export const DS_CLR_INPUTS = Object.freeze([
-  { field: 'engine_native', env: 'LUMIO_ENGINE_NATIVE' },
-  { field: 'hostfxr', env: 'LUMIO_HOSTFXR' },
-  { field: 'assembly', env: 'LUMIO_SERVER_HOSTENTRY_DLL' },
-  { field: 'runtime_config', env: 'LUMIO_SERVER_HOSTENTRY_DLL', fromEnv: (dll) => dll.replace(/\.dll$/i, '.runtimeconfig.json') },
-  { field: 'replication_assembly', env: 'LUMIO_RUNTIME_REPLICATION_DLL' },
-  { field: 'ecs_assembly', env: 'LUMIO_RUNTIME_ECS_DLL' },
-  { field: 'registry_assembly', env: 'LUMIO_SAMPLE_GAMEPLAY_DLL' },
+  { field: 'engine_native', source: 'engine', from: (layout) => layout.engineNative },
+  { field: 'hostfxr', source: 'dotnet' },
+  { field: 'assembly', source: 'engine', from: (layout) => layout.hostEntry },
+  { field: 'runtime_config', source: 'engine', from: (layout) => layout.hostEntryRuntimeConfig },
+  { field: 'replication_assembly', source: 'engine', from: (layout) => layout.replicationAssembly },
+  { field: 'ecs_assembly', source: 'engine', from: (layout) => layout.ecsAssembly },
+  { field: 'registry_assembly', source: 'game' },
 ]);
+
+/** The engine-owned `clr.*` files of one run: the release layout plus this machine's hostfxr. */
+export function engineClrInputs(layout, hostfxr) {
+  const inputs = {};
+  for (const input of DS_CLR_INPUTS) {
+    if (input.source === 'engine') inputs[input.field] = input.from(layout);
+  }
+  if (hostfxr != null) inputs.hostfxr = hostfxr;
+  return inputs;
+}
 
 function present(value) {
   return value != null && String(value).trim() !== '';
@@ -120,13 +129,15 @@ function present(value) {
 /**
  * One run's DS config, derived from the operator template (committed `server.json` or
  * `LUMIO_DS_CONFIG`) and written somewhere else, so every relative path is made absolute against the
- * template first. The run owns a fresh store and its own log directory (steps 05 and 14 read both).
- * `debug` is required: step 07 counts `host.operation_result` lines, which lumio-ds logs at debug.
- * The six allocation claims come from the Platform launch response when it carries them — the
- * committed block is a local stand-in, and a real ticket bound to other claims dies pre-admission.
+ * template first. `engineClr` (engineClrInputs) fills the engine half of `clr`; the template names
+ * only the game's own assembly. The run owns a fresh store and its own log directory (steps 05 and
+ * 14 read both). `debug` is required: step 07 counts `host.operation_result` lines, which lumio-ds
+ * logs at debug. The six allocation claims come from the Platform launch response when it carries
+ * them — the committed block is a local stand-in, and a real ticket bound to other claims dies
+ * pre-admission.
  */
 export function deriveRunDsConfig(template, {
-  templatePath, env = {}, storePath, logDir, launch, checkpointSeconds,
+  templatePath, engineClr = {}, admissionKey, storePath, logDir, launch, checkpointSeconds,
 } = {}) {
   const base = dirname(resolve(templatePath));
   const absolute = (value) => (present(value) && !isAbsolute(String(value)) ? resolve(base, String(value)) : value);
@@ -138,14 +149,11 @@ export function deriveRunDsConfig(template, {
   for (const field of CLR_PATH_FIELDS) {
     if (field in config.clr) config.clr[field] = absolute(config.clr[field]);
   }
-  for (const input of DS_CLR_INPUTS) {
-    const value = env[input.env];
-    if (!present(value)) continue;
-    const path = resolve(String(value).trim());
-    config.clr[input.field] = input.fromEnv ? input.fromEnv(path) : path;
+  for (const [field, value] of Object.entries(engineClr)) {
+    if (present(value)) config.clr[field] = resolve(String(value));
   }
-  if (present(env.LUMIO_PLATFORM_ADMISSION_KEY)) {
-    config.admission_public_key_hex = String(env.LUMIO_PLATFORM_ADMISSION_KEY).trim();
+  if (present(admissionKey)) {
+    config.admission_public_key_hex = String(admissionKey).trim();
   }
   if (launch && ALLOCATION_KEYS.every((key) => present(launch[key]))) {
     config.allocation = Object.fromEntries(ALLOCATION_KEYS.map((key) => [key, String(launch[key])]));
@@ -156,12 +164,18 @@ export function deriveRunDsConfig(template, {
   return config;
 }
 
-/** Every CLR input is a file, or BLOCKED_ENV names the variable and the config field that were both empty. */
+const SOURCE_HINT = Object.freeze({
+  engine: 'the Engine/ release for this platform is incomplete',
+  dotnet: 'install the .NET SDK named in global.json',
+  game: 'build this repository first: dotnet build LumioSample.slnx',
+});
+
+/** Every CLR input is a file, or BLOCKED_ENV names the field, the path and where it should come from. */
 export function assertDsClrInputs(config) {
   for (const input of DS_CLR_INPUTS) {
     const path = config?.clr?.[input.field];
     if (!present(path) || !existsSync(path)) {
-      throw blocked(`${input.env} is not set and DS config clr.${input.field} is not a file (${present(path) ? path : 'unset'}).`);
+      throw blocked(`DS config clr.${input.field} is not a file (${present(path) ? path : 'unset'}); ${SOURCE_HINT[input.source]}.`);
     }
   }
   return config;

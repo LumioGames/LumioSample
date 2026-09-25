@@ -11,8 +11,10 @@ import {
   assertDsClrInputs,
   assertRunnableDsConfig,
   deriveRunDsConfig,
+  engineClrInputs,
   writeKernelConfigForRun,
 } from './ds-config.mjs';
+import { releaseLayout } from './engine-release.mjs';
 
 const committed = JSON.parse(readFileSync(new URL('../Server/Config/Startup/server.json', import.meta.url), 'utf8'));
 const sample = JSON.parse(readFileSync(new URL('../Server/Config/Startup/server.sample.json', import.meta.url), 'utf8'));
@@ -121,8 +123,10 @@ test('a run config is the template with absolute paths, a fresh store, its own d
     assert.ok(isAbsolute(run[field]), field);
     assert.equal(run[field], resolve(base, committed[field]));
   }
-  for (const field of ['engine_native', 'hostfxr', 'runtime_config', 'assembly', 'replication_assembly', 'ecs_assembly', 'registry_assembly']) {
-    assert.equal(run.clr[field], resolve(base, committed.clr[field]), field);
+  // The template names only the game's own assembly; the engine half comes from Engine/.
+  assert.equal(run.clr.registry_assembly, resolve(base, committed.clr.registry_assembly));
+  for (const field of ['engine_native', 'hostfxr', 'runtime_config', 'assembly', 'replication_assembly', 'ecs_assembly']) {
+    assert.equal(committed.clr[field], undefined, `server.json must not name a machine's ${field}`);
   }
   assert.equal(run.store_path, '/run/store');
   assert.deepEqual(run.logging, { ...committed.logging, dir: '/run/ds-boot-1', min_level: 'debug' });
@@ -134,34 +138,33 @@ test('a run config is the template with absolute paths, a fresh store, its own d
   assert.equal(deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH }).checkpoint_seconds, committed.checkpoint_seconds);
 });
 
-test('a run config takes the launch claims, the admission key and CLR files from the operator, not from a machine', () => {
+test('a run config takes the launch claims and the admission key from the operator and the engine half of clr from the release', () => {
   const launch = {
     serverAudience: 'aud-1', gameId: 'sample', gameReleaseId: 'rel-1', contractId: 'c-1', roomId: 'room-1', allocationId: 'alloc-1',
     admissionCredential: 'secret-ticket',
   };
-  const env = {
-    LUMIO_PLATFORM_ADMISSION_KEY: 'ab'.repeat(32),
-    LUMIO_HOSTFXR: '/opt/dotnet/hostfxr.dll',
-    LUMIO_SERVER_HOSTENTRY_DLL: '/srv/HostEntry/Lumio.Server.HostEntry.dll',
-    LUMIO_ENGINE_NATIVE: '/srv/native/lumio_engine_native.dll',
-    LUMIO_SAMPLE_GAMEPLAY_DLL: '/srv/gameplay/Lumio.Sample.Gameplay.dll',
-  };
-  const run = deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH, env, launch });
+  const layout = releaseLayout('/work/Sample/Engine', 'linux-x64');
+  const engineClr = engineClrInputs(layout, '/usr/share/dotnet/host/fxr/10.0.0/libhostfxr.so');
+  const admissionKey = 'ab'.repeat(32);
+  const run = deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH, engineClr, admissionKey, launch });
   assert.deepEqual(run.allocation, Object.fromEntries(ALLOCATION_KEYS.map((key) => [key, launch[key]])));
   assert.ok(!JSON.stringify(run).includes('secret-ticket'), 'the ticket itself never enters a config file');
-  assert.equal(run.admission_public_key_hex, env.LUMIO_PLATFORM_ADMISSION_KEY);
-  assert.equal(run.clr.hostfxr, resolve(env.LUMIO_HOSTFXR));
-  assert.equal(run.clr.assembly, resolve(env.LUMIO_SERVER_HOSTENTRY_DLL));
-  assert.equal(run.clr.runtime_config, resolve('/srv/HostEntry/Lumio.Server.HostEntry.runtimeconfig.json'));
-  assert.equal(run.clr.engine_native, resolve(env.LUMIO_ENGINE_NATIVE));
-  assert.equal(run.clr.registry_assembly, resolve(env.LUMIO_SAMPLE_GAMEPLAY_DLL));
-  // Unset variables leave the template's value (made absolute) in place.
-  assert.equal(run.clr.ecs_assembly, resolve(dirname(TEMPLATE_PATH), committed.clr.ecs_assembly));
+  assert.equal(run.admission_public_key_hex, admissionKey);
+  assert.equal(run.clr.hostfxr, resolve('/usr/share/dotnet/host/fxr/10.0.0/libhostfxr.so'));
+  assert.equal(run.clr.assembly, resolve('/work/Sample/Engine/server/linux-x64/Application/Lumio.Server.HostEntry.dll'));
+  assert.equal(run.clr.runtime_config, resolve('/work/Sample/Engine/server/linux-x64/Application/Lumio.Server.HostEntry.runtimeconfig.json'));
+  assert.equal(run.clr.engine_native, resolve('/work/Sample/Engine/server/linux-x64/SDK/Native/linux-x64/liblumio_engine_native.so'));
+  assert.equal(run.clr.replication_assembly, resolve('/work/Sample/Engine/server/linux-x64/SDK/Managed/Lumio.GameRuntime.Replication.dll'));
+  assert.equal(run.clr.ecs_assembly, resolve('/work/Sample/Engine/server/linux-x64/SDK/Managed/Lumio.GameRuntime.Ecs.dll'));
+  // The game's own assembly stays the template's, made absolute.
+  assert.equal(run.clr.registry_assembly, resolve(dirname(TEMPLATE_PATH), committed.clr.registry_assembly));
+  // No admission key given: the template's local key (Platform release compose, R-00780) stays.
+  assert.equal(deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH }).admission_public_key_hex, committed.admission_public_key_hex);
   // A launch without the six claims (an injected test session) keeps the template's block.
   assert.deepEqual(deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH, launch: { admissionCredential: 'x' } }).allocation, committed.allocation);
 });
 
-test('a CLR input that is neither set nor on disk is BLOCKED_ENV naming its variable', () => {
+test('a CLR input that is not on disk is BLOCKED_ENV naming the field and where it comes from', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sample-clr-inputs-'));
   const clr = {};
   for (const input of DS_CLR_INPUTS) {
@@ -175,12 +178,13 @@ test('a CLR input that is neither set nor on disk is BLOCKED_ENV naming its vari
         () => assertDsClrInputs({ clr: { ...clr, [input.field]: value } }),
         (error) => {
           assert.equal(error.code, 'BLOCKED_ENV');
-          assert.match(error.message, new RegExp(`${input.env} is not set and DS config clr\\.${input.field} is not a file`));
+          assert.match(error.message, new RegExp(`DS config clr\\.${input.field} is not a file`));
+          assert.match(error.message, { engine: /Engine\/ release/, dotnet: /\.NET SDK/, game: /dotnet build/ }[input.source]);
           return true;
         },
       );
     }
   }
-  // The committed template names no real machine's files, so it alone is always BLOCKED_ENV.
-  assert.throws(() => assertDsClrInputs(deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH })), /LUMIO_ENGINE_NATIVE is not set/);
+  // The committed template names no engine file at all, so without the release it is always BLOCKED_ENV.
+  assert.throws(() => assertDsClrInputs(deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH })), /clr\.engine_native is not a file \(unset\)/);
 });

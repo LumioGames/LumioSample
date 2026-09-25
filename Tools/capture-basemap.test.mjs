@@ -66,15 +66,13 @@ test('gameplay and DS sources do not import the layout script', () => {
 
 test('missing Engine capture CLI stays BLOCKED_ENV and does not invent an encoder', () => {
   const isolatedRoot = mkdtempSync(join(tmpdir(), 'lumio-capture-missing-'));
-  const api = detectVoxelCaptureApi({
-    env: { LUMIO_ENGINE_ROOT: '/no-such-engine' },
-    repoRoot: isolatedRoot,
-  });
+  // An isolated root has an empty Engine/: the capture CLI can only come from the release.
+  const api = detectVoxelCaptureApi({ repoRoot: isolatedRoot });
   assert.equal(api.cli, null);
   assert.equal(api.capture, false);
   assert.match(api.missingCommand, /capture-voxel\.mjs/);
   assert.throws(
-    () => runCapture({ env: { LUMIO_ENGINE_ROOT: '/no-such-engine' }, repoRoot: isolatedRoot }),
+    () => runCapture({ repoRoot: isolatedRoot }),
     (error) => {
       assert.equal(error.code, 'BLOCKED_ENV');
       assert.match(error.message, /Missing command|cannot be recaptured/);
