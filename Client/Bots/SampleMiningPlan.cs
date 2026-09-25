@@ -193,6 +193,13 @@ public sealed class SampleMiningPlan
     /// </summary>
     public bool TargetVeinGone { get; private set; }
 
+    /// <summary>
+    /// True once any vein entered this connection's census. A vein is a block entity (ADR-119):
+    /// it reaches a client only through a delivered Section's binding table, so this is the
+    /// end-to-end proof the voxel Section channel carried content to this bot.
+    /// </summary>
+    public bool VeinSeenInCensus { get; private set; }
+
     /// <summary>True once the drop this bot was claiming left the census.</summary>
     public bool TargetDropGone { get; private set; }
 
@@ -260,6 +267,7 @@ public sealed class SampleMiningPlan
 
         string picked = Choose(census, VeinEntityType);
         if (picked.Length == 0) return NextSweepStep();
+        VeinSeenInCensus = true;
         _target = picked;
         _dwell = 1;
         MineOrders++;
