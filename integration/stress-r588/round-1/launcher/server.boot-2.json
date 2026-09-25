@@ -1,0 +1,93 @@
+{
+  "allocation": {
+    "serverAudience": "game-fleet-local",
+    "gameId": "sample",
+    "gameReleaseId": "sample-0.1.0",
+    "contractId": "lumio.gameplay-envelope.v1",
+    "roomId": "room-sample-1",
+    "allocationId": "alloc-sample-1"
+  },
+  "admission_key_id": 1,
+  "admission_public_key_hex": "9593f57065df3c7303d67a27a458cd4ec8c55de7c5e6c6153b80c5a32ef19cd7",
+  "clr": {
+    "entry_type": "Lumio.Server.HostEntry.HostEntry, Lumio.Server.HostEntry",
+    "entry_method": "LumioHostEntry",
+    "registry_assembly": "C:/Work/LumioGames/LumioSample/Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll",
+    "kernel_config": {
+      "maxContexts": 512,
+      "maxHandles": 16384,
+      "maxNativeBytes": 67108864,
+      "maxJobsQueued": 256,
+      "maxJobsRunning": 4,
+      "maxCompletionItems": 1024,
+      "logMailboxCapacity": 8192
+    },
+    "engine_native": "C:\\Work\\LumioGames\\LumioSample\\Engine\\server\\win-x64\\SDK\\Native\\win-x64\\lumio_engine_native.dll",
+    "assembly": "C:\\Work\\LumioGames\\LumioSample\\Engine\\server\\win-x64\\Application\\Lumio.Server.HostEntry.dll",
+    "runtime_config": "C:\\Work\\LumioGames\\LumioSample\\Engine\\server\\win-x64\\Application\\Lumio.Server.HostEntry.runtimeconfig.json",
+    "replication_assembly": "C:\\Work\\LumioGames\\LumioSample\\Engine\\server\\win-x64\\SDK\\Managed\\Lumio.GameRuntime.Replication.dll",
+    "ecs_assembly": "C:\\Work\\LumioGames\\LumioSample\\Engine\\server\\win-x64\\SDK\\Managed\\Lumio.GameRuntime.Ecs.dll",
+    "hostfxr": "C:\\Users\\g923\\.dotnet\\host\\fxr\\10.0.11\\hostfxr.dll"
+  },
+  "store_path": "C:\\Work\\LumioGames\\LumioSample\\integration\\stress-r588\\round-1\\launcher\\ds-store-kX9Jzs",
+  "config_dir": "C:/Work/LumioGames/LumioSample/Server/Config/Tables",
+  "world_profile": "runtime+voxel",
+  "voxel_catalog": "C:/Work/LumioGames/LumioSample/Server/Assets/Maps/official-catalog.json",
+  "durability": "snapshot_only",
+  "base_map_id": "sample",
+  "base_map_version": "0.1.0",
+  "base_map_path": "C:/Work/LumioGames/LumioSample/Server/Assets/Maps/sample.voxel",
+  "voxel_baseline_region": {
+    "min_x": 0,
+    "min_y": 0,
+    "min_z": 0,
+    "max_x": 1,
+    "max_y": 0,
+    "max_z": 1
+  },
+  "base_map_content_sha256": "26c8115efd044496ad3132fa98c0608c02a1b0edbf5e32049b2bb9f116414df2",
+  "checkpoint_seconds": 30,
+  "checkpoint_max_bytes": 67108864,
+  "watchdog_timeout_ms": 2000,
+  "logging": {
+    "dir": "C:\\Work\\LumioGames\\LumioSample\\integration\\stress-r588\\round-1\\launcher\\ds-boot-2",
+    "min_level": "debug",
+    "file_size_mb": 64,
+    "retention_days": 7,
+    "mailbox_capacity": 1048576
+  },
+  "transport": {
+    "listen_address": "127.0.0.1",
+    "listen_port": 9111,
+    "max_socket_tasks": 1024,
+    "max_admissions_per_second": 32,
+    "handshake_timeout_ms": 5000,
+    "write_timeout_ms": 5000,
+    "max_wire_text_bytes": 65536,
+    "egress_slots": 16,
+    "unauthenticated_quota_bytes": 1024,
+    "idle_timeout_ms": 30000,
+    "voxel_quota_bytes": 65536
+  },
+  "host": {
+    "max_pending_admissions": 1024,
+    "max_pending_egress_per_connection": 8,
+    "max_pending_egress_connections": 1024,
+    "max_deferred_frames_per_connection": 64,
+    "max_deferred_frame_bytes_per_connection": 262144,
+    "max_deferred_frame_connections": 1024,
+    "ingress_queue_per_connection": 32,
+    "max_pending_wire_inputs": 1024,
+    "max_inputs_per_tick": 32,
+    "max_pending_queries": 1024,
+    "reconnect_window_ms": 300000,
+    "owner_call_timeout_ms": 2000,
+    "owner_cold_start_timeout_ms": 30000,
+    "quiesce_timeout_ms": 3000,
+    "checkpoint_timeout_ms": 30000,
+    "pending_checkpoint_timeout_ms": 30000,
+    "final_checkpoint_timeout_ms": 30000,
+    "checkpoint_retention_generations": 3,
+    "cleanup_watchdog_join_timeout_ms": 1000
+  }
+}

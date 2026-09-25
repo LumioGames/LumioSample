@@ -1,0 +1,35 @@
+step=01 status=READY LumioConfig export + typed Reader via M9 loader
+{"event":"account.login.send","loginName":"AcctC7z1","ws":"ws://127.0.0.1:8080/account"}
+{"event":"account.login.ack","accepted":true,"accountNewlyCreated":true,"accountId":"acct_4d86f5079929ca0e9d69735cbcd4e99c","loginName":"AcctC7z1","accountAuthExpiresAt":1790368111}
+{"event":"account.launch.send","slug":"sample","url":"http://127.0.0.1:8080/api/games/sample/launch"}
+{"event":"account.launch.ack","wsUrl":"ws://127.0.0.1:9111/sample","subprotocol":"lumio.mvp.v0","serverAudience":"game-fleet-local","gameId":"sample","gameReleaseId":"sample-0.1.0","contractId":"lumio.gameplay-envelope.v1","roomId":"room-sample-1","allocationId":"alloc-sample-1","admissionExpiresAt":1790368111,"accountId":"acct_4d86f5079929ca0e9d69735cbcd4e99c","loginName":"AcctC7z1"}
+{"event":"account.login.send","loginName":"AcctC7z2","ws":"ws://127.0.0.1:8080/account"}
+{"event":"account.login.ack","accepted":true,"accountNewlyCreated":true,"accountId":"acct_8e3d629efe91d6e6b7896a8f16c563a4","loginName":"AcctC7z2","accountAuthExpiresAt":1790368111}
+{"event":"account.launch.send","slug":"sample","url":"http://127.0.0.1:8080/api/games/sample/launch"}
+{"event":"account.launch.ack","wsUrl":"ws://127.0.0.1:9111/sample","subprotocol":"lumio.mvp.v0","serverAudience":"game-fleet-local","gameId":"sample","gameReleaseId":"sample-0.1.0","contractId":"lumio.gameplay-envelope.v1","roomId":"room-sample-1","allocationId":"alloc-sample-1","admissionExpiresAt":1790368111,"accountId":"acct_8e3d629efe91d6e6b7896a8f16c563a4","loginName":"AcctC7z2"}
+step=02 status=PASS 2 unique launch tickets
+lumio-ds --check-config
+configuration_valid
+
+step=03 status=PASS endpoint=ws://127.0.0.1:9111/
+bot voxel budget: C:\Work\LumioGames\LumioSample\Server\Assets\Maps\bot-voxel-budget.json
+$ ["dotnet","C:\\Work\\LumioGames\\LumioSample\\Engine\\bot\\win-x64\\Lumio.Client.Bot.Host.dll","--server","ws://127.0.0.1:9111/","--admission-ticket","<redacted>","--engine-native","C:\\Work\\LumioGames\\LumioSample\\Engine\\server\\win-x64\\SDK\\Native\\win-x64\\lumio_engine_native.dll","--kernel-config","C:\\Work\\LumioGames\\LumioSample\\.run\\criterion3-c7c\\kernel-config.json","--log-dir","C:\\Work\\LumioGames\\LumioSample\\.run\\criterion3-c7c\\bot-1","--account-from","AcctC7z1","--account-to","AcctC7z1","--gameplay","C:\\Work\\LumioGames\\LumioSample\\Gameplay\\bin\\Debug\\net10.0-client\\Lumio.Sample.Gameplay.dll","--config-dir","C:\\Work\\LumioGames\\LumioSample\\Client\\Config\\Tables","--voxel-config","C:\\Work\\LumioGames\\LumioSample\\Server\\Assets\\Maps\\bot-voxel-budget.json","--scenario","C:\\Work\\LumioGames\\LumioSample\\Client\\Bots\\bin\\Debug\\net10.0\\Lumio.Sample.Bots.dll","--scenario-name","Lumio.Sample.Bots.SampleMiningScenario","--ticks","15000"]
+$ ["dotnet","C:\\Work\\LumioGames\\LumioSample\\Engine\\bot\\win-x64\\Lumio.Client.Bot.Host.dll","--server","ws://127.0.0.1:9111/","--admission-ticket","<redacted>","--engine-native","C:\\Work\\LumioGames\\LumioSample\\Engine\\server\\win-x64\\SDK\\Native\\win-x64\\lumio_engine_native.dll","--kernel-config","C:\\Work\\LumioGames\\LumioSample\\.run\\criterion3-c7c\\kernel-config.json","--log-dir","C:\\Work\\LumioGames\\LumioSample\\.run\\criterion3-c7c\\bot-2","--account-from","AcctC7z2","--account-to","AcctC7z2","--gameplay","C:\\Work\\LumioGames\\LumioSample\\Gameplay\\bin\\Debug\\net10.0-client\\Lumio.Sample.Gameplay.dll","--config-dir","C:\\Work\\LumioGames\\LumioSample\\Client\\Config\\Tables","--voxel-config","C:\\Work\\LumioGames\\LumioSample\\Server\\Assets\\Maps\\bot-voxel-budget.json"]
+step=04 status=PASS 2 bots admitted with unique tickets
+step=05 status=PASS worldProfile=runtime+voxel; base map boot=true; vein_seen_via_section held; bot scope active=true
+step=06 status=PASS admitted=true; self_bound held
+step=07 status=PASS move_activated+activation_accepted+bot_uplinked held; DS applied ops=849
+step=08 status=PASS chat_activated held; DS says line=true
+step=09 status=PASS mine_activated held; mining_stage=1 mining_pre=1
+step=10 status=PASS vein_dug_through held; mining_applied=1
+step=11 status=PASS mining_post block=0 lines=1
+step=12 status=PASS mining_reward amounts=[7]; pickup_activated held
+step=13 status=PASS pickup_activated+drop_collected held; scenario passed
+{"event":"account.login.send","loginName":"AcctC7z1","ws":"ws://127.0.0.1:8080/account"}
+{"event":"account.login.ack","accepted":true,"accountNewlyCreated":false,"accountId":"acct_4d86f5079929ca0e9d69735cbcd4e99c","loginName":"AcctC7z1","accountAuthExpiresAt":1790368415}
+{"event":"account.launch.send","slug":"sample","url":"http://127.0.0.1:8080/api/games/sample/launch"}
+{"event":"account.launch.ack","wsUrl":"ws://127.0.0.1:9111/sample","subprotocol":"lumio.mvp.v0","serverAudience":"game-fleet-local","gameId":"sample","gameReleaseId":"sample-0.1.0","contractId":"lumio.gameplay-envelope.v1","roomId":"room-sample-1","allocationId":"alloc-sample-1","admissionExpiresAt":1790368415,"accountId":"acct_4d86f5079929ca0e9d69735cbcd4e99c","loginName":"AcctC7z1"}
+$ ["dotnet","C:\\Work\\LumioGames\\LumioSample\\Engine\\bot\\win-x64\\Lumio.Client.Bot.Host.dll","--server","ws://127.0.0.1:9111/","--admission-ticket","<redacted>","--engine-native","C:\\Work\\LumioGames\\LumioSample\\Engine\\server\\win-x64\\SDK\\Native\\win-x64\\lumio_engine_native.dll","--kernel-config","C:\\Work\\LumioGames\\LumioSample\\.run\\criterion3-c7c\\kernel-config.json","--log-dir","C:\\Work\\LumioGames\\LumioSample\\.run\\criterion3-c7c\\bot-verify","--account-from","AcctC7z1","--account-to","AcctC7z1","--gameplay","C:\\Work\\LumioGames\\LumioSample\\Gameplay\\bin\\Debug\\net10.0-client\\Lumio.Sample.Gameplay.dll","--config-dir","C:\\Work\\LumioGames\\LumioSample\\Client\\Config\\Tables","--voxel-config","C:\\Work\\LumioGames\\LumioSample\\Server\\Assets\\Maps\\bot-voxel-budget.json","--scenario","C:\\Work\\LumioGames\\LumioSample\\Client\\Bots\\bin\\Debug\\net10.0\\Lumio.Sample.Bots.dll","--scenario-name","Lumio.Sample.Bots.SampleRestoreVerifyScenario","--ticks","6000"]
+step=14 status=PASS checkpoint gen 7→9; restore marker=true; verify assertions=passed
+VERIFICATION_STATUS=PASS
+EVIDENCE_PATH=C:\Work\LumioGames\LumioSample\.run\criterion3-c7c

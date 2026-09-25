@@ -1,0 +1,3 @@
+{"ts":"2026-09-25T19:17:09.8310164Z","kind":"chat.input","tick":0,"tickSource":"native-kernel/tickFrame","pid":23180,"accountId":"AcctWq01","messageType":"InputCommand","mappingId":"chat.input","sequence":1,"payloadSha256":"bf69f8926b1f4fe0e2ba55fa8babd576cdd2e5b9842b5cf3c388c946aecd4634"}
+{"ts":"2026-09-25T19:18:55.0518695Z","kind":"input.skipped","pid":23180,"accountId":"AcctWq01","ownerFrame":3386,"reason":"input_disabled"}
+{"kind":"scenario.finished","pid":23180,"ownerFrame":"3386","uplinks":3386,"passed":false}

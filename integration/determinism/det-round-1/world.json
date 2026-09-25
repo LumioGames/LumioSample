@@ -1,0 +1,29 @@
+{
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "block": 1,
+      "remaining": 6
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "z": 1,
+      "block": 1,
+      "remaining": 6
+    },
+    {
+      "x": 2,
+      "y": 0,
+      "z": 2,
+      "block": 1,
+      "remaining": 6
+    }
+  ],
+  "oreCount": 18,
+  "veins": 3,
+  "players": 2,
+  "world": 3
+}

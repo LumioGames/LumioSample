@@ -1,0 +1,33 @@
+{
+  "note": "expected derives from round-1 terminal state, cross-checked against authored map (4 veins) minus the one mined vein and the step-14 in-game assertions veins==3/oreDrops==0",
+  "independentFacts": {
+    "authoredVeins": 4,
+    "tourMinedVeins": 1,
+    "restoredVeins": 3
+  },
+  "factsHold": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "block": 1,
+      "remaining": 6
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "z": 1,
+      "block": 1,
+      "remaining": 6
+    },
+    {
+      "x": 2,
+      "y": 0,
+      "z": 2,
+      "block": 1,
+      "remaining": 6
+    }
+  ],
+  "oreCount": 18
+}

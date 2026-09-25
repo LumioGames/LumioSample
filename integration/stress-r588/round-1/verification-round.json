@@ -1,0 +1,29 @@
+{
+  "round": "round-1",
+  "dir": "C:\\Work\\LumioGames\\LumioSample\\integration\\stress-r588\\round-1",
+  "launcherStatus": "FAIL",
+  "admitted": {
+    "required": 100,
+    "actual": null,
+    "drops": null,
+    "protocolViolation": null,
+    "queueFull": null
+  },
+  "fleet": {
+    "botsWithMoves": 0,
+    "fleetTotal": 0,
+    "fleetPassed": 0,
+    "minMovesPerBot": null,
+    "totalMoves": 0,
+    "spanSeconds": 0
+  },
+  "tick": {
+    "incarnation": "9ffef66c59314d8088ff385702c999ec",
+    "ticks": 2384,
+    "p99Ms": 33.8101,
+    "frameBudgetMs": 50,
+    "overBudgetFrames": 5
+  },
+  "observers": "missing observer records-1.json",
+  "violations": 83
+}

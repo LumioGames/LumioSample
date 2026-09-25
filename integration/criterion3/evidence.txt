@@ -1,0 +1,22 @@
+== 判据3 grep 证据 2026-09-25T23:30:44+08:00
+-- 表值定义(Server/Config/Tables/server/mining.json):
+      "cooldown_ticks": 1,
+      "ore_per_vein": 4,
+      "stamina_cost": 13,
+      "vein_hits_to_break": 6
+
+-- 玩法侧消费(按列名取值,无字面量):
+242:        record.Amount.Value = config.Mining.OrePerVein;
+243:        record.StaminaCost.Value = unchecked((ulong)config.Mining.StaminaCost);
+301:            unchecked((long)record.StaminaCost.Value), record.CellCenter, record.Serial.Value);
+
+-- Gameplay/*.cs 中这些语义的字面量搜索(应为空):
+(空=无字面量)
+
+-- movement/attributes 表同查:
+
+== 判据3 行为变化证明 (2026-09-26T04:29:07+08:00)
+- 改 Gameplay/Tables/tables/mining.txt ore_per_vein 4→7 → sync-config-export → 十四步重跑:
+step=12 status=PASS mining_reward amounts=[7]; pickup_activated held
+- 对照(未改表,tour-final4,同 SHA 引擎): step=12 status=PASS mining_reward amounts=[4]
+- 已还原: mining.txt 与导出物回到 4(git checkout + sync)
