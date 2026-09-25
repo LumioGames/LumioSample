@@ -6,3 +6,15 @@ canvas { border: 1px solid #333; background: #111; display: block; }
 #legend ul { list-style: none; display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0; padding: 0; font-size: 0.85rem; }
 #legend li { display: flex; align-items: center; gap: 0.35rem; }
 #legend i { width: 0.9rem; height: 0.9rem; border: 1px solid #333; display: inline-block; }
+
+/* Block view (?view=blocks): full-window WebGL2 canvas, the 2D grid and HUD on top. */
+#blocks, #blocks-hud, #blocks-cams { display: none; }
+body.blocks-view { margin: 0; overflow: hidden; background: #87b8eb; }
+body.blocks-view #blocks { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; border: 0; cursor: grab; touch-action: none; }
+body.blocks-view #field { position: fixed; right: 8px; bottom: 44px; width: 192px; height: 144px; opacity: 0.85; z-index: 2; }
+body.blocks-view h1, body.blocks-view #enter, body.blocks-view #legend { display: none; }
+body.blocks-view #status { position: fixed; right: 8px; top: 8px; margin: 0; padding: 4px 8px; background: rgba(0,0,0,.55); color: #fff; border-radius: 4px; z-index: 2; font: 12px ui-monospace, Menlo, monospace; }
+body.blocks-view #blocks-hud { display: block; position: fixed; left: 8px; top: 8px; padding: 6px 9px; background: rgba(0,0,0,.55); color: #fff; border-radius: 4px; white-space: pre; pointer-events: none; font: 12px/1.4 ui-monospace, Menlo, monospace; z-index: 2; }
+body.blocks-view #blocks-cams { display: flex; position: fixed; left: 8px; right: 208px; bottom: 8px; flex-wrap: wrap; gap: 4px; z-index: 2; }
+#blocks-cams button { font: 12px ui-monospace, Menlo, monospace; padding: 3px 7px; border: 0; border-radius: 3px; background: rgba(0,0,0,.55); color: #fff; cursor: pointer; }
+#blocks-cams button.on { background: #e8a33d; color: #000; }

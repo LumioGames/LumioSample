@@ -1,0 +1,32 @@
+collision.blocks lumio.oak_fence             PASS
+collision.blocks lumio.oak_leaves            PASS
+collision.blocks lumio.glass                 PASS
+collision.blocks lumio.glass_pane            PASS
+collision.passes_through lumio.poppy         PASS
+collision.passes_through lumio.short_grass   PASS
+collision.passes_through lumio.oak_sapling   PASS
+collision.passes_through lumio.torch         PASS
+shape.stairs_walk_up                         PASS
+shape.stairs_step_is_half_a_block            PASS
+shape.slab_step                              PASS
+shape.door_closed_blocks                     PASS
+shape.door_open_passable                     PASS
+mask.liquid_2_vs_blocking_13                 PASS
+connected.section_border_unresolved          PASS
+connected.fence_toggle_full_block            PASS
+light.torch_falloff                          PASS
+light.glowstone_neighbours                   PASS
+light.lava_source                            PASS
+light.leaves_keep_skylight                   PASS
+light.roof_blocks_skylight                   REPORTED
+mesh.stone_wall_single_quad                  PASS
+cull.stone_wall_beside_lower_slab            PASS
+cull.leaves_beside_leaves                    PASS
+cull.water_beside_lava                       PASS
+cull.water_beside_glass                      PASS
+mesh.missing_texture_writes_layer_0          PASS
+authority==client: 30 probe queries, grid 3072/3072 same (2834 hits)
+mesh s:0:0:0 {"cutout":63,"opaque":1113,"translucent":2}
+mesh s:1:0:0 {"cutout":135,"opaque":601,"translucent":63}
+light digest s:0:0:0 9c816a65a6f5f4460ef8d39c2d717381ab4cdc425bbefbae95db2595846af05b
+light digest s:1:0:0 37f01cd33bc9b40c9b2e925391a55868806581345e33af26df4d3209fb801769

@@ -53,7 +53,9 @@ function localFetch() {
 }
 
 function openGrid() {
-  return openVoxelGrid({ wasmUrl: WASM_PATH, fetchImpl: localFetch() });
+  // Wasm ABI 2 (ADR-124) has no world without the game's catalog v2 — the same bytes the DS uses.
+  const catalogJson = fs.readFileSync(path.join(REPO_ROOT, "Server/Assets/Maps/official-catalog.json"), "utf8");
+  return openVoxelGrid({ wasmUrl: WASM_PATH, fetchImpl: localFetch(), catalogJson });
 }
 
 /// The `.voxel` snapshot is a JSON header followed by its own trailer. Only the
@@ -125,11 +127,11 @@ function payloadDigest(payload) {
 
 const VIEW = { minX: 0, maxX: 31, minY: 0, maxY: 15, minZ: 0, maxZ: 31 };
 
-test("the module boots, reports ABI 1 and reads its presence table out of wasm", async () => {
+test("the module boots, reports ABI 2 and reads its presence table out of wasm", async () => {
   const grid = await openGrid();
   try {
     assert.equal(grid.status, "ready", grid.error ?? "");
-    assert.equal(grid.abiVersion, 1);
+    assert.equal(grid.abiVersion, 2);
     // Read back, never hardcoded by the page.
     assert.deepEqual(grid.presenceNames, ["Ready", "Unchanged", "Pending", "Unavailable"]);
   } finally {

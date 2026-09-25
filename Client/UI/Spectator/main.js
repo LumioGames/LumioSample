@@ -55,6 +55,19 @@ const ctx = canvas && typeof canvas.getContext === "function" ? canvas.getContex
 // The VoxelEngine wasm32 module, published next to this page. Its world is the
 // only place Section data exists in this tab (ADR-078 决策 1 / 决策 3).
 const VOXEL_WASM_URL = "./lumio_voxel_wasm.wasm";
+// The game's official block catalog v2, published next to the page from
+// Server/Assets/Maps/official-catalog.json — the same bytes the DS world was created
+// with. Wasm ABI 2 creates no world without it (ADR-124): the world validates every
+// delivered BlockState against it and the block view's lighting / meshing read it.
+const CATALOG_URL = "./official-catalog.json";
+let catalogText = null;
+
+// `?view=blocks` adds the WebGL2 block view (ADR-124 C9): the same world drawn by the
+// engine's block renderer, loaded on demand from ./blocks-view.mjs. The 2D top-down grid
+// stays the default view.
+const BLOCKS_VIEW = typeof location !== "undefined" && typeof location.search === "string"
+  && new URLSearchParams(location.search).get("view") === "blocks";
+let blocksView = null;
 // Never null: between sessions the page holds a grid that answers "loading" for
 // every column, so there is no state in which a cell could be painted as air
 // because nothing was asked.
@@ -276,9 +289,50 @@ function drainSectionFrames() {
   return drained;
 }
 
+async function loadCatalog() {
+  if (catalogText !== null) return catalogText;
+  const response = await fetch(CATALOG_URL);
+  if (!response || response.ok === false) {
+    throw new Error(`catalog_fetch_failed:${response ? response.status : "no_response"}`);
+  }
+  catalogText = await response.text();
+  return catalogText;
+}
+
+async function openBlocksView() {
+  if (!BLOCKS_VIEW || voxelGrid.status !== "ready") return;
+  const canvasEl = document.getElementById("blocks");
+  if (!canvasEl) return;
+  document.body.classList.add("blocks-view");
+  try {
+    const { createBlocksView } = await import("./blocks-view.mjs");
+    blocksView = await createBlocksView({
+      grid: voxelGrid,
+      catalogJson: catalogText,
+      canvas: canvasEl,
+      hud: document.getElementById("blocks-hud"),
+      cameraBar: document.getElementById("blocks-cams"),
+      assetRoot: new URL("./game-assets/", location.href).href,
+      pointsUrl: "./acceptance-lakeside.points.json",
+    });
+  } catch (error) {
+    spectator.voxel.error = `blocks_view_failed:${error && error.message ? error.message : error}`;
+    console.error("[lumio-spectator] block view failed", error);
+  }
+}
+
 async function openVoxelWorld() {
   closeVoxelWorld();
-  voxelGrid = await openVoxelGrid({ wasmUrl: VOXEL_WASM_URL });
+  let catalogJson = null;
+  try {
+    catalogJson = await loadCatalog();
+  } catch (error) {
+    // No catalog, no world: the grid below opens unavailable and every cell paints loading.
+    console.error("[lumio-spectator] block catalog unavailable", error && error.message ? error.message : error);
+  }
+  voxelGrid = catalogJson === null
+    ? unavailableVoxelGrid("catalog_unavailable")
+    : await openVoxelGrid({ wasmUrl: VOXEL_WASM_URL, catalogJson });
   spectator.voxel.status = voxelGrid.status;
   spectator.voxel.error = voxelGrid.error;
   spectator.voxel.abiVersion = voxelGrid.abiVersion;
@@ -291,9 +345,14 @@ async function openVoxelWorld() {
   // Show the grid (all loading at this point) without waiting for the first
   // frame, so the page states what it knows as soon as it knows it.
   paint(spectator.positions);
+  await openBlocksView();
 }
 
 function closeVoxelWorld() {
+  if (blocksView) {
+    blocksView.destroy();
+    blocksView = null;
+  }
   voxelGrid.destroy();
   voxelGrid = unavailableVoxelGrid("voxel_world_closed");
   spectator.voxel.status = "closed";
