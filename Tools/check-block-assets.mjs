@@ -9,15 +9,18 @@
  *      （LumioGameEngine main af56fb1 冻结）。本文件只照着契约实现检查，不复述契约的设计理由。
  *   2. 描述引用的 PNG 都存在，正方形、边长是 2 的幂、全包一致且等于 pack.json 的 textureSize。
  *   3. 下面 C0_BLOCKS 里的每个方块都有一份描述，六个面（或交叉面片）都有贴图。
- *   4. 透明度符合材质类：镂空只有全透 / 不透两种像素，半透明至少有一个半透明像素。
+ *   4. 透明度符合材质类：不透明方块没有透明像素；镂空（契约：alpha < 0.5 丢弃）既有会被丢弃的像素、
+ *      也有留下的像素；半透明至少有一个半透明像素。
  *   5. textures/ 下每张 PNG 在 SOURCES.md 里有来源、版本与许可，许可只能是 CC0-1.0 或 CC-BY-4.0；
- *      CC-BY 的贴图还要在 ATTRIBUTION.md 里出现（署名）。
+ *      CC-BY 的贴图还要在 ATTRIBUTION.md 里出现（署名）。标「未修改」且写了「原图 sha256」的行，
+ *      贴图必须与原图逐字节相同；来源作者是 Kenney 的，目录里要有 Kenney 许可原文 LICENSE-kenney.txt。
  *   6. 若官方目录 Server/Assets/Maps/official-catalog.json 里已有 C0 方块，它的 assetRef 能解析到
  *      一份存在的描述、材质类与本表一致（只读目录，不改；目录归 C8 / Tools/official-catalog.mjs）。
  *
  * 它只看文件，不跑客户端：贴图画出来对不对由浏览器对照 preview/ 下的预览图复验（C9）。
  */
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,7 +55,8 @@ export const ACCEPTED_LICENSES = new Set(['CC0-1.0', 'CC-BY-4.0']);
 
 // ---------------------------------------------------------------------------------------------
 // C0 方块清单（ADR-124 第一批，C0 卡「方块清单」表；lumio.block_<N> 占位行不在内）
-//   alpha：opaque = 每个像素不透明；cutout = 只有全透 / 不透两种像素且至少有一个全透；
+//   alpha：opaque = 每个像素不透明；cutout = 至少有一个 alpha < 128 的像素（渲染时丢弃）、
+//          也至少有一个 alpha >= 128 的像素（留下），中间值合法（契约 texture.alpha：按 alpha < 0.5 丢弃）；
 //          translucent = 至少有一个半透明像素；null = 不要求（岩浆是液体但画成不透明）。
 //   crossOnly：只有交叉面片、没有方盒（花、草丛、树苗；火把按主会话 2026-09-25 裁决也只有交叉面片）。
 // ---------------------------------------------------------------------------------------------
@@ -260,13 +264,14 @@ function paeth(a, b, c) {
   return pb <= pc ? b : c;
 }
 
-/** 统计透明度：全透、半透、不透各多少像素。 */
+/** 统计透明度：全透、半透、不透各多少像素，以及镂空渲染会丢弃（alpha < 128）的像素数。 */
 export function alphaHistogram(rgba) {
-  const counts = { transparent: 0, partial: 0, opaque: 0 };
+  const counts = { transparent: 0, partial: 0, opaque: 0, discarded: 0 };
   for (let i = 3; i < rgba.length; i += 4) {
     if (rgba[i] === 0) counts.transparent++;
     else if (rgba[i] === 255) counts.opaque++;
     else counts.partial++;
+    if (rgba[i] < 128) counts.discarded++;
   }
   return counts;
 }
@@ -277,8 +282,9 @@ export function checkAlpha(expectation, counts) {
     return `应全部不透明，却有 ${counts.transparent} 个全透、${counts.partial} 个半透像素`;
   }
   if (expectation === 'cutout') {
-    if (counts.partial) return `镂空贴图只能有全透 / 不透两种像素，却有 ${counts.partial} 个半透像素`;
-    if (!counts.transparent) return '镂空贴图至少要有一个全透明像素';
+    const total = counts.transparent + counts.partial + counts.opaque;
+    if (!counts.discarded) return '镂空贴图至少要有一个 alpha < 128 的像素（渲染时丢弃），现在一个都没有';
+    if (counts.discarded === total) return '镂空贴图的像素 alpha 全都 < 128，渲染时整张被丢弃';
   }
   if (expectation === 'translucent' && !counts.partial) return '半透明贴图至少要有一个半透明像素';
   return null;
@@ -452,6 +458,9 @@ export function checkBlockAssets(root) {
     fail(rel(sourcesPath), '缺来源记录');
   } else {
     const sources = parseSourcesTable(readFileSync(sourcesPath, 'utf8'));
+    if ([...sources.values()].some((row) => /kenney/i.test(row['作者'] ?? '')) && !existsSync(join(blocksDir, 'LICENSE-kenney.txt'))) {
+      fail(rel(blocksDir), '用了 Kenney 素材，缺 Kenney 许可原文 LICENSE-kenney.txt');
+    }
     for (const texturePath of [...textures.keys()].sort()) {
       const row = sources.get(texturePath);
       const where = `Client/Assets/Blocks/${texturePath}`;
@@ -465,6 +474,11 @@ export function checkBlockAssets(root) {
       if (FORBIDDEN_SOURCE.test(`${row['来源']} ${row['作者'] ?? ''}`)) fail(where, '来源疑似 MC / Mojang 或其派生包，不得进仓');
       if (row['许可'] === 'CC-BY-4.0' && !(attribution ?? '').includes(texturePath)) {
         fail(where, 'CC-BY-4.0 贴图必须在 ATTRIBUTION.md 里署名');
+      }
+      const originalHash = row['原图 sha256'];
+      if (row['修改'] === '未修改' && originalHash && existsSync(join(blocksDir, texturePath))) {
+        const actual = createHash('sha256').update(readFileSync(join(blocksDir, texturePath))).digest('hex');
+        if (actual !== originalHash) fail(where, `标「未修改」，但 sha256 是 ${actual}，不是 SOURCES.md 记的原图 ${originalHash}`);
       }
     }
   }

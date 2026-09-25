@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -15,7 +16,15 @@ import {
   validateDescription,
   validatePack,
 } from './check-block-assets.mjs';
-import { encodePng, renderTexture } from '../Client/Assets/Blocks/source/generate-textures.mjs';
+import {
+  KENNEY_DERIVED,
+  TEXTURE_NAMES,
+  TEXTURE_SIZE,
+  deriveKenney,
+  encodePng,
+  renderFinalTexture,
+  renderTexture,
+} from '../Client/Assets/Blocks/source/generate-textures.mjs';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const F = 'lumio.block-asset.v1';
@@ -73,9 +82,11 @@ test('PNG 编解码往返，透明度分类', () => {
   const image = decodePng(encodePng(4, 4, rgba));
   assert.equal(image.width, 4);
   assert.deepEqual([...image.rgba], [...rgba]);
-  assert.equal(checkAlpha('cutout', { transparent: 1, partial: 0, opaque: 3 }), null);
-  assert.match(checkAlpha('cutout', { transparent: 1, partial: 1, opaque: 2 }), /半透/);
-  assert.match(checkAlpha('cutout', { transparent: 0, partial: 0, opaque: 4 }), /全透明/);
+  assert.equal(checkAlpha('cutout', { transparent: 1, partial: 0, opaque: 3, discarded: 1 }), null);
+  // 契约按 alpha < 0.5 丢弃，中间 alpha 合法（Kenney 原图边缘有抗锯齿）
+  assert.equal(checkAlpha('cutout', { transparent: 1, partial: 1, opaque: 2, discarded: 2 }), null);
+  assert.match(checkAlpha('cutout', { transparent: 0, partial: 0, opaque: 4, discarded: 0 }), /alpha < 128/);
+  assert.match(checkAlpha('cutout', { transparent: 0, partial: 4, opaque: 0, discarded: 4 }), /整张被丢弃/);
   assert.match(checkAlpha('translucent', { transparent: 0, partial: 0, opaque: 4 }), /半透明/);
   assert.match(checkAlpha('opaque', { transparent: 1, partial: 0, opaque: 3 }), /不透明/);
 });
@@ -90,18 +101,66 @@ test('仓内材质包通过全部检查', () => {
   const { errors, summary, blocks } = checkBlockAssets(repoRoot);
   assert.deepEqual(errors, []);
   assert.equal(summary.blocks, C0_BLOCKS.length);
-  assert.equal(summary.textureSize, 16);
+  assert.equal(summary.textureSize, 128);
+  assert.equal(summary.textureSize, TEXTURE_SIZE, 'pack.json 与生成脚本的边长一致');
   const grass = blocks.find((block) => block.name === 'lumio.grass_block').slots;
-  assert.deepEqual(grass.slice(0, 3), ['textures/dirt.png', 'textures/grass_block_top.png', 'textures/grass_block_side.png']);
+  assert.deepEqual(grass.slice(0, 3), ['textures/dirt.png', 'textures/grass_top.png', 'textures/dirt_grass.png']);
 });
 
-test('贴图生成是确定的：同一配方两次逐字节相同，且等于仓内导出物', () => {
-  for (const name of ['stone', 'grass_block_side', 'oak_leaves', 'water', 'torch']) {
-    const first = encodePng(16, 16, renderTexture(name).rgba);
-    const second = encodePng(16, 16, renderTexture(name).rgba);
-    assert.ok(first.equals(second), name);
-    const onDisk = decodePng(readFileSync(join(repoRoot, 'Client/Assets/Blocks/textures', `${name}.png`)));
-    assert.deepEqual([...onDisk.rgba], [...renderTexture(name).rgba], `${name}.png 与配方不一致，需重新运行生成脚本`);
+test('Kenney 原图：SOURCES.md 标「未修改」的贴图与记下的原图 sha256 逐字节相同', () => {
+  const sources = parseSourcesTable(readFileSync(join(repoRoot, 'Client/Assets/Blocks/SOURCES.md'), 'utf8'));
+  const verbatim = [...sources.values()].filter((row) => row['修改'] === '未修改');
+  assert.equal(verbatim.length, 13);
+  for (const row of verbatim) {
+    const bytes = readFileSync(join(repoRoot, 'Client/Assets/Blocks', row['文件']));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), row['原图 sha256'], row['文件']);
+    assert.match(row['作者'], /Kenney/);
+  }
+});
+
+test('贴图生成是确定的：两次逐字节相同，且等于仓内导出物', () => {
+  const size = TEXTURE_SIZE;
+  const outputs = [
+    ...TEXTURE_NAMES.map((name) => [`${name}.png`, () => renderFinalTexture(name)]),
+    ...Object.keys(KENNEY_DERIVED).map((file) => [file, () => deriveKenney(file)]),
+  ];
+  assert.equal(outputs.length, 9);
+  for (const [file, render] of outputs) {
+    const first = encodePng(size, size, render().rgba);
+    const second = encodePng(size, size, render().rgba);
+    assert.ok(first.equals(second), file);
+    const onDisk = readFileSync(join(repoRoot, 'Client/Assets/Blocks/textures', file));
+    assert.ok(onDisk.equals(first), `${file} 与生成结果不一致，需重新运行生成脚本`);
+  }
+});
+
+test('自绘贴图是 16px 配方按最近邻放大：每个 8×8 块同色，且与 16px 画布一一对应', () => {
+  const factor = TEXTURE_SIZE / 16;
+  for (const name of TEXTURE_NAMES) {
+    const small = renderTexture(name);
+    const big = renderFinalTexture(name);
+    assert.equal(big.width, TEXTURE_SIZE);
+    for (let y = 0; y < TEXTURE_SIZE; y++) {
+      for (let x = 0; x < TEXTURE_SIZE; x++) {
+        const i = (y * TEXTURE_SIZE + x) * 4;
+        const j = (Math.floor(y / factor) * 16 + Math.floor(x / factor)) * 4;
+        for (let k = 0; k < 4; k++) {
+          if (big.rgba[i + k] !== small.rgba[j + k]) assert.fail(`${name} (${x},${y}) 不等于 16px 画布 (${Math.floor(x / factor)},${Math.floor(y / factor)})`);
+        }
+      }
+    }
+  }
+});
+
+test('Kenney 派生：只改 alpha，RGB 与原图一致', () => {
+  for (const [file, recipe] of Object.entries(KENNEY_DERIVED)) {
+    const original = decodePng(readFileSync(join(repoRoot, 'Client/Assets/Blocks/source', recipe.original)));
+    const derived = deriveKenney(file);
+    assert.equal(derived.width, TEXTURE_SIZE, file);
+    for (let i = 0; i < original.rgba.length; i += 4) {
+      for (let k = 0; k < 3; k++) if (derived.rgba[i + k] !== original.rgba[i + k]) assert.fail(`${file} 像素 ${i / 4} 的 RGB 被改了`);
+      if (derived.rgba[i + 3] !== recipe.alpha) assert.fail(`${file} 像素 ${i / 4} 的 alpha 不是 ${recipe.alpha}`);
+    }
   }
 });
 
@@ -133,14 +192,24 @@ test('负例：贴图边长不是 2 的幂 / 与 textureSize 不一致', () => {
   assert.match(errors, /边长 24 不是 2 的幂/);
   const rgba32 = new Uint8Array(32 * 32 * 4).fill(255);
   const errors32 = withBrokenCopy((dir) => writeFileSync(join(dir, 'textures/dirt.png'), encodePng(32, 32, rgba32)));
-  assert.match(errors32, /不等于 pack\.json 的 textureSize 16/);
+  assert.match(errors32, /不等于 pack\.json 的 textureSize 128/);
 });
 
-test('负例：镂空贴图出现半透明像素', () => {
-  const texture = renderTexture('oak_leaves');
-  texture.rgba[3] = 128;
-  const errors = withBrokenCopy((dir) => writeFileSync(join(dir, 'textures/oak_leaves.png'), encodePng(16, 16, texture.rgba)));
-  assert.match(errors, /镂空贴图只能有全透/);
+test('负例：镂空贴图没有会被丢弃的像素', () => {
+  const solid = new Uint8Array(TEXTURE_SIZE * TEXTURE_SIZE * 4).fill(255);
+  const errors = withBrokenCopy((dir) =>
+    writeFileSync(join(dir, 'textures/leaves_transparent.png'), encodePng(TEXTURE_SIZE, TEXTURE_SIZE, solid)),
+  );
+  assert.match(errors, /leaves_transparent\.png: lumio\.oak_leaves：镂空贴图至少要有一个 alpha < 128/);
+});
+
+test('负例：标「未修改」的 Kenney 贴图被改过 / 缺 Kenney 许可原文', () => {
+  const texture = decodePng(readFileSync(join(repoRoot, 'Client/Assets/Blocks/textures/stone.png')));
+  texture.rgba[0] ^= 1;
+  const edited = withBrokenCopy((dir) => writeFileSync(join(dir, 'textures/stone.png'), encodePng(128, 128, texture.rgba)));
+  assert.match(edited, /stone\.png: 标「未修改」，但 sha256/);
+  const noLicense = withBrokenCopy((dir) => rmSync(join(dir, 'LICENSE-kenney.txt')));
+  assert.match(noLicense, /缺 Kenney 许可原文 LICENSE-kenney\.txt/);
 });
 
 test('负例：SOURCES.md 缺记录或许可不收', () => {
@@ -163,7 +232,7 @@ test('负例：SOURCES.md 缺记录或许可不收', () => {
 
 test('负例：草方块三面不分', () => {
   const errors = withBrokenCopy((dir) =>
-    writeFileSync(join(dir, 'lumio.grass_block.json'), JSON.stringify({ format: F, faces: { all: 'textures/grass_block_top.png' } })),
+    writeFileSync(join(dir, 'lumio.grass_block.json'), JSON.stringify({ format: F, faces: { all: 'textures/grass_top.png' } })),
   );
   assert.match(errors, /顶、侧、底必须是三张不同的贴图/);
 });

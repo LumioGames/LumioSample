@@ -1,15 +1,13 @@
 # 署名（Attribution）
 
-本材质包目前**没有 CC-BY 素材**，因此没有必须署名的条目。
+本材质包目前**没有 CC-BY 素材**，因此没有必须署名的条目。下面两处来源都是 CC0-1.0，不要求署名，仍记一笔：
 
-全部贴图由 LumioSample 贡献者用 `source/generate-textures.mjs` 程序化绘制，以 CC0-1.0 放弃权利（见 `LICENSE`）。
-CC0 不要求署名，这里仍记一笔来源：
-
-- 作者：LumioSample contributors
-- 标题：LumioSample block texture pack（`Client/Assets/Blocks/textures/*.png`）
-- 来源：本仓 `Client/Assets/Blocks/source/generate-textures.mjs`
-- 许可：CC0-1.0 — https://creativecommons.org/publicdomain/zero/1.0/
-- 是否修改：原创，无上游素材
+- **Kenney Voxel Pack** — by Kenney Vleugels / Kenney（https://www.kenney.nl），
+  来源 https://kenney.nl/assets/voxel-pack ，许可 CC0-1.0（原文见 `LICENSE-kenney.txt`）。
+  用在 `textures/` 下 15 张贴图：13 张原样拷贝、`water.png` 与 `ice.png` 只改了 alpha（逐张见 `SOURCES.md`）。
+  Thanks, Kenney!
+- **LumioSample contributors** — 其余 7 张自绘贴图（门、火把、虞美人、树苗、萤石、铁栏杆、蓝色彩色玻璃），
+  由本仓 `source/generate-textures.mjs` 程序化绘制，许可 CC0-1.0 — https://creativecommons.org/publicdomain/zero/1.0/
 
 ## 以后加入 CC-BY-4.0 素材时
 
@@ -17,5 +15,5 @@ CC0 不要求署名，这里仍记一笔来源：
 
 ```
 - textures/<file>.png — 「<作品标题>」 by <作者>，来源 <URL>，
-  许可 CC BY 4.0（https://creativecommons.org/licenses/by/4.0/），<已修改：缩放到 16×16 / 未修改>
+  许可 CC BY 4.0（https://creativecommons.org/licenses/by/4.0/），<已修改：缩放到 128×128 / 未修改>
 ```

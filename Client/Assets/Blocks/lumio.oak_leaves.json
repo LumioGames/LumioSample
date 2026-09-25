@@ -1,6 +1,6 @@
 {
   "format": "lumio.block-asset.v1",
   "faces": {
-    "all": "textures/oak_leaves.png"
+    "all": "textures/leaves_transparent.png"
   }
 }
