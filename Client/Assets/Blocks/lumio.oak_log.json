@@ -1,0 +1,8 @@
+{
+  "format": "lumio.block-asset.v1",
+  "faces": {
+    "top": "textures/oak_log_top.png",
+    "bottom": "textures/oak_log_top.png",
+    "side": "textures/oak_log.png"
+  }
+}

@@ -1,0 +1,4 @@
+# 贴图与预览是生成物，按二进制对待；描述与清单固定 LF，重新生成后逐字节可比。
+*.png binary
+*.json text eol=lf
+*.mjs text eol=lf

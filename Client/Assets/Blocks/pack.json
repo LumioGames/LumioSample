@@ -1,0 +1,9 @@
+{
+  "format": "lumio.block-asset-pack.v1",
+  "textureSize": 16,
+  "license": {
+    "spdx": "CC0-1.0",
+    "attribution": "LumioSample contributors (procedurally generated, see SOURCES.md)",
+    "source": "Client/Assets/Blocks/source/generate-textures.mjs"
+  }
+}
