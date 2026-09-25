@@ -126,6 +126,8 @@ async function runPage({
   // then say so and paint loading, never air. The real module is exercised
   // end-to-end in voxel-grid.test.mjs.
   voxelWasm = { ok: false, status: 404 },
+  // Response for ./official-catalog.json: the game's committed catalog v2 by default.
+  catalogResponse = { ok: true, status: 200, text: async () => fs.readFileSync(path.join(REPO_ROOT, "Server/Assets/Maps/official-catalog.json"), "utf8") },
   // SectionFrames the C# host offers, as [headerJson, Uint8Array] pairs.
   sectionFrames = [],
   // When an array, every page timer is recorded here by its requested delay and fired at once, so a
@@ -227,6 +229,8 @@ async function runPage({
       // The voxel module is a static asset next to the page, not a launch or
       // account call; fetchCalls is the log of the latter.
       if (String(url).endsWith(".wasm")) return voxelWasm;
+      // The block catalog v2 is a static asset published next to the page too (ADR-124).
+      if (String(url).endsWith("official-catalog.json")) return catalogResponse;
       fetchCalls.push({ url: String(url), method: init?.method ?? "GET", credentials: init?.credentials ?? null, csrf: init?.headers?.["X-CSRF-Token"] });
       if (String(url).endsWith("/me")) return { ok: true, status: 200, headers: { get: () => "test-csrf" } };
       const result = fetchLaunch ? await fetchLaunch(fetchCalls.length) : launch;
@@ -1026,4 +1030,16 @@ test("a page served from loopback may dial a plaintext loopback DS", async () =>
 
 test("the page no longer reads an allowLoopback query parameter", () => {
   assert.equal(MAIN_SOURCE.includes('params.get("allowLoopback")'), false);
+});
+
+test("the voxel world is opened with the game's catalog v2; without it the page says so and paints loading", async () => {
+  const missing = await runPage({ catalogResponse: { ok: false, status: 404 } });
+  assert.equal(missing.spectator.voxel.status, "unavailable");
+  assert.equal(missing.spectator.voxel.error, "catalog_unavailable");
+  assert.equal(missing.spectator.voxel.cells.air, 0, "an unknown world must never report air");
+  assert.equal(missing.spectator.voxel.cells.loading, VOXEL_CELLS);
+  assert.equal(missing.fetchCalls.length, 0, "the catalog is a static asset, not a Platform call");
+  // With the catalog the page gets as far as the module fetch.
+  const present = await runPage();
+  assert.match(present.spectator.voxel.error, /wasm_fetch_failed:404/);
 });

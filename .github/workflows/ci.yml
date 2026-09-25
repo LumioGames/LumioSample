@@ -117,6 +117,12 @@ jobs:
       - run: node --test Tools/server-profile.test.mjs
       - run: node --test Tools/ds-config.test.mjs
       - run: node --test Tools/sync-config-readers.test.mjs
+      # ADR-124 C7 / C8 content checks (R-00795): block assets vs the C0 list, catalog v2 and the
+      # acceptance map generators (--check fails when a committed generated file is stale).
+      - run: node --test Tools/check-block-assets.test.mjs Tools/official-catalog.test.mjs Tools/acceptance-map.test.mjs
+      - run: node Tools/check-block-assets.mjs
+      - run: node Tools/official-catalog.mjs --check
+      - run: node Tools/acceptance-map.mjs --check
       # Pure unit checks over the server-host wiring: no engine binary needed, so they
       # run on every PR even though the job they guard is push/schedule only.
       - run: node --test Tools/test-server-host.test.mjs

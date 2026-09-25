@@ -7,3 +7,6 @@ import './stress-move.test.mjs';
 import './world-assert.test.mjs';
 import './capture-basemap.test.mjs';
 import './server-profile.test.mjs';
+import './check-block-assets.test.mjs';
+import './official-catalog.test.mjs';
+import './acceptance-map.test.mjs';

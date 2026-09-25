@@ -26,6 +26,10 @@
   <canvas id="field" width="640" height="480"></canvas>
   <!-- Block id -> swatch, built at runtime from the ids actually on screen. -->
   <div id="legend"></div>
+  <!-- ?view=blocks: the same voxel world drawn by the engine's WebGL2 block renderer (ADR-124). -->
+  <canvas id="blocks"></canvas>
+  <div id="blocks-hud"></div>
+  <div id="blocks-cams"></div>
   <script type="module" src="./main.js"></script>
 </body>
 </html>

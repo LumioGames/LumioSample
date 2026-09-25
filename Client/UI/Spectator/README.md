@@ -283,3 +283,26 @@ The page's own files are exempt from fingerprinting
 (`StaticWebAssetsFingerprintContent=false`) because `index.html` reaches
 `main.js` through `<script src>` and `spectator.css` through `<link href>`, and
 an import map rewrites neither — it only maps ES module specifiers.
+
+## Block view (`?view=blocks`, ADR-124 C9)
+
+`index.html?view=blocks` draws the same Rust voxel world in 3D with the engine's WebGL2 block
+renderer. Nothing new decodes or meshes a Section: `voxel-grid.mjs` creates the world with this
+game's catalog v2 (`./official-catalog.json`, published from `Server/Assets/Maps/`; wasm ABI 2
+has no world without it), and `blocks-view.mjs` hands that world (`grid.wasm`) to
+`Render/block-scene.mjs`, which loads `assets/Blocks/` (this game's `Client/Assets/Blocks/`),
+builds the texture array and face texture table, and drives VoxelEngine's wasm mesher. The
+publish links `Engine/web/{RHI,Render,Assets}/*.mjs` into `wwwroot/` under the same directory
+names (Render imports `../RHI` and `../Assets`).
+
+Camera: drag orbits, Shift / right drag pans, the wheel zooms, 1–9 / C pick the presets of
+`acceptance-lakeside.points.json`. `window.__lumioBlocks` exposes read-only evidence: quads per
+Section and segment, asset warnings (a missing texture is one warning and the magenta / black
+checkerboard, layer 0), per-cell light (`lightAt`) and per-Section light digests
+(`lightDigests()`, to compare with `eng/voxel-evidence.mjs` of the engine), mesh timing.
+
+Acceptance run on the lakeside map: start the DS from
+`Server/Config/Startup/server.acceptance.json` (restores `acceptance-lakeside.voxel`; the
+default `server.json` / `sample.voxel` is unchanged), e.g.
+`LUMIO_DS_CONFIG=Server/Config/Startup/server.acceptance.json node Tools/launcher.mjs --spectator --bots 1`,
+then open the printed page URL with `?view=blocks`.
