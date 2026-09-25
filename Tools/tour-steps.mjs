@@ -52,6 +52,11 @@ export const TOUR_CHAT_TEXT = 'sample tour: hello from the mining bot';
  * `sink.That(…, "<name>")` in the scenario source, so a rename cannot turn a step vacuous.
  */
 export const TOUR_ASSERTIONS = Object.freeze({
+  // A vein is a block entity (ADR-119): it reaches a client only through a delivered Section's
+  // binding table. That assertion is the step-05 proof the voxel Section channel carried content
+  // to the tour bot — the retired `admission baseline: wrote N SectionFrame` host line
+  // (R-00733 removed the fixed-region first send) no longer exists to be counted.
+  '05': Object.freeze(['vein_seen_via_section']),
   '06': Object.freeze(['self_bound']),
   '07': Object.freeze(['move_activated', 'activation_accepted', 'bot_uplinked']),
   '08': Object.freeze(['chat_activated']),
@@ -141,22 +146,23 @@ export function judgeTourSteps({ dsReady = null, dsStdout = '', dsLogs = '', bot
   const worldProfile = ready?.worldProfile ?? null;
   const baseMapBoot = BASE_MAP_BOOT.test(ds);
   const restoredInstead = CHECKPOINT_RESTORE.test(ds);
-  const sections = [...ds.matchAll(/admission baseline: wrote (\d+) SectionFrame/g)].map((match) => Number(match[1]));
-  const sectionsWritten = sections.length ? Math.max(...sections) : 0;
   const scopeActive = botAdmit.scopeActivated === true;
 
+  // The gameplay's C# log lines travel through the DS logfmt sink, which escapes the separating
+  // tab as a literal `\t` — `SampleMiningComponent\tmining_stage` — so no `\b` can precede these
+  // names. The `name txn=` shape is unique to the event itself; match it without a boundary.
   const appliedOps = count(/outcome=Succeeded\/Applied/g, ds);
   const chatOnDs = ds.includes(`says: ${TOUR_CHAT_TEXT}`);
-  const staged = count(/\bmining_stage txn=/g, ds);
-  const pre = count(/\bmining_pre txn=/g, ds);
-  const applied = count(/\bmining_applied txn=/g, ds);
-  const air = count(/\bmining_post txn=\S+ block=0\b/g, ds);
-  const rewards = [...ds.matchAll(/\bmining_reward txn=\S+ amount=(\d+)/g)].map((match) => Number(match[1]));
+  const staged = count(/mining_stage txn=/g, ds);
+  const pre = count(/mining_pre txn=/g, ds);
+  const applied = count(/mining_applied txn=/g, ds);
+  const air = count(/mining_post txn=\S+ block=0\b/g, ds);
+  const rewards = [...ds.matchAll(/mining_reward txn=\S+ amount=(\d+)/g)].map((match) => Number(match[1]));
   const rewarded = rewards.filter((amount) => amount > 0);
 
   return [
-    step('05', worldProfile === FROZEN_WORLD_PROFILE && baseMapBoot && !restoredInstead && sectionsWritten > 0 && scopeActive,
-      `worldProfile=${worldProfile ?? 'no-DS_READY'}; base map boot=${baseMapBoot}${restoredInstead ? ' (store already held a checkpoint)' : ''}; SectionFrames written=${sectionsWritten}; bot scope active=${scopeActive}`),
+    step('05', worldProfile === FROZEN_WORLD_PROFILE && baseMapBoot && !restoredInstead && held('05') && scopeActive,
+      `worldProfile=${worldProfile ?? 'no-DS_READY'}; base map boot=${baseMapBoot}${restoredInstead ? ' (store already held a checkpoint)' : ''}; ${bot('05')}; bot scope active=${scopeActive}`),
     step('06', botAdmit.admitted === true && held('06'),
       `admitted=${botAdmit.admitted === true}; ${bot('06')}`),
     step('07', held('07') && appliedOps > 0,

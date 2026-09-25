@@ -1032,14 +1032,15 @@ const TOUR_DS_READY = 'DS_READY {"pid":1,"endpoint":"ws://127.0.0.1:9110","world
 const LOG_PREFIX = '2026-09-23T00:00:00.0000000Z INF tick=40 world=1 lang=rs cat=ds';
 const GREEN_BOOT_LOGS = [
   `${LOG_PREFIX} msg="empty store: first boot opens the world from the configured base map"`,
-  `${LOG_PREFIX} msg="admission baseline: wrote 4 SectionFrame(s) to 1 connection(s) from the cut at tick 3"`,
   '2026-09-23T00:00:01.0000000Z DBG tick=41 world=1 lang=rs cat=host.operation_result msg="observed" sequence=1 outcome=Succeeded/Applied/Accepted code=-',
   `${LOG_PREFIX} msg="0a1b2c3d4e5f60718293a4b5c6d7e8f9 says: ${TOUR_CHAT_TEXT}"`,
-  `${LOG_PREFIX} msg="mining_stage txn=t1 section=s:0:0:0 cell=12 bound=v1"`,
-  `${LOG_PREFIX} msg="mining_pre txn=t1 block=7 revision=3"`,
-  `${LOG_PREFIX} msg="mining_applied txn=t1 section=s:0:0:0 cell=12 vein=v1"`,
-  `${LOG_PREFIX} msg="mining_post txn=t1 block=0 revision=4 bound="`,
-  `${LOG_PREFIX} msg="mining_reward txn=t1 amount=4"`,
+  // The gameplay's C# lines reach the DS logfmt sink with the separating tab escaped as a
+  // literal `\t` (`SampleMiningComponent\tmining_stage`), so no `\b` can precede the names.
+  `${LOG_PREFIX} msg="Lumio.Sample.Gameplay.SampleMiningComponent\\tmining_stage txn=t1 section=s:0:0:0 cell=12 bound=v1"`,
+  `${LOG_PREFIX} msg="Lumio.Sample.Gameplay.SampleMiningComponent\\tmining_pre txn=t1 block=7 revision=3"`,
+  `${LOG_PREFIX} msg="Lumio.Sample.Gameplay.SampleMiningComponent\\tmining_applied txn=t1 section=s:0:0:0 cell=12 vein=v1"`,
+  `${LOG_PREFIX} msg="Lumio.Sample.Gameplay.SampleMiningComponent\\tmining_post txn=t1 block=0 revision=4 bound="`,
+  `${LOG_PREFIX} msg="Lumio.Sample.Gameplay.SampleMiningComponent\\tmining_reward txn=t1 amount=4"`,
 ].join('\n');
 const RESTORED_BOOT_LOGS = `${LOG_PREFIX} msg="recovered checkpoint outranks base_map_path; this boot restores the saved world"`;
 const FRESH_BOOT_LOGS = `${LOG_PREFIX} msg="empty store: first boot opens the world from the configured base map"`;
@@ -1193,7 +1194,7 @@ test('a green tour passes all fourteen steps: 05–13 from artefacts, 14 from a 
   ]);
   assert.equal(report.status, 'PASS');
   assert.equal(report.tourLogin, 'Bot1');
-  assert.match(detail('05'), /SectionFrames written=4; bot scope active=true/);
+  assert.match(detail('05'), /vein_seen_via_section held; bot scope active=true/);
   assert.match(detail('12'), /amounts=\[4\]/);
   assert.match(detail('14'), /gen 1→3; restore marker=true; verify assertions=passed/);
   assert.deepEqual(report.checkpoint, { atCompletion: 1, released: 3 });
@@ -1415,7 +1416,7 @@ test('each of steps 05–13 fails on exactly its own missing evidence', () => {
   };
   const cases = [
     ['base map boot line', { dsLogs: without('empty store') }, ['05']],
-    ['no SectionFrame baseline', { dsLogs: without('admission baseline') }, ['05']],
+    ['vein never reached the census (no Section delivery)', { botResult: failedResult('vein_seen_via_section') }, ['05', '13']],
     ['bot scope never activated', { botAdmit: { admitted: true, scopeActivated: false } }, ['05']],
     ['runtime-only DS', { dsStdout: TOUR_DS_READY.replace('runtime+voxel', 'runtime-only') }, ['05']],
     ['boot 1 restored an old checkpoint', { dsLogs: `${GREEN_BOOT_LOGS}\n${RESTORED_BOOT_LOGS}` }, ['05']],

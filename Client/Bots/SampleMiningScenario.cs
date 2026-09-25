@@ -108,6 +108,9 @@ public sealed class SampleMiningScenario : BotScenario
     {
         ArgumentNullException.ThrowIfNull(sink);
         sink.That(_plan.SelfBound, "self_bound");
+        // A vein is a block entity (ADR-119): it can only arrive through a delivered Section's
+        // binding table, so this is the client-side proof the voxel Section channel carried content.
+        sink.That(_plan.VeinSeenInCensus, "vein_seen_via_section");
         sink.That(_chatAccepted, "chat_activated");
         sink.That(_plan.MoveOrders > 0, "move_activated");
         sink.That(_plan.MineOrders > 0, "mine_activated");
