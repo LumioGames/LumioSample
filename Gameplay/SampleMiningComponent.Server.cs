@@ -315,9 +315,21 @@ public sealed partial class SampleMiningComponent
     /// Declares the block-type → block-entity-type binding policy once (R4/ADR-119 决策 1). Runtime
     /// derives the live candidate list itself from every entity of a declared type from here on
     /// (<c>RefreshBindingContext</c>) — Sample no longer assembles or replaces that list by hand.
+    /// <see cref="HostVoxelWorldAdapter.SetBindingPolicy"/> refuses to run while any voxel mutation is
+    /// still pending (staged but not yet through <c>VoxelCommit</c>, tick.md §2 phase 8) — a legitimate
+    /// state on this component's very first Advance whenever something staged a write before this tick's
+    /// business phase ran, including before the tick loop even started (R-00774,
+    /// <c>ProductionAttachDiscoversOreOutsideAuthoringRectangle</c> stages one directly). Retrying on a
+    /// later Advance — once <see cref="HostVoxelWorldAdapter.QueuedCount"/> reads back to zero, meaning
+    /// that tick's <c>VoxelCommit</c> already drained every pending write — is the fix: it is also the
+    /// only ordering that lets such a pre-existing write land as an ordinary, not-yet-policy-governed
+    /// mutation, so Sample's own scan (<see cref="ContinueScanning"/>) discovers and binds it afterwards
+    /// exactly like any other unbound ore cell, instead of Native refusing the write itself for missing
+    /// an entity binding the policy would otherwise require up front.
     /// </summary>
     private void SetupBindingPolicy(HostVoxelWorldAdapter adapter)
     {
+        if (adapter.QueuedCount != 0) return; // not safe yet; try again next Advance.
         ISampleConfig config = SampleConfigBinding.For(World);
         adapter.SetBindingPolicy(new[]
         {
