@@ -26,5 +26,9 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Testing.Platform" />
+    <!-- HostEntry loads into this process's default context and its Runtime three-path needs the
+         logging abstractions at run time; the release's server/<rid>/SDK/Managed does not carry
+         framework-adjacent packages (same reason as Lumio.Sample.Gameplay.Tests). -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" VersionOverride="10.0.11" />
   </ItemGroup>
 </Project>

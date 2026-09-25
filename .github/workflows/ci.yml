@@ -98,9 +98,9 @@ jobs:
       # lumio-hfsm from the release native (Engine/server/<rid>/SDK/Native/<rid>/) and fail,
       # never skip, when it is not there (Server/Tests/EngineRelease.cs).
       - run: dotnet test LumioSample.slnx -- --minimum-expected-tests 1
-      # Compile guard for the spectator: both game sources and both engine C# parts
-      # (Engine/web/spectator/cs/) against this game's client gameplay. Compile only; the
-      # wasm host needs wasm-tools.
+      # Compile guard for the spectator: both game sources against the release's browser
+      # replica DLLs (Engine/web/replica/netstandard2.1/, incl. Lumio.Client.Spectator.dll)
+      # and this game's client gameplay. Compile only; the wasm host needs wasm-tools.
       - name: Build spectator shared sources against the pinned engine
         run: dotnet build Client/UI/Spectator/tests/Lumio.Sample.Client.Spectator.Tests.csproj -c Release
       - name: Spectator page (node)
@@ -157,9 +157,10 @@ jobs:
   # `Manager` is new; `ActivationContextFactory` answers only for `MineAbility`; a
   # `runtime-only` snapshot carries no `voxelBase64`; `Physics` follows the voxel profile.
   #
-  # ADR-123: HostEntry, the Runtime three-path, the native image and the catalog world
-  # they run on are all the Engine/ release's; the gameplay is built against that
-  # release's SDK, the only one the build knows (ADR-102 matched release).
+  # ADR-123: HostEntry, the Runtime three-path and the native image are the Engine/
+  # release's; the gameplay is built against that release's SDK, the only one the build
+  # knows (ADR-102 matched release); the catalog world is authored by this game on that
+  # release native (R-00785).
   # ADR-113 决策 6 / ADR-088: push to main and the daily job only.
   server-host:
     name: Engine admit/spawn cases on the Sample registry (ADR-115 §3)
@@ -184,11 +185,21 @@ jobs:
           package-manager-cache: false
       - name: Build the server-side Sample gameplay against the pinned engine
         run: dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -c Release
+      # The voxel case's catalog world is this game's own (R-00785, ADR-117): its base map
+      # restored on the release native, one public write, one capture. The Gameplay test that
+      # authors and checks it writes the three files where LUMIO_SAMPLE_CATALOG_WORLD_OUTPUT says.
+      - name: Author the catalog world on the release native
+        env:
+          LUMIO_SAMPLE_CATALOG_WORLD_OUTPUT: ${{ runner.temp }}/catalog-world
+        run: >-
+          dotnet test Tools/Lumio.Sample.Gameplay.Tests/Lumio.Sample.Gameplay.Tests.csproj -c Release --
+          --filter-method Lumio.Sample.Gameplay.Tests.CatalogWorldTests.AuthorsTheWallSceneOnTheReleaseNative
+          --minimum-expected-tests 1
       # Checks every engine input in Engine/ (fails by name, nothing is skipped) and the
       # catalog world's evidence against the release native, then exports the game-side
       # values through GITHUB_ENV.
       - name: Name the host suite inputs
-        run: node Tools/prepare-server-host-inputs.mjs --gameplay-bin Gameplay/bin/Release/net10.0
+        run: node Tools/prepare-server-host-inputs.mjs --gameplay-bin Gameplay/bin/Release/net10.0 --voxel-fixture "$RUNNER_TEMP/catalog-world"
       # HostEntry is one process-scoped managed context, so the runner gives each case its
       # own process. The HOST_SUITE line is asserted rather than trusted: `skipped=0` is the
       # ADR-113 决策 1 measurement.

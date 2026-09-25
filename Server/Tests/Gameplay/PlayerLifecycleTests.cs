@@ -43,17 +43,12 @@ public sealed class PlayerLifecycleTests : IDisposable
                     .Select(assembly => new { assembly.FullName, assembly.Location, assembly.ManifestModule.ModuleVersionId,
                         Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))) })
             }));
-        // The wall scene is the release's catalog world, authored against this very native image
-        // (ADR-117 决策 2: an engine-produced input consumed at run time, not an engine test
-        // fixture). Same-source or fail: its evidence must name the native loaded above.
-        string fixtures = Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.CatalogWorldFixture,
-            "SMP08 needs the release's catalog world (the wall scene)");
-        byte[] catalog = File.ReadAllBytes(Path.Combine(fixtures, "catalog-world.json"));
-        byte[] wall = File.ReadAllBytes(Path.Combine(fixtures, "catalog-world.capture"));
-        using (JsonDocument evidence = JsonDocument.Parse(File.ReadAllText(Path.Combine(fixtures, "catalog-world-evidence.json"))))
-        {
-            Assert.Equal(binarySha256, evidence.RootElement.GetProperty("BinarySha256").GetString(), ignoreCase: true);
-        }
+        // The wall scene is this game's own, authored here on this very native image from the
+        // committed base map (CatalogWorld; ADR-117: no engine test fixture). Same-source or fail.
+        CatalogWorld.Scene scene = CatalogWorld.Author();
+        Assert.Equal(binarySha256, scene.BinarySha256, ignoreCase: true);
+        byte[] catalog = scene.Catalog;
+        byte[] wall = scene.Capture;
         // Resolve only the frozen public API; absence is an explicit failed test, never a fallback.
         MethodInfo attachMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("TryAttach", new[] { typeof(WorldManager), typeof(KernelConfig), typeof(byte[]) }), exactMatch: false);
         MethodInfo restoreMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("RestoreNew", new[]

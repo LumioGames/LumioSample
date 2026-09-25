@@ -46,6 +46,8 @@ dotnet build LumioSample.slnx
 dotnet test  LumioSample.slnx
 
 # 十四步一条命令：没给 --origin 时自己用 Engine/platform 的 compose 起 Platform，跑完删掉
+# 机器人是客户端，跑玩法的客户端编译（LumioEcsSide=client）
+dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -p:LumioEcsSide=client
 dotnet build Client/Bots/Lumio.Sample.Bots.csproj
 node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll Client/Bots/bin/Debug/net10.0/Lumio.Sample.Bots.dll
 ```

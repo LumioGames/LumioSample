@@ -2,7 +2,7 @@
   <!-- Also stops repo-root Directory.Build.targets from reaching the wasm host and its tests. -->
   <Target Name="EnsureSpectatorInputs" BeforeTargets="Restore;CollectPackageReferences;PrepareForBuild">
     <!-- ADR-123: the engine parts come from Engine/web/; there is no other copy to fall back to. -->
-    <Error Condition="'$(LumioSdkVersion)' == '' OR !Exists('$(LumioSpectatorParts)connect-ds.mjs') OR !Exists('$(LumioSpectatorParts)cs/SpectatorSectionFrame.cs')" Text="BLOCKED: the Engine/ release is missing its spectator parts under $(LumioSpectatorParts) (Engine/ empty? run: git submodule update --init --depth 1 Engine)." />
+    <Error Condition="'$(LumioSdkVersion)' == '' OR !Exists('$(LumioSpectatorParts)connect-ds.mjs') OR !Exists('$(LumioSpectatorReplicaDir)Lumio.Client.Spectator.dll')" Text="BLOCKED: the Engine/ release is missing its spectator parts ($(LumioSpectatorParts)*.mjs, $(LumioSpectatorReplicaDir)Lumio.Client.Spectator.dll) (Engine/ empty? run: git submodule update --init --depth 1 Engine)." />
     <!-- Fail closed rather than compile a spectator that cannot project this game's config tables. -->
     <Error Condition="!Exists('$(LumioSampleRepoRoot)Client/Config/Tables/client/manifest.json')" Text="BLOCKED: this game's client config export is missing: $(LumioSampleRepoRoot)Client/Config/Tables/client/manifest.json" />
   </Target>

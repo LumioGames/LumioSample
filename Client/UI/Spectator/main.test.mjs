@@ -9,11 +9,11 @@ import vm from "node:vm";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // The modules main.js imports by relative name are engine parts (R-00710) shipped in the
-// Engine/ release's web/spectator/ (ADR-123); the publish links them next to main.js. These
+// Engine/ release's web/ (flat, ADR-123); the publish links them next to main.js. These
 // tests read the very same files from there. Missing is a failure, never a skip, and never a
 // local copy.
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const CLIENT_PARTS = path.join(REPO_ROOT, "Engine/web/spectator");
+const CLIENT_PARTS = path.join(REPO_ROOT, "Engine/web");
 if (!fs.existsSync(path.join(CLIENT_PARTS, "connect-ds.mjs"))) {
   throw new Error(`BLOCKED_ENV: engine spectator parts not found under ${CLIENT_PARTS}; run: git submodule update --init --depth 1 Engine`);
 }

@@ -41,14 +41,18 @@ Runtime 三路径，由 [`EngineRelease.cs`](EngineRelease.cs) 统一定位，�
 |---|---|
 | `LUMIO_SAMPLE_GAMEPLAY_DLL` | 本次构建的 `Lumio.Sample.Gameplay.dll`（服务端侧，对着 `Engine/sdk` 的 SDK 编） |
 | `LUMIO_CONFIG_DIR` | `Server/Config/Tables`（服务端那一份分端导出） |
-| `LUMIO_TEST_VOXEL_FIXTURE_DIR` | 发布物随带的 `Engine/tools/fixtures/catalog-world/`，须与发布物 native 同源 |
+| `LUMIO_TEST_VOXEL_FIXTURE_DIR` | 本仓在发布物 native 上自己造的 catalog world（`Gameplay/CatalogWorld.cs`，`--voxel-fixture` 给目录），须与发布物 native 同源 |
 
 这三个值由 [`Tools/prepare-server-host-inputs.mjs`](../../Tools/prepare-server-host-inputs.mjs)
 核对并点名，本机与 CI 走同一个入口。缺任何一个都是 `MISSING_INPUT: <名字>`：
 按 ADR-113 决策 2，缺产物是失败，不是 skip，也不再报 `BLOCKED_ENV`。
 
 `Server/Tests/Gameplay/` 里要 native 的用例（GAS 移动扫掠、冷恢复）同样经 `EngineRelease.cs`
-取发布物 native 与 catalog world，缺了是 `ENGINE_RELEASE_INPUT_MISSING` 失败。
+取发布物 native：它的模块初始化器在任何用例之前把 `LUMIO_ENGINE_NATIVE_PATH` 指到
+`Engine/server/<rid>/SDK/Native/<rid>/`（`<rid>` 是 .NET 的 `RuntimeInformation.RuntimeIdentifier`），
+Runtime 的空间索引、GAS hfsm 与 Tick 时钟因此和直接装载的用例用同一份 native；缺了是
+`ENGINE_RELEASE_INPUT_MISSING` 失败。冷恢复的墙景（catalog world）由 `Gameplay/CatalogWorld.cs`
+在同一份 native 上从本仓底图现造，不取任何引擎夹具（ADR-117）。
 
 ## 在 CI 的哪里跑（R-00702）
 
@@ -56,7 +60,7 @@ R-00692 把这两条接了进来并实跑通过，但没进任何流水线——
 被跑过一次。现在它们在 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
 的 `server-host` 作业里：检出时带上 `Engine/` 子模块，对着它构建服务端侧 Gameplay，核对发布物
 输入，然后逐条独立进程跑这两条，并 grep 断言 `HOST_SUITE cases=2 total=2 passed=2 failed=0 skipped=0`。
-不检出任何私有仓，也不再现编 HostEntry 或 voxel fixture（ADR-123）。
+不检出任何私有仓，也不再现编 HostEntry（ADR-123）；voxel fixture 由本仓 `CatalogWorldTests` 在发布物 native 上现造（R-00785）。
 
 触发面按 ADR-113 决策 6：`push` 到 main 与每日作业，PR 不跑（ADR-088 不给 PR 设必绿门）。
 跳过计数为 0 是决策 1 的度量口径，所以断言的是那一行而不是退出码。

@@ -8,6 +8,7 @@ import {
   ensureEngine,
   hostRid,
   nativeLibraryName,
+  parseDotnetRid,
   prepareEngine,
   readManifest,
   releaseLayout,
@@ -23,10 +24,34 @@ function writeRelease(root, { version = '0.0.1', platforms = [hostRid()], verify
   if (verify != null) writeFileSync(join(root, 'tools', 'verify-release.mjs'), verify);
 }
 
-test('the host rid is spelled the way the release names platforms', () => {
-  assert.equal(hostRid('win32', 'x64'), 'win-x64');
-  assert.equal(hostRid('darwin', 'arm64'), 'osx-arm64');
-  assert.equal(hostRid('linux', 'x64'), 'linux-x64');
+// R-00785: the platform is the RID of the .NET that runs the engine's managed half, read from
+// `dotnet --info`, never the node process's architecture. An x64 .NET on an Apple silicon Mac
+// (node arm64) is osx-x64; a machine the release does not list is BLOCKED_ENV by name.
+const DOTNET_INFO = (rid) => `.NET SDK:\n Version:           10.0.400\n\nRuntime Environment:\n OS Name:     Mac OS X\n OS Version:  26.5\n OS Platform: Darwin\n RID:         ${rid}\n Base Path:   /usr/local/share/dotnet/sdk/10.0.400/\n`;
+
+test('the host rid is the .NET RID from dotnet --info, not the node architecture', () => {
+  assert.equal(parseDotnetRid(DOTNET_INFO('osx-x64')), 'osx-x64');
+  assert.equal(parseDotnetRid(DOTNET_INFO('linux-x64').replace('\n', '\r\n')), 'linux-x64');
+  assert.equal(parseDotnetRid('no rid here'), null);
+  const calls = [];
+  const info = (dotnet) => { calls.push(dotnet); return { status: 0, stdout: DOTNET_INFO('osx-x64') }; };
+  assert.equal(hostRid({ dotnet: '/opt/dotnet/dotnet', info }), 'osx-x64');
+  assert.deepEqual(calls, ['/opt/dotnet/dotnet']);
+  assert.throws(() => hostRid({ info: () => ({ status: 0, stdout: 'garbage' }) }), (error) => error.code === 'BLOCKED_ENV' && /dotnet --info/.test(error.message));
+  assert.throws(() => hostRid({ info: () => ({ error: new Error('spawn dotnet ENOENT') }) }), (error) => error.code === 'BLOCKED_ENV');
+  // The real host: whatever `dotnet --info` says, spelled <os>-<arch>.
+  assert.match(hostRid(), /^(win|linux|osx)-(x64|arm64)$/);
+});
+
+test('an osx-x64 .NET host against a win-x64 / linux-x64 release is BLOCKED_ENV naming osx-x64, with no fall-back', () => {
+  const info = () => ({ status: 0, stdout: DOTNET_INFO('osx-x64') });
+  assert.throws(
+    () => assertPlatform({ version: '0.0.1', platforms: ['win-x64', 'linux-x64'] }, hostRid({ info })),
+    (error) => error.code === 'BLOCKED_ENV' && /this machine is osx-x64/.test(error.message) && /\[win-x64, linux-x64\]/.test(error.message),
+  );
+});
+
+test('native library names follow the rid', () => {
   assert.equal(nativeLibraryName('win-x64'), 'lumio_engine_native.dll');
   assert.equal(nativeLibraryName('osx-arm64'), 'liblumio_engine_native.dylib');
   assert.equal(nativeLibraryName('linux-x64'), 'liblumio_engine_native.so');
@@ -199,7 +224,7 @@ function platformFixture() {
 
 test('Platform runs from Engine/platform with the manifest image and this game\'s Tools/compose inputs', async () => {
   const { repo, layout, manifest } = platformFixture();
-  const docker = fakeDocker((args) => (args.includes('wait') ? { status: 0, stdout: '0\n', stderr: '' } : undefined));
+  const docker = fakeDocker((args) => (args.includes('ps') ? { status: 0, stdout: SEED_EXITED(0), stderr: '' } : undefined));
   const platform = await startReleasePlatform({
     layout, manifest, root: repo, run: docker.run, fetchFn: async () => ({ ok: true }), env: {},
   });
@@ -210,6 +235,33 @@ test('Platform runs from Engine/platform with the manifest image and this game\'
   assert.equal(up.env.LUMIO_GAME_PLATFORM_DIR, join(repo, 'Tools', 'compose'));
   platform.stop();
   assert.ok(docker.calls.some((call) => call.args.includes('down') && call.args.includes('-v')));
+});
+
+// games-seed is a one-shot psql: by the time the launcher looks it has usually exited, so the launcher
+// reads its state from `ps -a` (a `compose wait` on an exited service finds no container). R-00785.
+const SEED_EXITED = (code) => `${JSON.stringify({ Service: 'games-seed', State: 'exited', ExitCode: code })}\n`;
+
+test('games-seed that already exited 0 counts as the catalog in place; a non-zero exit is BLOCKED_ENV and tears down', async () => {
+  const { repo, layout, manifest } = platformFixture();
+  let polls = 0;
+  const running = fakeDocker((args) => {
+    if (!args.includes('ps')) return undefined;
+    polls += 1;
+    return { status: 0, stdout: polls < 2 ? `${JSON.stringify({ Service: 'games-seed', State: 'running', ExitCode: 0 })}\n` : SEED_EXITED(0), stderr: '' };
+  });
+  const platform = await startReleasePlatform({ layout, manifest, root: repo, run: running.run, fetchFn: async () => ({ ok: true }), env: {} });
+  assert.equal(polls, 2);
+  assert.ok(!running.calls.some((call) => call.args.includes('wait')), 'no compose wait');
+  platform.stop();
+  // Older compose prints one JSON array.
+  const array = fakeDocker((args) => (args.includes('ps') ? { status: 0, stdout: JSON.stringify([{ Service: 'games-seed', State: 'exited', ExitCode: 0 }]), stderr: '' } : undefined));
+  (await startReleasePlatform({ layout, manifest, root: repo, run: array.run, fetchFn: async () => ({ ok: true }), env: {} })).stop();
+  const failed = fakeDocker((args) => (args.includes('ps') ? { status: 0, stdout: SEED_EXITED(3), stderr: '' } : undefined));
+  await assert.rejects(
+    () => startReleasePlatform({ layout, manifest, root: repo, run: failed.run, fetchFn: async () => ({ ok: true }), env: {} }),
+    (error) => error.code === 'BLOCKED_ENV' && /games-seed did not finish cleanly \(state=exited exit=3\)/.test(error.message),
+  );
+  assert.ok(failed.calls.some((call) => call.args.includes('down')));
 });
 
 test('no docker is BLOCKED_ENV before anything starts', async () => {
