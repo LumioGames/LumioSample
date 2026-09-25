@@ -118,3 +118,5 @@ git submodule update --init --depth 1 Engine
    - ✅ 允许：用它开发、发行、商业运营你自己的游戏与游戏内容
    - ❌ 不允许：用它对外提供游戏引擎、游戏开发套件、运行时、服务端框架等与之竞争的面向开发者的产品或服务
    - 2030-09-07 自动转为 Apache License 2.0
+
+`Client/Assets/Blocks/` 的贴图为 CC0（见该目录 LICENSE / SOURCES.md）。

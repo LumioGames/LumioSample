@@ -1,6 +1,6 @@
 {
   "format": "lumio.block-asset.v1",
   "faces": {
-    "all": "textures/hard_wall.png"
+    "all": "textures/brick_grey.png"
   }
 }

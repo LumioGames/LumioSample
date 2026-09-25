@@ -1,17 +1,24 @@
 LumioSample block texture pack (Client/Assets/Blocks)
 
-Scope: every PNG under textures/ and preview/, every lumio.*.json block asset
-description and pack.json in this directory, and the generator
-source/generate-textures.mjs.
+Everything in this directory is released under the Creative Commons CC0 1.0
+Universal Public Domain Dedication (SPDX: CC0-1.0). It comes from two sources;
+SOURCES.md records the source of every texture file.
 
-These files were created from scratch by the LumioSample contributors. The
-textures are drawn procedurally by source/generate-textures.mjs; no external
-image, texture pack, or Minecraft / Mojang asset was used, traced, or referenced.
+1. Kenney Voxel Pack, by Kenney Vleugels for Kenney (www.kenney.nl),
+   https://kenney.nl/assets/voxel-pack . Kenney released it under CC0 1.0; the
+   license text shipped in the pack is kept verbatim in LICENSE-kenney.txt.
+   The textures copied from it are listed in SOURCES.md with the original file
+   name and sha256. water.png and ice.png are derived from Kenney originals
+   (kept in source/kenney/) by changing the alpha channel only.
 
-To the extent possible under law, the LumioSample contributors have waived all
-copyright and related or neighboring rights to these files by dedicating them
-to the public domain under the Creative Commons CC0 1.0 Universal Public Domain
-Dedication (SPDX: CC0-1.0).
+2. Self-drawn by the LumioSample contributors: the remaining textures, the
+   preview image under preview/, every lumio.*.json block asset description,
+   pack.json, and the generator source/generate-textures.mjs. The self-drawn
+   textures are produced procedurally by that script; no external image,
+   texture pack, or Minecraft / Mojang asset was used, traced, or referenced.
+   To the extent possible under law, the LumioSample contributors have waived
+   all copyright and related or neighboring rights to these files by dedicating
+   them to the public domain under CC0 1.0.
 
 Full legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
 
