@@ -1,0 +1,2 @@
+{"ts":"2026-09-25T16:40:18.2203431Z","kind":"chat.input","tick":0,"tickSource":"native-kernel/tickFrame","pid":68852,"accountId":"AcctDetD01","messageType":"InputCommand","mappingId":"chat.input","sequence":1,"payloadSha256":"bf69f8926b1f4fe0e2ba55fa8babd576cdd2e5b9842b5cf3c388c946aecd4634"}
+{"kind":"scenario.finished","pid":68852,"ownerFrame":"7788","uplinks":7786,"passed":true}

@@ -1,0 +1,229 @@
+{
+  "rounds": 20,
+  "frameBudgetMs": 50,
+  "clock": "native-core-clock_now",
+  "results": [
+    {
+      "index": 1,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 25.47,
+      "first200p99Ms": 19.51,
+      "steadyMaxMs": 30.41,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 2,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 19.09,
+      "first200p99Ms": 16.05,
+      "steadyMaxMs": 20.02,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 3,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 28.56,
+      "first200p99Ms": 21.43,
+      "steadyMaxMs": 35.52,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 4,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 15.19,
+      "first200p99Ms": 13.28,
+      "steadyMaxMs": 24.8,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 5,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 21.43,
+      "first200p99Ms": 15.82,
+      "steadyMaxMs": 31.91,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 6,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 12.76,
+      "first200p99Ms": 10.98,
+      "steadyMaxMs": 19.33,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 7,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 13.81,
+      "first200p99Ms": 11.29,
+      "steadyMaxMs": 27.54,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 8,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 14.25,
+      "first200p99Ms": 12.03,
+      "steadyMaxMs": 24.15,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 9,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 13.48,
+      "first200p99Ms": 11.21,
+      "steadyMaxMs": 25.25,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 10,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 21.4,
+      "first200p99Ms": 13.07,
+      "steadyMaxMs": 23.05,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 11,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 14.24,
+      "first200p99Ms": 12.06,
+      "steadyMaxMs": 12.97,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 12,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 14.18,
+      "first200p99Ms": 11.38,
+      "steadyMaxMs": 23.37,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 13,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 14.03,
+      "first200p99Ms": 10.39,
+      "steadyMaxMs": 20.88,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 14,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 13.98,
+      "first200p99Ms": 10.79,
+      "steadyMaxMs": 20.73,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 15,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 15.9,
+      "first200p99Ms": 13.32,
+      "steadyMaxMs": 32.48,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 16,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 11.82,
+      "first200p99Ms": 10.49,
+      "steadyMaxMs": 37.86,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 17,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 18.83,
+      "first200p99Ms": 12.84,
+      "steadyMaxMs": 20.97,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 18,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 22.97,
+      "first200p99Ms": 12.27,
+      "steadyMaxMs": 29.36,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 19,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 12.02,
+      "first200p99Ms": 9.34,
+      "steadyMaxMs": 20.98,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    },
+    {
+      "index": 20,
+      "ready": true,
+      "ticks": 1200,
+      "firstTickId": 1,
+      "first200MaxMs": 14.56,
+      "first200p99Ms": 11.47,
+      "steadyMaxMs": 26.13,
+      "overBudgetFirst200": 0,
+      "overBudgetSteady": 0
+    }
+  ],
+  "verdict": "PASS",
+  "bad": []
+}

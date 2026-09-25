@@ -1,0 +1,9 @@
+{
+  "maxContexts": 512,
+  "maxHandles": 16384,
+  "maxNativeBytes": 67108864,
+  "maxJobsQueued": 256,
+  "maxJobsRunning": 4,
+  "maxCompletionItems": 1024,
+  "logMailboxCapacity": 8192
+}
