@@ -694,7 +694,7 @@
     },
     {
       "id": "light.roof_blocks_skylight",
-      "verify": "ADR-124 验证·光照：木板屋顶下天光为 0",
+      "verify": "ADR-124 验证·光照：木板屋顶挡住正上方的天光，屋内天光只从门窗横向进来",
       "cells": [
         {
           "x": 4,
@@ -715,7 +715,7 @@
           "block": "lumio.oak_planks"
         }
       ],
-      "expect": "屋内两格天光 = 0（天光按列从上往下、不横向扩散；窗户不带天光进屋）"
+      "expect": "屋内两格天光 = 12、11（屋顶下列值为 0；天光和 MC 一样横向扩散，经门窗进屋每格减 1；不是 15 也不是 0）"
     },
     {
       "id": "light.leaves_keep_skylight",
