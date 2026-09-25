@@ -56,7 +56,7 @@
     `./ds-close-codes.mjs`, `./not-serving-retry.mjs`, `./dev-hot-reload.mjs`)
     are engine parts: they are linked straight from the LumioClient checkout into
     `wwwroot/` beside `main.js` (R-00710). The two generated ones stay generated
-    by LumioClient's own generators and `--check`; this repository has no copy.
+    by LumioClient's own generators and their `check` mode; this repository has no copy.
   -->
   <ItemGroup>
     <Content Include="..\index.html" Link="wwwroot\index.html" />
