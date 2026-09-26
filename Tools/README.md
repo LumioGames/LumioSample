@@ -209,11 +209,14 @@ invent an encoder.
 
 ---
 
-`verify-evidence.mjs` is the deterministic S-7 evidence gate. It reads two
-independent round directories, normalizes CRLF to LF before SHA-256, compares
-`eventOrder` and `appliedTicks`, and runs `world-assert.mjs` against each
-round's `world.json`. It never synthesizes fields or treats an empty log
-directory as success.
+`verify-evidence.mjs` is the deterministic S-7 evidence gate (ADR-125). It reads
+two independent round directories, normalizes CRLF to LF before SHA-256,
+compares the included-category `eventOrder` entries bitwise (excluded categories
+such as `rpc-delivery` are skipped by name; a category outside both lists FAILs),
+checks `appliedTicks` for format only (non-negative, monotonic, paired lengths —
+no cross-round comparison), and runs `world-assert.mjs` against each round's
+`world.json`. It never synthesizes fields or treats an empty log directory as
+success.
 
 ```bash
 node --test Tools/verify-evidence.mjs

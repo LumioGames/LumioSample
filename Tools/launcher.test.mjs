@@ -233,6 +233,14 @@ test('CLI parses --bots and --stagger-ms over environment', () => {
   assert.equal(options.staggerMs, 40);
 });
 
+test('CLI parses --fleet-per-process as an integer, not a leftover string', () => {
+  // 回归:numeric 集合曾漏 fleetPerProcess,"20" 留成字符串被整数校验误拒(R-00588 打包压测)。
+  assert.equal(parseLaunchArgs(['--fleet-per-process', '20'], {}).fleetPerProcess, 20);
+  assert.equal(parseLaunchArgs(['--fleet-per-process', '1'], {}).fleetPerProcess, 1);
+  assert.throws(() => parseLaunchArgs(['--fleet-per-process', 'x'], {}), /--fleet-per-process must be an integer/);
+  assert.throws(() => parseLaunchArgs(['--fleet-per-process', '0'], {}), /--fleet-per-process must be an integer/);
+});
+
 test('CLI parses --gameplay and --duration-ms', () => {
   const options = parseLaunchArgs(['--gameplay', 'Lumio.Sample.Gameplay.dll', '--duration-ms', '80'], {});
   assert.equal(options.gameplay, 'Lumio.Sample.Gameplay.dll');
