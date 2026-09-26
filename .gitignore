@@ -11,10 +11,6 @@ TestResults/
 Tools/logs/**
 !Tools/logs/README.md
 .run/
-# ADR-123: Engine/ is the read-only LumioEngineRelease submodule. Until its gitlink exists (the
-# v0.0.1 pin), a tree put there by `pack-release --from-main` must never be committed as files;
-# once pinned, the gitlink is tracked and this line does not affect it.
-/Engine/
 Gameplay/generated/*/gen.hash
 
 # ADR-115: lumio-ds creates these at run time. Never tracked, never an empty shell.
