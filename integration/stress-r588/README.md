@@ -5,9 +5,12 @@
 - 总判定:**FAIL**(`verification.json`)。两轮在同一点位确定性失败:**世界在场第 41 名玩家
   准入时 DS runtime tick failure**(tick 2076/2146/2149/2226/2293/2384,六次复现),
   世界 sealed、全部连接被 1011/100 关闭,AC1–AC5 全部不成立。
-- 失败链的原始证据:各轮 `launcher/ds-boot-1/*.log`(`stage=runtime_tick code=runtime_failure`,
-  紧跟第 41 个 `host.admit pending`)、`tick-samples/`(NativeCore clock 的每帧 CSV,崩溃前
-  每帧 14–20ms 健康、零超预算;verify-rounds 报的 5 个超帧发生在崩溃当 tick)。
+- 失败链的原始证据:runtime_tick 失败行(`stage=runtime_tick code=runtime_failure`,紧跟第 41 个
+  `host.admit pending`)在各轮 `launcher/ds-boot-1/*.log`——该目录**未随本轮入仓**,原始日志留在
+  操作侧 `.run`(启动器证据目录),将补入;入仓证据里可见的是 `tick-samples/`(NativeCore clock
+  的每帧 CSV,崩溃前每帧 14–20ms 健康、零超预算;verify-rounds 报的 5 个超帧发生在崩溃当 tick)
+  与 `launcher/*/admission-events.ndjson`(逐账号准入计数见 `admission-counts.md`:仅 bot-1 有
+  ticket_accepted,组宿主只有 started 行)。
 - 已尝试的缓解(均不能绕过,详见交回报告):组内准入错峰 25ms→1200ms(LumioClient#159,
   已合)、kernel 上下文预算 64→512、全新账号族、更小并发批次——第 41 名入场必崩,
   与账号身份、拓扑、节奏无关。

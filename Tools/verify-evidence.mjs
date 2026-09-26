@@ -11,8 +11,19 @@ import { assertWorld } from './world-assert.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURE = join(ROOT, 'Tools', 'fixtures', 'oracle-min')
+const DET_VERIFY = join(ROOT, 'integration', 'determinism', 'det-verify')
 const LOG_EXTENSIONS = new Set(['.ndjson', '.jsonl', '.log'])
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value)
+
+/**
+ * ADR-125 决策 3:eventOrder 的收录/排除类别在这里具名列出。收录类别参与两轮逐位比较;
+ * 排除类别(RPC 消息投递,不改世界状态)具名跳过比较;两边都不在的新类别判 FAIL,
+ * 逼人决定收还是不收,不靠「没匹配上就算了」。
+ */
+export const INCLUDED_EVENT_CATEGORIES = Object.freeze(['entity-create', 'entity-field', 'entity-destroy', 'voxel-write'])
+export const EXCLUDED_EVENT_CATEGORIES = Object.freeze(['rpc-delivery'])
+const KNOWN_EVENT_CATEGORIES = new Set([...INCLUDED_EVENT_CATEGORIES, ...EXCLUDED_EVENT_CATEGORIES])
+const isWorldEvent = entry => isObject(entry) && INCLUDED_EVENT_CATEGORIES.includes(entry.category)
 
 export function normalizeLf(text) {
   return String(text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
@@ -109,10 +120,15 @@ function verifyRound(roundDir, label) {
         const ticks = valuesOf(value.appliedTicks)
         for (let idx = 0; idx < orders.length; idx += 1) {
           const item = orders[idx]
-          if (typeof item !== 'string' || item.length === 0) {
+          if (!isObject(item) || typeof item.category !== 'string' || item.category.length === 0 || typeof item.key !== 'string' || item.key.length === 0) {
             failures.push({
               check: 'record:eventOrder-contract',
-              message: `${label}/${name}:${record.line} eventOrder[${idx}] must be a non-empty string, got ${display(item)}`,
+              message: `${label}/${name}:${record.line} eventOrder[${idx}] must be { category, key } with non-empty strings, got ${display(item)}`,
+            })
+          } else if (!KNOWN_EVENT_CATEGORIES.has(item.category)) {
+            failures.push({
+              check: 'record:eventOrder-category',
+              message: `${label}/${name}:${record.line} eventOrder[${idx}] category "${item.category}" is in neither list (included: ${INCLUDED_EVENT_CATEGORIES.join('/')}; excluded: ${EXCLUDED_EVENT_CATEGORIES.join('/')})`,
             })
           }
         }
@@ -145,6 +161,11 @@ function verifyRound(roundDir, label) {
   if (eventOrder.length !== appliedTicks.length) {
     failures.push({ check: 'logs:fields', message: `${label} eventOrder/appliedTicks records are not paired` })
   }
+  const worldEventOrder = eventOrder.filter(isWorldEvent)
+  if (eventOrder.length > 0 && worldEventOrder.length === 0) {
+    // ADR-125 决策 4:只有排除类别的证据对判据 7 等于没有世界状态证据,按空证据 FAIL。
+    failures.push({ check: 'logs:world-events', message: `${label} contains no world-state events (included categories: ${INCLUDED_EVENT_CATEGORIES.join('/')})` })
+  }
   const uniqueHashes = [...new Set(baseMapHashes.map(entry => String(entry.value)))]
   if (uniqueHashes.length !== 1 || !/^[0-9a-f]{64}$/.test(uniqueHashes[0] ?? '')) {
     failures.push({ check: 'base-map-hash', message: `${label} must contain one lowercase 64-character baseMapSha256` })
@@ -154,6 +175,7 @@ function verifyRound(roundDir, label) {
     ok: failures.length === 0,
     failures,
     eventOrder,
+    worldEventOrder,
     appliedTicks,
     baseMapSha256: uniqueHashes[0] ?? null,
     fileHashes,
@@ -171,25 +193,27 @@ export function compareRuns(round1, round2) {
     })
   }
 
-  const maxOrder = Math.max(round1?.eventOrder?.length ?? 0, round2?.eventOrder?.length ?? 0)
+  // ADR-125 决策 1/3:两轮只比收录类别的 eventOrder(逐位相等 + 条数相同);排除类别
+  // (rpc-delivery)不进比较,其条数随连接时机抖动是已知非确定性,不是分歧。
+  const left = round1?.worldEventOrder ?? []
+  const right = round2?.worldEventOrder ?? []
+  if (left.length !== right.length) {
+    failures.push({
+      check: 'event-order-count',
+      message: `eventOrder counts differ: round-1=${left.length}, round-2=${right.length} (excluded categories ${EXCLUDED_EVENT_CATEGORIES.join('/')} are not counted)`,
+    })
+  }
+  const maxOrder = Math.max(left.length, right.length)
   for (let index = 0; index < maxOrder; index += 1) {
-    const left = round1?.eventOrder?.[index]
-    const right = round2?.eventOrder?.[index]
-    if (JSON.stringify(left) !== JSON.stringify(right)) {
-      failures.push({ check: 'event-order-compare', message: `eventOrder[${index}] differs: round-1=${display(left)}, round-2=${display(right)}` })
+    const a = left[index]
+    const b = right[index]
+    if (JSON.stringify(a) !== JSON.stringify(b)) {
+      failures.push({ check: 'event-order-compare', message: `eventOrder[${index}] differs: round-1=${display(a)}, round-2=${display(b)}` })
       break
     }
   }
-
-  const maxTicks = Math.max(round1?.appliedTicks?.length ?? 0, round2?.appliedTicks?.length ?? 0)
-  for (let index = 0; index < maxTicks; index += 1) {
-    const left = round1?.appliedTicks?.[index]
-    const right = round2?.appliedTicks?.[index]
-    if (JSON.stringify(left) !== JSON.stringify(right)) {
-      failures.push({ check: 'applied-tick-compare', message: `appliedTicks[${index}] differs: round-1=${display(left)}, round-2=${display(right)}` })
-      break
-    }
-  }
+  // ADR-125 决策 2:appliedTicks 不再做两轮逐位相等比较,只保留每轮的格式检查
+  // (非负整数、单调不减、与 eventOrder 等长),见 verifyRound。
   return { ok: failures.length === 0, failures, round1, round2 }
 }
 
@@ -248,13 +272,16 @@ export function verifyEvidenceDir(dir) {
   }
   const round1Dir = join(root, 'round-1')
   const round2Dir = join(root, 'round-2')
-  if (!existsSync(round1Dir) || !existsSync(round2Dir)) {
-    return { ok: false, failures: [{ check: 'logs:rounds', message: 'both round-1 and round-2 directories are required' }] }
+  const failures = []
+  // ADR-125 失败语义:读不到某一轮的证据就 FAIL,并写明缺的是哪个目录,不当成「没有差异」。
+  const missingRounds = ['round-1', 'round-2'].filter((name) => !existsSync(join(root, name)))
+  if (missingRounds.length > 0) {
+    failures.push({ check: 'logs:rounds', message: `missing evidence directories: ${missingRounds.map((name) => join(root, name)).join(', ')}` })
   }
   const layout = verifyIndependentRoundLayout(round1Dir, round2Dir)
   const logs = compareRuns(verifyRound(round1Dir, 'round-1'), verifyRound(round2Dir, 'round-2'))
   const worlds = verifyWorldRounds(root, round1Dir, round2Dir)
-  const failures = [...layout.failures, ...logs.failures, ...worlds.failures]
+  failures.push(...layout.failures, ...logs.failures, ...worlds.failures)
   return { ok: failures.length === 0, failures, round1: logs.round1, round2: logs.round2 }
 }
 
@@ -281,6 +308,19 @@ function tempFixture(label) {
   return dir
 }
 
+function readFixtureLines(dir, round = 'round-2') {
+  return readFileSync(join(dir, round, 'events.ndjson'), 'utf8').trimEnd().split('\n')
+}
+
+/** 改第 lineIndex 行的记录再整体写回;直接字符串 replace 会绑死在具体 JSON 序列化上。 */
+function editFixtureRecord(dir, round, lineIndex, edit) {
+  const lines = readFixtureLines(dir, round)
+  const record = JSON.parse(lines[lineIndex])
+  edit(record)
+  lines[lineIndex] = JSON.stringify(record)
+  writeFileSync(join(dir, round, 'events.ndjson'), `${lines.join('\n')}\n`)
+}
+
 const test = process.env.NODE_TEST_CONTEXT ? nodeTest : () => {}
 
 test('sha256 normalizes CRLF to LF', () => {
@@ -292,29 +332,116 @@ test('oracle-min fixture passes with two identical rounds', () => {
   assert.equal(report.ok, true, JSON.stringify(report.failures))
 })
 
-test('a changed tick fails and identifies its appliedTicks position', () => {
-  const dir = tempFixture('tick-drift')
+test('ADR-125 fixture (a): the committed two-round evidence passes', () => {
+  const report = verifyEvidenceDir(DET_VERIFY)
+  assert.equal(report.ok, true, JSON.stringify(report.failures))
+  assert.ok(report.round1.worldEventOrder.length > 0, 'round-1 must carry world-state events')
+})
+
+test('ADR-125 fixture (b): swapping two round-2 eventOrder entries fails', () => {
+  const dir = tempFixture('order-swap')
   try {
-    const path = join(dir, 'round-2', 'events.ndjson')
-    const changed = readFileSync(path, 'utf8').replace('"appliedTicks":[1,2,3]', '"appliedTicks":[1,2,99]')
-    writeFileSync(path, changed)
+    const lines = readFixtureLines(dir)
+    const swapped = [lines[0], lines[2], lines[1], ...lines.slice(3)]
+    writeFileSync(join(dir, 'round-2', 'events.ndjson'), `${swapped.join('\n')}\n`)
     const report = verifyEvidenceDir(dir)
     assert.equal(report.ok, false)
-    assert.ok(report.failures.some(failure => failure.check === 'applied-tick-compare' && failure.message.includes('appliedTicks[2]')))
+    assert.ok(report.failures.some(failure => failure.check === 'event-order-compare' && failure.message.includes('eventOrder[0]')))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('a reordered event fails and identifies its eventOrder position', () => {
-  const dir = tempFixture('event-order-drift')
+test('ADR-125 fixture (c): deleting one round-2 world event fails on count', () => {
+  const dir = tempFixture('event-deleted')
   try {
-    const path = join(dir, 'round-2', 'events.ndjson')
-    const changed = readFileSync(path, 'utf8').replace('"event-2","event-3"', '"event-3","event-2"')
-    writeFileSync(path, changed)
+    const lines = readFixtureLines(dir)
+    writeFileSync(join(dir, 'round-2', 'events.ndjson'), `${[lines[0], ...lines.slice(2)].join('\n')}\n`)
     const report = verifyEvidenceDir(dir)
     assert.equal(report.ok, false)
-    assert.ok(report.failures.some(failure => failure.check === 'event-order-compare' && failure.message.includes('eventOrder[1]')))
+    assert.ok(report.failures.some(failure => failure.check === 'event-order-count' && failure.message.includes('round-1=3, round-2=2')))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ADR-125 fixture (d): one changed round-2 terminal cell fails', () => {
+  const dir = tempFixture('world-cell')
+  try {
+    const world = JSON.parse(readFileSync(join(dir, 'round-2', 'world.json'), 'utf8'))
+    world.cells[1].block = 'stone'
+    writeFileSync(join(dir, 'round-2', 'world.json'), `${JSON.stringify(world, null, 2)}\n`)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(failure => failure.check === 'world:cell' && failure.message.startsWith('round-2')))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ADR-125 fixture (d): round-2 ore count +1 fails', () => {
+  const dir = tempFixture('world-ore')
+  try {
+    const world = JSON.parse(readFileSync(join(dir, 'round-2', 'world.json'), 'utf8'))
+    world.oreCount += 1
+    writeFileSync(join(dir, 'round-2', 'world.json'), `${JSON.stringify(world, null, 2)}\n`)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(failure => failure.check === 'world:ore' && failure.message.startsWith('round-2')))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ADR-125 fixture (e): an event category outside both lists fails', () => {
+  const dir = tempFixture('unknown-category')
+  try {
+    const line = JSON.stringify({ eventOrder: [{ category: 'physics-collision', key: 'entity:1' }], appliedTicks: [9] })
+    writeFileSync(join(dir, 'round-2', 'events.ndjson'), `${readFixtureLines(dir).join('\n')}\n${line}\n`)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(failure => failure.check === 'round-2'
+      && failure.details?.some(detail => detail.check === 'record:eventOrder-category' && detail.message.includes('physics-collision'))))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ADR-125 fixture (f): both rounds with empty evidence fail closed', () => {
+  const dir = mkdtempSync(join(dirname(fileURLToPath(import.meta.url)), '.tmp-empty-'))
+  try {
+    mkdirRoundDirs(dir)
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    for (const round of ['round-1', 'round-2']) {
+      assert.ok(report.failures.some(failure => failure.check === round || failure.check === 'logs:empty'), `${round} must fail`)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ADR-125 fixture (g): round-2 appliedTicks shifted by +5 still passes', () => {
+  const dir = tempFixture('tick-shift')
+  try {
+    for (let index = 1; index <= 3; index += 1) {
+      editFixtureRecord(dir, 'round-2', index, record => { record.appliedTicks = record.appliedTicks.map(tick => tick + 5) })
+    }
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, true, JSON.stringify(report.failures))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('ADR-125 fixture (g): a round-2 tick below its predecessor fails the monotonic check', () => {
+  const dir = tempFixture('tick-regress')
+  try {
+    editFixtureRecord(dir, 'round-2', 3, record => { record.appliedTicks = [1] })
+    const report = verifyEvidenceDir(dir)
+    assert.equal(report.ok, false)
+    assert.ok(report.failures.some(failure => failure.check === 'round-2'
+      && failure.details?.some(detail => detail.check === 'record:appliedTicks-monotonic')))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -329,18 +456,6 @@ test('a different base map hash fails across rounds', () => {
     const report = verifyEvidenceDir(dir)
     assert.equal(report.ok, false)
     assert.ok(report.failures.some(failure => failure.check === 'base-map-hash-compare'))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('an empty log directory fails closed', () => {
-  const dir = mkdtempSync(join(dirname(fileURLToPath(import.meta.url)), '.tmp-empty-'))
-  try {
-    mkdirRoundDirs(dir)
-    const report = verifyEvidenceDir(dir)
-    assert.equal(report.ok, false)
-    assert.ok(report.failures.some(failure => failure.check === 'round-1' || failure.check === 'logs:empty'))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -401,9 +516,9 @@ test('wrong ore count fails independently of matching logs', () => {
 test('CLI swapped eventOrder in one round exits 1', () => {
   const dir = tempFixture('cli-event-order')
   try {
-    const path = join(dir, 'round-1', 'events.ndjson')
-    const changed = readFileSync(path, 'utf8').replace('"event-2","event-3"', '"event-3","event-2"')
-    writeFileSync(path, changed)
+    const lines = readFixtureLines(dir, 'round-1')
+    const swapped = [lines[0], lines[2], lines[1], ...lines.slice(3)]
+    writeFileSync(join(dir, 'round-1', 'events.ndjson'), `${swapped.join('\n')}\n`)
     const env = { ...process.env }
     delete env.NODE_TEST_CONTEXT
     const res = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--dir', dir], { env, encoding: 'utf8' })
@@ -450,12 +565,11 @@ test('fields are read from logs and are never synthesized', () => {
 test('appliedTicks with null fails and identifies position', () => {
   const dir = tempFixture('tick-null')
   try {
-    const path = join(dir, 'round-1', 'events.ndjson')
-    const changed = readFileSync(path, 'utf8').replace('"appliedTicks":[1,2,3]', '"appliedTicks":[1,null,3]')
-    writeFileSync(path, changed)
+    editFixtureRecord(dir, 'round-1', 1, record => { record.appliedTicks = [null] })
     const report = verifyEvidenceDir(dir)
     assert.equal(report.ok, false)
-    assert.ok(report.failures.some(f => f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[1]'))))
+    assert.ok(report.failures.some(f => f.check === 'round-1'
+      && f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[0]'))))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -464,12 +578,11 @@ test('appliedTicks with null fails and identifies position', () => {
 test('appliedTicks with negative integer fails and identifies position', () => {
   const dir = tempFixture('tick-negative')
   try {
-    const path = join(dir, 'round-1', 'events.ndjson')
-    const changed = readFileSync(path, 'utf8').replace('"appliedTicks":[1,2,3]', '"appliedTicks":[1,-2,3]')
-    writeFileSync(path, changed)
+    editFixtureRecord(dir, 'round-1', 1, record => { record.appliedTicks = [-2] })
     const report = verifyEvidenceDir(dir)
     assert.equal(report.ok, false)
-    assert.ok(report.failures.some(f => f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[1]'))))
+    assert.ok(report.failures.some(f => f.check === 'round-1'
+      && f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[0]'))))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -478,12 +591,11 @@ test('appliedTicks with negative integer fails and identifies position', () => {
 test('appliedTicks with non-integer fails and identifies position', () => {
   const dir = tempFixture('tick-non-integer')
   try {
-    const path = join(dir, 'round-1', 'events.ndjson')
-    const changed = readFileSync(path, 'utf8').replace('"appliedTicks":[1,2,3]', '"appliedTicks":[1,2.5,3]')
-    writeFileSync(path, changed)
+    editFixtureRecord(dir, 'round-1', 1, record => { record.appliedTicks = [2.5] })
     const report = verifyEvidenceDir(dir)
     assert.equal(report.ok, false)
-    assert.ok(report.failures.some(f => f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[1]'))))
+    assert.ok(report.failures.some(f => f.check === 'round-1'
+      && f.details?.some(d => d.check === 'record:appliedTicks-contract' && d.message.includes('appliedTicks[0]'))))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

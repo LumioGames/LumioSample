@@ -30,21 +30,25 @@ function readRaw(roundDir) {
 }
 
 /**
- * 逐事件 eventOrder(每行一个事件,配它的 tick——verify-evidence 要求两列逐条成对):
- * 只收 create/field/destroy 这三类世界变更。rpc(如 chat 的 OnChatMessage)是消息投递、
- * 不改世界状态,且其 appliedTick 随客户端连接时机抖动(两轮实测差 5 tick),把它算进
- * 世界序等于把非确定性噪声当分歧。值入键:两轮逐位相等=同一演化,不只是同一形状。
+ * 逐事件 eventOrder(每行一个事件,配它的 tick——verify-evidence 要求两列逐条成对)。
+ * ADR-125 决策 3:每条带具名 category。收录类别(entity-create/entity-field/entity-destroy,
+ * 外加预留的 voxel-write)进两轮逐位比较;rpc(如 chat 的 OnChatMessage)是消息投递、不改
+ * 世界状态,归入排除类别 rpc-delivery——照落证据、判定器具名跳过,不默默丢掉(其
+ * appliedTick 随客户端连接时机抖动,两轮实测差 5 tick,算进世界序等于把噪声当分歧)。
+ * 值入键:两轮逐位相等=同一演化,不只是同一形状。收录/排除清单的唯一事实源在
+ * Tools/verify-evidence.mjs;这里冒出清单外类别会被判定器 FAIL 拦下,不会静默通过。
  */
 function deriveEventsNdjson(raw, outPath) {
   const lines = [JSON.stringify({ baseMapSha256: raw.baseMapSha })];
   for (const event of raw.events) {
     const entries = [];
     for (const create of event.creates ?? []) {
-      entries.push(`+${create[0]}:${create[1]}`);
-      for (let i = 2; i < create.length; i += 1) entries.push(`+${create[0]}:${create[i][0]}.${create[i][1]}=${create[i][2]}`);
+      entries.push({ category: 'entity-create', key: `+${create[0]}:${create[1]}` });
+      for (let i = 2; i < create.length; i += 1) entries.push({ category: 'entity-create', key: `+${create[0]}:${create[i][0]}.${create[i][1]}=${create[i][2]}` });
     }
-    for (const [id, component, field, value] of event.fields ?? []) entries.push(`${id}:${component}.${field}=${value}`);
-    for (const id of event.destroys ?? []) entries.push(`-${id}`);
+    for (const [id, component, field, value] of event.fields ?? []) entries.push({ category: 'entity-field', key: `${id}:${component}.${field}=${value}` });
+    for (const id of event.destroys ?? []) entries.push({ category: 'entity-destroy', key: `-${id}` });
+    for (const rpc of event.rpcs ?? []) entries.push({ category: 'rpc-delivery', key: rpc });
     for (const entry of entries) lines.push(JSON.stringify({ eventOrder: [entry], appliedTicks: [event.tick] }));
   }
   writeFileSync(outPath, `${lines.join('\n')}\n`);

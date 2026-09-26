@@ -117,7 +117,7 @@ node --test Tools/launcher.test.mjs
 
 启动器第 05 步要四样同时成立：`DS_READY` 的 `worldProfile` 是 `runtime+voxel`；第一次开机的日志有 `empty store: first boot opens the world from the configured base map`，且**没有** `recovered checkpoint outranks base_map_path`（新存储开出了旧存档就不是加载底图）；`admission baseline: wrote N SectionFrame` 且 N>0；导览 Bot 的 Active 行 `scopeActivated=True`。
 
-[`verify-evidence.mjs`](../../../Tools/verify-evidence.mjs) 读取两轮独立目录的日志，逐位核对 `eventOrder` 与 `appliedTicks`，并经 [`world-assert.mjs`](../../../Tools/world-assert.mjs) 核对格子与矿石数。空日志或「哈希一致但世界错」都失败。
+[`verify-evidence.mjs`](../../../Tools/verify-evidence.mjs) 读取两轮独立目录的日志，逐位核对收录类别的 `eventOrder`（RPC 消息投递按 ADR-125 具名排除），`appliedTicks` 只查格式（非负、单调、成对，不做两轮比较），并经 [`world-assert.mjs`](../../../Tools/world-assert.mjs) 核对格子与矿石数。空日志或「哈希一致但世界错」都失败。
 
 **今天能跑**
 

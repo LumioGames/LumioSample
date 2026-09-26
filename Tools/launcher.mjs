@@ -195,7 +195,8 @@ export function parseLaunchArgs(argv = process.argv.slice(2), environment = proc
     'checkpoint-seconds': 'checkpointSeconds',
     'login-prefix': 'loginPrefix',
   };
-  const numeric = new Set(['bots', 'tourTicks', 'checkpointSeconds']);
+  // fleetPerProcess 不带 Ms 后缀,漏在 numeric 集合外会把 "20" 留成字符串,被下面的整数校验误拒。
+  const numeric = new Set(['bots', 'tourTicks', 'checkpointSeconds', 'fleetPerProcess']);
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (flag === '--help' || flag === '-h') return { help: true };
