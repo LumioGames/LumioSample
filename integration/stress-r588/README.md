@@ -19,6 +19,12 @@
   修复建议:HostEntry 派发层 catch 补 WriteHostEntryFault + Rust 侧把 detail 带进
   `host.tick failed` 行。
 
+## 诊断存档（B-00123 根因链）
+
+- `diagnostics/crash-tick1966-oversize-frame.log`：修复前真机探针实证——65805 字节 WorldChange 帧超过 wire 64KB 上限，`world-fatal: the wire cannot carry this frame` → 封世界（脱敏：conn/account 哈希化）。
+- `diagnostics/fixed-run-stress-v-excerpt.log`：三修复（LumioGameRuntime#239 普查字节分页 / LumioServer#186 pending_response 瞬态化 / LumioClient#163+#164 宿主饥饿与 drain 上限）合入后的验证轮——5 分钟 6387 ticks 零封世界、零失败 tick。
+- 遗留（阻断 R-00588 两轮 PASS 的客户端问题）：Bot 会话在连接 ~12.6s 后以 `inbound_queue_full` 断开，5×20 打包与 100 独立进程两种拓扑均复现；LumioClient 的该 latch 在「队列满」与「连接状态非 Started」两种失败下都会点亮，需要先把关闭 detail 里的状态说清再修（B-00123 追踪）。
+
 ## 复现
 
 ```
