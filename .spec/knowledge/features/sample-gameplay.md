@@ -74,6 +74,6 @@ R-00654 要量「同 Section 内他人写入让幸存预测记录连带失效」
 
 ## 相关
 
-- 需求真值在架构仓 `.spec/knowledge/features/sample.md`
+- 需求真值在架构仓 `.spec/knowledge/requirements/sample.md`
 - 配表是文件：[`0001-sample-config-is-json-files.md`](../../decisions/0001-sample-config-is-json-files.md)
 - sibling 生成：[`0002-sibling-generate-matches-sdk-pack.md`](../../decisions/0002-sibling-generate-matches-sdk-pack.md)
