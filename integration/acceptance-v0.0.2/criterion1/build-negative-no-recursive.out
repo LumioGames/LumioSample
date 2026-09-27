@@ -1,0 +1,21 @@
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error : There is no other engine path: no sibling checkout, no global-packages, no nuget.org. [C:\Work\accept-v002-neg\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\Lumio.Sample.Gameplay.Tests.csproj]
+
+生成失败。
+
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error : LUMIO_SDK_UNRESOLVED: the engine release is not in C:\Work\accept-v002-neg\LumioSample\Engine/ (expected manifest.json and sdk/Lumio.Engine.SDK.<version>.nupkg; manifest version=''). [C:\Work\accept-v002-neg\LumioSample\Gameplay\Lumio.Sample.Gameplay.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error : The Engine/ submodule was not fetched (cloned without --recursive?). Run: [C:\Work\accept-v002-neg\LumioSample\Gameplay\Lumio.Sample.Gameplay.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error :  [C:\Work\accept-v002-neg\LumioSample\Gameplay\Lumio.Sample.Gameplay.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error :     git submodule update --init --depth 1 Engine [C:\Work\accept-v002-neg\LumioSample\Gameplay\Lumio.Sample.Gameplay.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error :  [C:\Work\accept-v002-neg\LumioSample\Gameplay\Lumio.Sample.Gameplay.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error : There is no other engine path: no sibling checkout, no global-packages, no nuget.org. [C:\Work\accept-v002-neg\LumioSample\Gameplay\Lumio.Sample.Gameplay.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error : LUMIO_SDK_UNRESOLVED: the engine release is not in C:\Work\accept-v002-neg\LumioSample\Engine/ (expected manifest.json and sdk/Lumio.Engine.SDK.<version>.nupkg; manifest version=''). [C:\Work\accept-v002-neg\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\Lumio.Sample.Gameplay.Tests.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error : The Engine/ submodule was not fetched (cloned without --recursive?). Run: [C:\Work\accept-v002-neg\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\Lumio.Sample.Gameplay.Tests.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error :  [C:\Work\accept-v002-neg\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\Lumio.Sample.Gameplay.Tests.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error :     git submodule update --init --depth 1 Engine [C:\Work\accept-v002-neg\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\Lumio.Sample.Gameplay.Tests.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error :  [C:\Work\accept-v002-neg\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\Lumio.Sample.Gameplay.Tests.csproj]
+C:\Work\accept-v002-neg\LumioSample\Directory.Build.targets(10,5): error : There is no other engine path: no sibling checkout, no global-packages, no nuget.org. [C:\Work\accept-v002-neg\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\Lumio.Sample.Gameplay.Tests.csproj]
+    0 个警告
+    2 个错误
+
+已用时间 00:00:00.42
+EXIT=0

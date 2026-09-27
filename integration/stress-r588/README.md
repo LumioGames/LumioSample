@@ -28,6 +28,14 @@
 ## 复现
 
 ```
-node .run/stress-round.mjs integration/stress-r588/round-N   # 100 票错峰 + 5×20 打包
-node integration/stress-r588/verify-rounds.mjs round-1 round-2 verification.json
+# v0.0.2 起，单轮编排进仓（上一轮是未进仓的 .run/stress-round.mjs）：
+node integration/stress-r588/run-round.mjs <roundDir> [loginPrefix]   # 100 票错峰 + 5×20 打包，全新 Platform 库/轮
+node integration/stress-r588/verify-rounds.mjs round-1 round-2 <out>/verification.json
 ```
+
+`run-round.mjs` 调用的仓内工具：`Tools/stress-move.mjs`（驱动 `Tools/launcher.mjs` 跑十四步
++ 100 Bot 300 s 移动窗口）、`integration/stress-r588/observe-replicas.mjs`（五观察者 AC4）、
+HostEntry TickSampleExport（`LUMIO_TICK_SAMPLE_DIR` 落每帧耗时 / RSS CSV）与
+`Engine/platform/docker-compose.yml`（每轮 `down -v` → `up`，Platform 库不跨轮残留）。
+本 README 上半部分描述的 FAIL 是 v0.0.1 一轮的结论；v0.0.2 的两轮证据与判定在
+`integration/acceptance-v0.0.2/r588/`。
