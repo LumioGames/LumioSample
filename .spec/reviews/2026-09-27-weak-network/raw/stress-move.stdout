@@ -1,0 +1,17 @@
+step=01 status=READY LumioConfig export + typed Reader via M9 loader
+step=02 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=03 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=04 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=05 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=06 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=07 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=08 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=09 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=10 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=11 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=12 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=13 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+step=14 status=BLOCKED_ENV BLOCKED_ENV: this machine is osx-x64, and Engine/manifest.json (v0.0.2) ships only [win-x64, linux-x64]. No other platform is used in its place; switch to a release that lists this platform.
+VERIFICATION_STATUS=BLOCKED_ENV
+EVIDENCE_PATH=/Users/cui/LumioGames/LumioSample-weaknet/Tools/logs/stress-move
+VERIFICATION_STATUS=BLOCKED_ENV

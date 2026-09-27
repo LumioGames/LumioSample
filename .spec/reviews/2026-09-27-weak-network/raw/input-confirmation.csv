@@ -1,0 +1,5 @@
+profile,one_way_delay_ms,jitter_ms,loss_pct,bots,duration_seconds,sample_count,p50_ms,p95_ms,p99_ms,max_ms,adjusted_p99_ms,status,reason
+A,0,0,0,100,180,0,,,,,,BLOCKED_ENV,"No qualified Linux x86_64 runner; launcher stopped on macOS arm64"
+B,50,10,1,100,180,0,,,,,,BLOCKED_ENV,"No qualified Linux x86_64 runner; launcher stopped on macOS arm64"
+C,100,20,3,100,180,0,,,,,,BLOCKED_ENV,"No qualified Linux x86_64 runner; launcher stopped on macOS arm64"
+D,150,30,5,100,180,0,,,,,,BLOCKED_ENV,"No qualified Linux x86_64 runner; launcher stopped on macOS arm64"

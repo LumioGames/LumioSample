@@ -121,10 +121,6 @@
       <HintPath>$(_SpectatorGameplayDll)</HintPath>
       <Private>true</Private>
     </Reference>
-    <Reference Include="Lumio.GameRuntime.Command">
-      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Command.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
     <Reference Include="Lumio.GameRuntime.Config">
       <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Config.dll</HintPath>
       <Private>true</Private>
@@ -139,10 +135,6 @@
     </Reference>
     <Reference Include="Lumio.GameRuntime.Gas">
       <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Gas.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
-    <Reference Include="Lumio.GameRuntime.Observability">
-      <HintPath>$(_SpectatorGameplayDir)Lumio.GameRuntime.Observability.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="Lumio.GameRuntime.Persistence">

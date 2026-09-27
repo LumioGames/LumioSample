@@ -1,0 +1,3 @@
+timestamp_utc,command,bot_count,duration_seconds,exit_code,status,evidence_path,reason
+2026-09-27T12:02:24Z,"node Tools/launcher.mjs --bots 1 --no-platform",1,,2,BLOCKED_ENV,.run/launch-EAcv6h,"Engine v0.0.2 has no osx-x64 artifact; launcher stopped before DS/Bot"
+2026-09-27T12:02:24Z,"node Tools/stress-move.mjs --bots 100",100,300,2,BLOCKED_ENV,Tools/logs/stress-move,"Engine v0.0.2 has no osx-x64 artifact; launcher stopped before DS/Bot"
