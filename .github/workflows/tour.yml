@@ -1,0 +1,67 @@
+name: Clean-machine tour
+
+# ADR-123 验证 Fixture：一台没有任何 Lumio 私有权限的全新 x86_64 Linux，按外部用户的方式
+# 匿名 clone（--recursive，同级再 clone 公开的 LumioConfig），build、test，再用启动器跑完
+# 十四步。这里只用 GitHub 托管 runner（公开仓，ADR-080），不读任何 secret。
+# 本机 macOS 上经 Rosetta 转译的 x64 容器不是合格的验证环境（R-00782 验收记录）。
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '30 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tour:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - name: Clone like an outsider (anonymous, --recursive) plus the sibling LumioConfig
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/clean"
+          cd "$RUNNER_TEMP/clean"
+          git clone --recursive "https://github.com/${GITHUB_REPOSITORY}.git" LumioSample
+          git -C LumioSample fetch --depth 1 origin "$GITHUB_SHA"
+          git -C LumioSample checkout --detach "$GITHUB_SHA"
+          git -C LumioSample submodule update --init --depth 1 Engine
+          git -C LumioSample submodule status
+          git clone --depth 1 https://github.com/LumioGames/LumioConfig.git LumioConfig
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: ${{ runner.temp }}/clean/LumioSample/global.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.16.0'
+          package-manager-cache: false
+      - name: Build
+        working-directory: ${{ runner.temp }}/clean/LumioSample
+        run: dotnet build LumioSample.slnx
+      - name: Test
+        working-directory: ${{ runner.temp }}/clean/LumioSample
+        run: dotnet test LumioSample.slnx
+      - name: Build the client-side gameplay and the bots
+        working-directory: ${{ runner.temp }}/clean/LumioSample
+        run: |
+          set -euo pipefail
+          dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -p:LumioEcsSide=client
+          dotnet build Client/Bots/Lumio.Sample.Bots.csproj
+      - name: Fourteen steps (Platform from the public image, lumio-ds and bots from Engine/)
+        working-directory: ${{ runner.temp }}/clean/LumioSample
+        run: node Tools/launcher.mjs --bots 2 --stagger-ms 250 --scenario-dll Client/Bots/bin/Debug/net10.0/Lumio.Sample.Bots.dll
+      - name: Keep the launcher evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: clean-machine-tour-evidence
+          path: |
+            ${{ runner.temp }}/clean/LumioSample/Tools/logs/
+            ${{ runner.temp }}/clean/LumioSample/.run/
+          if-no-files-found: warn
+          retention-days: 14
