@@ -870,6 +870,11 @@ export async function startReleasePlatform({
     throw blocked(`docker compose is not available (${commandOutput(version) || 'docker not found'}); ADR-123 lists Docker as a prerequisite.`);
   }
   const stop = () => { docker(['down', '-v', '--remove-orphans'], 'down'); };
+  // A run that died before stop() (crash, Ctrl-C, a CI runner losing its connection) leaves this
+  // project's Postgres volume behind, and `up` would reuse it: the accounts in it carry that run's
+  // password, not this run's. Remove it first. Its result is not checked: on a clean machine there
+  // is nothing to remove, and a real docker fault surfaces again when `up` fails below.
+  docker(['down', '-v', '--remove-orphans'], 'predown');
   log(`platform: docker compose -f ${layout.platformCompose} up (image ${composeEnv.LUMIO_PLATFORM_IMAGE || 'from compose'}, game dir ${gameDir}, host port ${port})`);
   const up = docker(['up', '-d'], 'up');
   if (up.error || up.status !== 0) {
