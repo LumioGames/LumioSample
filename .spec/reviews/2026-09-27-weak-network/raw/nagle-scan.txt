@@ -1,0 +1,4 @@
+# Static Nagle string scan (not a runtime socket check)
+command: strings <artifact> | rg -i "NoDelay|Nagle"
+artifact=Engine/server/linux-x64/lumio-ds matches=none
+artifact=Engine/bot/linux-x64/Lumio.Client.Network.Connection.dll matches=none
