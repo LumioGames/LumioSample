@@ -1,0 +1,3 @@
+scenario,affected_bots,drop_duration_seconds,disconnect_count,reconnect_success_count,reconnect_success_rate,reconnect_p95_ms,status,reason
+A,0,0,0,0,,BLOCKED_ENV,"Cutover run not started"
+cutover,10,5,0,0,,BLOCKED_ENV,"Cutover run not started; no qualified runner"
