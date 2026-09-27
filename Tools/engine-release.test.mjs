@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -233,8 +233,9 @@ test('Platform runs from Engine/platform with the manifest image and this game\'
   assert.deepEqual(up.args.slice(0, 5), ['compose', '-f', layout.platformCompose, '-p', 'lumio-sample-platform']);
   assert.equal(up.env.LUMIO_PLATFORM_IMAGE, manifest.platformImage);
   assert.equal(up.env.LUMIO_GAME_PLATFORM_DIR, join(repo, 'Tools', 'compose'));
+  const before = docker.calls.length;
   platform.stop();
-  assert.ok(docker.calls.some((call) => call.args.includes('down') && call.args.includes('-v')));
+  assert.deepEqual(docker.calls.slice(before).map((call) => call.args.slice(5)), [['down', '-v', '--remove-orphans']]);
 });
 
 // games-seed is a one-shot psql: by the time the launcher looks it has usually exited, so the launcher
@@ -261,7 +262,9 @@ test('games-seed that already exited 0 counts as the catalog in place; a non-zer
     () => startReleasePlatform({ layout, manifest, root: repo, run: failed.run, fetchFn: async () => ({ ok: true }), env: {} }),
     (error) => error.code === 'BLOCKED_ENV' && /games-seed did not finish cleanly \(state=exited exit=3\)/.test(error.message),
   );
-  assert.ok(failed.calls.some((call) => call.args.includes('down')));
+  // The pre-clean before `up` is one down; tearing down after the failed seed is the last call.
+  assert.deepEqual(failed.calls.at(-1).args.slice(5), ['down', '-v', '--remove-orphans']);
+  assert.ok(failed.calls.findIndex((call) => call.args.includes('up')) < failed.calls.length - 1);
 });
 
 test('no docker is BLOCKED_ENV before anything starts', async () => {
@@ -276,4 +279,31 @@ test('no docker is BLOCKED_ENV before anything starts', async () => {
     },
   );
   assert.ok(!docker.calls.some((call) => call.args.includes('up')));
+});
+
+// A run that died before stop() (crash, Ctrl-C, a CI runner losing its connection) leaves the
+// project's Postgres volume behind; `up` would reuse it and the fresh per-run password no longer
+// matches the old account (architecture run 36299613919 attempt 2: "password does not match").
+test('Platform removes a previous run\'s leftover stack and volumes before up; a failed pre-clean does not fail the run', async () => {
+  const { repo, layout, manifest } = platformFixture();
+  const evidence = join(repo, 'evidence');
+  mkdirSync(evidence, { recursive: true });
+  const docker = fakeDocker((args) => {
+    if (args.includes('ps')) return { status: 0, stdout: SEED_EXITED(0), stderr: '' };
+    // A clean machine has nothing to remove; whatever compose says then must not stop the run.
+    if (args.includes('down')) return { status: 1, stdout: '', stderr: 'nothing to remove' };
+    return undefined;
+  });
+  const platform = await startReleasePlatform({
+    layout, manifest, root: repo, evidence, run: docker.run, fetchFn: async () => ({ ok: true }), env: {},
+  });
+  const project = ['compose', '-f', layout.platformCompose, '-p', 'lumio-sample-platform'];
+  const upIndex = docker.calls.findIndex((call) => call.args.includes('up'));
+  const predownIndex = docker.calls.findIndex((call) => call.args.includes('down'));
+  assert.ok(upIndex > 0, 'up ran');
+  assert.ok(predownIndex >= 0 && predownIndex < upIndex, 'down -v ran before up');
+  assert.deepEqual(docker.calls[predownIndex].args, [...project, 'down', '-v', '--remove-orphans']);
+  assert.deepEqual(docker.calls[upIndex].args.slice(0, 5), project);
+  assert.equal(readFileSync(join(evidence, 'platform.predown.log'), 'utf8'), 'nothing to remove');
+  platform.stop();
 });
