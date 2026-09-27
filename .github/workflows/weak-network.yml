@@ -12,7 +12,7 @@ on:
       engine_repository:
         description: 'Repository that owns the packaging run'
         required: true
-        default: LumioGames/LumioGameEngineArchitecture
+        default: LumioGames/LumioGameEngine
         type: string
       profiles:
         description: 'Measurement profiles'
