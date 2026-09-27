@@ -1,0 +1,18 @@
+Gameplay/SampleMiningComponent.Server.cs:242:        record.Amount.Value = config.Mining.OrePerVein;
+Server/Tests\Gameplay\SampleMiningPlanTests.cs:216:            ReadRaw("mining", "ore_per_vein"),
+Server/Tests\Gameplay\ProductionMiningTests.cs:148:        Assert.Equal(SampleConfigBinding.For(world.World).Mining.OrePerVein,
+Server/Tests\Gameplay\ProductionMiningTests.cs:260:        Assert.Equal(SampleConfigBinding.For(coldManager.World).Mining.OrePerVein, coldDrop.Amount.Value);
+Server/Tests\Gameplay\ProductionMiningTests.cs:272:        Assert.Equal(oreBefore + SampleConfigBinding.For(coldManager.World).Mining.OrePerVein,
+Server/Tests\Gameplay\ProductionMiningTests.cs:333:        Assert.Equal(SampleConfigBinding.For(manager.World).Mining.OrePerVein, drop.Amount.Value);
+Server/Tests\Gameplay\ProductionMiningTests.cs:521:        Assert.Equal(oreBefore + SampleConfigBinding.For(source.World).Mining.OrePerVein, oreAfter);
+Server/Tests\Gameplay\MineContentionScenarioTests.cs:172:        Assert.Equal(SampleConfigBinding.For(world.World).Mining.OrePerVein, drop.Amount.Value);
+Server/Tests\Gameplay\SampleWiringTests.cs:367:        Assert.Equal(SampleConfigBinding.For(world.World).Mining.OrePerVein, pile!.Amount.Value);
+Server/Tests\Gameplay\SampleWiringTests.cs:394:        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
+Server/Tests\Gameplay\SampleWiringTests.cs:441:        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
+Server/Tests\Gameplay\SampleWiringTests.cs:502:        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
+Server/Tests\Gameplay\SampleWiringTests.cs:533:        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
+Server/Tests\Gameplay\SampleWiringTests.cs:536:        Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
+Server/Tests\Gameplay\SampleTablesTests.cs:32:        Assert.Equal(ReadInt("mining", "ore_per_vein"), config.Mining.OrePerVein);
+Server/Tests\Gameplay\SampleTablesTests.cs:72:            ReadRaw("mining", "ore_per_vein"),
+Client/\Config\Generated\MiningTable.cs:30:        OrePerVein = orePerVein;
+Client/\Config\Generated\MiningTable.cs:38:    public int OrePerVein { get; }

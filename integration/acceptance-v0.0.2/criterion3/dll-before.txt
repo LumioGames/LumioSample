@@ -1,0 +1,3 @@
+e16661d88e4741143f97ff442ef0a730cf0464be68589405e9cfeb57ac9290d6 *Gameplay/bin/Debug/net10.0/Lumio.Sample.Gameplay.dll
+70346665b7bfff531fa2af9989699192f22e2d2a8d106291c3cb7f9acc1a9036 *Gameplay/bin/Debug/net10.0-client/Lumio.Sample.Gameplay.dll
+3c77973e065627c142286395f093cd6a48b5a4194f77ede7ab573983ec5e08e7 *Client/Bots/bin/Debug/net10.0/Lumio.Sample.Bots.dll
