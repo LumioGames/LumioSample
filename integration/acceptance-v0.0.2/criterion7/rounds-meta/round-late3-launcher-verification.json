@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "scope": "sample-launcher",
+  "evidence": "C:\\Work\\accept-v002\\LumioSample\\.run\\late-rounds\\late-3\\launcher",
+  "steps": [
+    {
+      "id": "01",
+      "status": "READY",
+      "detail": "LumioConfig export + typed Reader via M9 loader",
+      "line": "step=01 status=READY LumioConfig export + typed Reader via M9 loader"
+    },
+    {
+      "id": "02",
+      "status": "PASS",
+      "detail": "1 unique launch tickets",
+      "line": "step=02 status=PASS 1 unique launch tickets"
+    },
+    {
+      "id": "03",
+      "status": "PASS",
+      "detail": "endpoint=ws://127.0.0.1:9110/",
+      "line": "step=03 status=PASS endpoint=ws://127.0.0.1:9110/"
+    },
+    {
+      "id": "04",
+      "status": "PASS",
+      "detail": "1 bots admitted with unique tickets",
+      "line": "step=04 status=PASS 1 bots admitted with unique tickets"
+    },
+    {
+      "id": "05",
+      "status": "PASS",
+      "detail": "worldProfile=runtime+voxel; base map boot=true; vein_seen_via_section held; bot scope active=true",
+      "line": "step=05 status=PASS worldProfile=runtime+voxel; base map boot=true; vein_seen_via_section held; bot scope active=true"
+    },
+    {
+      "id": "06",
+      "status": "PASS",
+      "detail": "admitted=true; self_bound held",
+      "line": "step=06 status=PASS admitted=true; self_bound held"
+    },
+    {
+      "id": "07",
+      "status": "PASS",
+      "detail": "move_activated+activation_accepted+bot_uplinked held; DS applied ops=534",
+      "line": "step=07 status=PASS move_activated+activation_accepted+bot_uplinked held; DS applied ops=534"
+    },
+    {
+      "id": "08",
+      "status": "PASS",
+      "detail": "chat_activated held; DS says line=true",
+      "line": "step=08 status=PASS chat_activated held; DS says line=true"
+    },
+    {
+      "id": "09",
+      "status": "PASS",
+      "detail": "mine_activated held; mining_stage=1 mining_pre=1",
+      "line": "step=09 status=PASS mine_activated held; mining_stage=1 mining_pre=1"
+    },
+    {
+      "id": "10",
+      "status": "PASS",
+      "detail": "vein_dug_through held; mining_applied=1",
+      "line": "step=10 status=PASS vein_dug_through held; mining_applied=1"
+    },
+    {
+      "id": "11",
+      "status": "PASS",
+      "detail": "mining_post block=0 lines=1",
+      "line": "step=11 status=PASS mining_post block=0 lines=1"
+    },
+    {
+      "id": "12",
+      "status": "PASS",
+      "detail": "mining_reward amounts=[4]; pickup_activated held",
+      "line": "step=12 status=PASS mining_reward amounts=[4]; pickup_activated held"
+    },
+    {
+      "id": "13",
+      "status": "PASS",
+      "detail": "pickup_activated+drop_collected held; scenario passed",
+      "line": "step=13 status=PASS pickup_activated+drop_collected held; scenario passed"
+    },
+    {
+      "id": "14",
+      "status": "PASS",
+      "detail": "checkpoint gen 6→8; restore marker=true; verify assertions=passed",
+      "line": "step=14 status=PASS checkpoint gen 6→8; restore marker=true; verify assertions=passed"
+    }
+  ],
+  "plannedLogins": [
+    "AcctDetV21"
+  ],
+  "engine": {
+    "version": "0.0.2",
+    "rid": "win-x64",
+    "dir": "C:\\Work\\accept-v002\\LumioSample\\Engine"
+  },
+  "platformOrigin": "http://127.0.0.1:8080",
+  "loginAndLaunchCount": 1,
+  "dsStore": "C:\\Work\\accept-v002\\LumioSample\\.run\\late-rounds\\late-3\\launcher\\ds-store-ZSdTe8",
+  "botVoxelConfig": "C:\\Work\\accept-v002\\LumioSample\\Server\\Assets\\Maps\\bot-voxel-budget.json",
+  "requiredBots": 1,
+  "admittedBots": 1,
+  "botHostsStarted": 1,
+  "tourLogin": "AcctDetV21",
+  "checkpoint": {
+    "atCompletion": 6,
+    "released": 8
+  }
+}

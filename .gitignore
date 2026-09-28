@@ -11,6 +11,7 @@ TestResults/
 Tools/logs/**
 !Tools/logs/README.md
 .run/
+.tmp/
 Gameplay/generated/*/gen.hash
 
 # ADR-115: lumio-ds creates these at run time. Never tracked, never an empty shell.

@@ -1,0 +1,2 @@
+{"kind":"assert","bot":"bot-0","step":513,"passed":false,"failed":"vein_dug_through,pickup_activated,drop_collected"}
+{"kind":"run","bots":1,"ticks":513,"uplinks":508,"commandStreamSha256":"ef710f0a42e126d9f03bc2e19be370c911fe991b4ff31d270015236e8b0a1c68","passed":false}

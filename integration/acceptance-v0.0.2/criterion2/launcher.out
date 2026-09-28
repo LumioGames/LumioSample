@@ -1,0 +1,41 @@
+step=01 status=READY LumioConfig export + typed Reader via M9 loader
+platform: docker compose -f C:\Work\accept-v002\LumioSample\Engine\platform\docker-compose.yml up (image ghcr.io/lumiogames/lumio-platform:0.0.2@sha256:b63dbeb2a9cb60578894afe0a6f2b660bb0595976bf72206c7a40f2f90583164, game dir C:\Work\accept-v002\LumioSample\Tools\compose, host port 8080)
+{"event":"account.login.send","loginName":"Player1","ws":"ws://127.0.0.1:8080/account"}
+{"event":"account.login.ack","accepted":true,"accountNewlyCreated":true,"accountId":"acct_2d53cc96f66b3e869e0dabff4ec8b024","loginName":"Player1","accountAuthExpiresAt":1790505023}
+{"event":"account.launch.send","slug":"sample","url":"http://127.0.0.1:8080/api/games/sample/launch"}
+{"event":"account.launch.ack","wsUrl":"ws://127.0.0.1:9110/sample","subprotocol":"lumio.mvp.v0","serverAudience":"game-fleet-local","gameId":"sample","gameReleaseId":"sample-0.1.0","contractId":"lumio.gameplay-envelope.v1","roomId":"room-sample-1","allocationId":"alloc-sample-1","admissionExpiresAt":1790505023,"accountId":"acct_2d53cc96f66b3e869e0dabff4ec8b024","loginName":"Player1"}
+{"event":"account.login.send","loginName":"Player2","ws":"ws://127.0.0.1:8080/account"}
+{"event":"account.login.ack","accepted":true,"accountNewlyCreated":true,"accountId":"acct_9fff3ef2ffb56bf3ce9bdbb7de035aa9","loginName":"Player2","accountAuthExpiresAt":1790505023}
+{"event":"account.launch.send","slug":"sample","url":"http://127.0.0.1:8080/api/games/sample/launch"}
+{"event":"account.launch.ack","wsUrl":"ws://127.0.0.1:9110/sample","subprotocol":"lumio.mvp.v0","serverAudience":"game-fleet-local","gameId":"sample","gameReleaseId":"sample-0.1.0","contractId":"lumio.gameplay-envelope.v1","roomId":"room-sample-1","allocationId":"alloc-sample-1","admissionExpiresAt":1790505023,"accountId":"acct_9fff3ef2ffb56bf3ce9bdbb7de035aa9","loginName":"Player2"}
+{"event":"account.login.send","loginName":"Spectator1","ws":"ws://127.0.0.1:8080/account"}
+{"event":"account.login.ack","accepted":true,"accountNewlyCreated":true,"accountId":"acct_b6f851dc8e2ae16d4bf041d48f8d988c","loginName":"Spectator1","accountAuthExpiresAt":1790505024}
+{"event":"account.launch.send","slug":"sample","url":"http://127.0.0.1:8080/api/games/sample/launch"}
+{"event":"account.launch.ack","wsUrl":"ws://127.0.0.1:9110/sample","subprotocol":"lumio.mvp.v0","serverAudience":"game-fleet-local","gameId":"sample","gameReleaseId":"sample-0.1.0","contractId":"lumio.gameplay-envelope.v1","roomId":"room-sample-1","allocationId":"alloc-sample-1","admissionExpiresAt":1790505024,"accountId":"acct_b6f851dc8e2ae16d4bf041d48f8d988c","loginName":"Spectator1"}
+step=02 status=PASS 2 bot tickets + 1 spectator ticket
+lumio-ds --check-config
+configuration_valid
+
+step=03 status=PASS endpoint=ws://127.0.0.1:52866/
+bot voxel budget: C:\Work\accept-v002\LumioSample\Server\Assets\Maps\bot-voxel-budget.json
+$ ["dotnet","C:\\Work\\accept-v002\\LumioSample\\Engine\\bot\\win-x64\\Lumio.Client.Bot.Host.dll","--server","ws://127.0.0.1:52866/","--admission-ticket","<redacted>","--engine-native","C:\\Work\\accept-v002\\LumioSample\\Engine\\server\\win-x64\\SDK\\Native\\win-x64\\lumio_engine_native.dll","--kernel-config","C:\\Work\\accept-v002\\LumioSample\\.run\\accept-v002-c2\\kernel-config.json","--log-dir","C:\\Work\\accept-v002\\LumioSample\\.run\\accept-v002-c2\\bot-1","--account-from","Player1","--account-to","Player1","--gameplay","C:\\Work\\accept-v002\\LumioSample\\Gameplay\\bin\\Debug\\net10.0-client\\Lumio.Sample.Gameplay.dll","--config-dir","C:\\Work\\accept-v002\\LumioSample\\Client\\Config\\Tables","--voxel-config","C:\\Work\\accept-v002\\LumioSample\\Server\\Assets\\Maps\\bot-voxel-budget.json","--scenario","C:\\Work\\accept-v002\\LumioSample\\Client\\Bots\\bin\\Debug\\net10.0\\Lumio.Sample.Bots.dll","--scenario-name","Lumio.Sample.Bots.SampleMiningScenario","--ticks","15000"]
+$ ["dotnet","C:\\Work\\accept-v002\\LumioSample\\Engine\\bot\\win-x64\\Lumio.Client.Bot.Host.dll","--server","ws://127.0.0.1:52866/","--admission-ticket","<redacted>","--engine-native","C:\\Work\\accept-v002\\LumioSample\\Engine\\server\\win-x64\\SDK\\Native\\win-x64\\lumio_engine_native.dll","--kernel-config","C:\\Work\\accept-v002\\LumioSample\\.run\\accept-v002-c2\\kernel-config.json","--log-dir","C:\\Work\\accept-v002\\LumioSample\\.run\\accept-v002-c2\\bot-2","--account-from","Player2","--account-to","Player2","--gameplay","C:\\Work\\accept-v002\\LumioSample\\Gameplay\\bin\\Debug\\net10.0-client\\Lumio.Sample.Gameplay.dll","--config-dir","C:\\Work\\accept-v002\\LumioSample\\Client\\Config\\Tables","--voxel-config","C:\\Work\\accept-v002\\LumioSample\\Server\\Assets\\Maps\\bot-voxel-budget.json"]
+step=04 status=PASS 2 bots admitted; spectator ticket held without Bot.Host
+spectator-url=http://127.0.0.1:57460/
+step=05 status=PASS worldProfile=runtime+voxel; base map boot=true; vein_seen_via_section held; bot scope active=true
+step=06 status=PASS admitted=true; self_bound held
+step=07 status=PASS move_activated+activation_accepted+bot_uplinked held; DS applied ops=2738
+step=08 status=PASS chat_activated held; DS says line=true
+step=09 status=PASS mine_activated held; mining_stage=1 mining_pre=1
+step=10 status=PASS vein_dug_through held; mining_applied=1
+step=11 status=PASS mining_post block=0 lines=1
+step=12 status=PASS mining_reward amounts=[4]; pickup_activated held
+step=13 status=PASS pickup_activated+drop_collected held; scenario passed
+{"event":"account.login.send","loginName":"Player1","ws":"ws://127.0.0.1:8080/account"}
+{"event":"account.login.ack","accepted":true,"accountNewlyCreated":false,"accountId":"acct_2d53cc96f66b3e869e0dabff4ec8b024","loginName":"Player1","accountAuthExpiresAt":1790505333}
+{"event":"account.launch.send","slug":"sample","url":"http://127.0.0.1:8080/api/games/sample/launch"}
+{"event":"account.launch.ack","wsUrl":"ws://127.0.0.1:9110/sample","subprotocol":"lumio.mvp.v0","serverAudience":"game-fleet-local","gameId":"sample","gameReleaseId":"sample-0.1.0","contractId":"lumio.gameplay-envelope.v1","roomId":"room-sample-1","allocationId":"alloc-sample-1","admissionExpiresAt":1790505333,"accountId":"acct_2d53cc96f66b3e869e0dabff4ec8b024","loginName":"Player1"}
+$ ["dotnet","C:\\Work\\accept-v002\\LumioSample\\Engine\\bot\\win-x64\\Lumio.Client.Bot.Host.dll","--server","ws://127.0.0.1:57085/","--admission-ticket","<redacted>","--engine-native","C:\\Work\\accept-v002\\LumioSample\\Engine\\server\\win-x64\\SDK\\Native\\win-x64\\lumio_engine_native.dll","--kernel-config","C:\\Work\\accept-v002\\LumioSample\\.run\\accept-v002-c2\\kernel-config.json","--log-dir","C:\\Work\\accept-v002\\LumioSample\\.run\\accept-v002-c2\\bot-verify","--account-from","Player1","--account-to","Player1","--gameplay","C:\\Work\\accept-v002\\LumioSample\\Gameplay\\bin\\Debug\\net10.0-client\\Lumio.Sample.Gameplay.dll","--config-dir","C:\\Work\\accept-v002\\LumioSample\\Client\\Config\\Tables","--voxel-config","C:\\Work\\accept-v002\\LumioSample\\Server\\Assets\\Maps\\bot-voxel-budget.json","--scenario","C:\\Work\\accept-v002\\LumioSample\\Client\\Bots\\bin\\Debug\\net10.0\\Lumio.Sample.Bots.dll","--scenario-name","Lumio.Sample.Bots.SampleRestoreVerifyScenario","--ticks","6000"]
+step=14 status=PASS checkpoint gen 8→10; restore marker=true; verify assertions=passed
+VERIFICATION_STATUS=PASS
+EVIDENCE_PATH=C:\Work\accept-v002\LumioSample\.run\accept-v002-c2

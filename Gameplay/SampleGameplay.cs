@@ -10,30 +10,9 @@ using Lumio.Sample.Gameplay.Config;
 
 namespace Lumio.Sample.Gameplay;
 
-/// <summary>Thread-local owner for <see cref="MineAbility.CanActivate"/>. R-00468 G2 does not pass owner yet.</summary>
-public static class SampleAbilityAdmission
-{
-    [ThreadStatic]
-    private static AbilityComponent? _owner;
-
-    /// <summary>Owner of the Activate currently being admitted. Set by BindPlayer's cost reader for generic Activate.</summary>
-    public static AbilityComponent? CurrentOwner
-    {
-        get => _owner;
-        set => _owner = value;
-    }
-}
-
 /// <summary>Sample catalog hooks: Effect register, player seed, and mine Activate with admission owner.</summary>
 public static partial class SampleGameplay
 {
-    [SuppressMessage("Usage", "CA2255", Justification = "DS loads this assembly as application code; the catalog must register on load.")]
-    [ModuleInitializer]
-    internal static void RegisterCatalog()
-    {
-        PickupOreEffect.Register();
-    }
-
     /// <summary>Boots a server world with the generated registry. Hosts and tests share this entry.</summary>
     public static WorldManager CreateWorld(ulong instanceId) =>
         WorldManager.Create(GeneratedRegistry.Instance, instanceId, config: SampleConfigBinding.Load());
@@ -52,12 +31,10 @@ public static partial class SampleGameplay
         string stamina = SampleConfigBinding.For(world).Stamina.Name;
         // R-00468 G2 still rejects only when the cost Base is <= 0. Map "below table cost" to 0 so
         // insufficient stamina is admit step 3 on today's engine. Execute still deducts the table cost from Base.
-        // Generic Activate (AbilityComponent.Activate / catalog RPC) uses this context; readCostBase
-        // publishes the owner so CanActivate can see the world without SampleGameplay.ActivateMine.
+        // Generic Activate selects this per-ability cost context; admission receives the owner explicitly.
         var mining = new AbilityActivationContext(
             () =>
             {
-                SampleAbilityAdmission.CurrentOwner = abilities;
                 return attributes.GetBaseValue(stamina) < SampleConfigBinding.For(world).Mining.StaminaCost ? 0L : attributes.GetBaseValue(stamina);
             },
             _ => { },
@@ -82,7 +59,7 @@ public static partial class SampleGameplay
         using (logic.BeginWrite(controller)) logic.SetLocalPosition(position);
     }
 
-    /// <summary>Generic Activate. Owner for CanActivate comes from <see cref="BindPlayer"/>'s context, not this wrapper.</summary>
+    /// <summary>Generic Activate passes its owning component to admission.</summary>
     [SuppressMessage("Design", "CA1510", Justification = "Keep netstandard2.1 compatibility without conditional source branches.")]
     public static AbilityActivateResult ActivateMine(AbilityComponent owner, in MineAbility.Input input, ulong sequence = 0)
     {
