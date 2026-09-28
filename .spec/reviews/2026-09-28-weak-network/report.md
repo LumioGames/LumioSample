@@ -40,7 +40,7 @@ Linux 预检复现并修复两项入口问题：测量 workflow 显式指定发�
 
 ## 原始证据
 
-- [执行状态](raw/A-run.json)、[DS 原始日志](raw/A-ds.log)、[socket 审计原始 CSV](raw/A-nagle.csv)、[发布物 manifest](raw/A-engine-manifest.json)。
-- [隔离命名空间网络规则实测输出](raw/netem-preflight.txt) 保留 tc 配置、全部 20 条 DROP 规则及最终 noqueue；其中零包计数如实保留。
+- [执行状态](raw/A-run.json)、[DS 原始日志](raw/A-ds.txt)、[socket 审计原始 CSV](raw/A-nagle.csv)、[发布物 manifest](raw/A-engine-manifest.json)。
+- [隔离命名空间网络规则实测输出](raw/netem-preflight.txt) 保留 tc 配置、全部 20 条 DROP 规则及最终 noqueue；其中零包计数如实保留，仅清理行尾空白。
 - `A-run.json` 的 `bots=100` 与 `requiredDurationSeconds=180` 是目标配置，实际完成数为零；无 startMs/endMs。其 `shas` 枚举本机兄弟检出，不代表发布物源码身份；运行引擎身份以保存的 manifest 为准。Sample 原有未提交场景变更保留于接续工作区。
 - 本次没有输入确认、卡顿、重连、tick、RSS 的非空原始 CSV；未伪造零值或从单元测试合成结果。

@@ -1,0 +1,2 @@
+$ lumio-ds (arguments omitted)
+DS_FATAL ds_fatal startup watchdog: boot exceeded 30000ms while in phase 'starting_clr_runtime'; log file may be missing its buffered tail (exit 4)
