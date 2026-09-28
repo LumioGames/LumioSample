@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Ecs;
+using Lumio.GameRuntime.Gas;
 using Lumio.Sample.Gameplay.Components.Mining;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.Sample.Gameplay.Components.Vein;

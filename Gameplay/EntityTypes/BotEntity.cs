@@ -1,4 +1,5 @@
 using Lumio.GameRuntime.Ecs;
+using Lumio.GameRuntime.Gas;
 using Lumio.Sample.Gameplay.Components.Chat;
 using Lumio.Sample.Gameplay.Components.Identity;
 
