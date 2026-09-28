@@ -20,18 +20,8 @@ using Xunit;
 namespace Lumio.Sample.Gameplay.Tests;
 
 [CollectionDefinition("SampleWorld", DisableParallelization = true)]
-public sealed class SampleWorldSerialDefinition : ICollectionFixture<SampleWorldNativeFixture>
+public sealed class SampleWorldSerialDefinition
 {
-}
-
-public sealed class SampleWorldNativeFixture : IDisposable
-{
-    public SampleWorldNativeFixture()
-    {
-        GasHfsmFacade.BindNative(KernelConfigurationFixture.Create());
-    }
-
-    public void Dispose() => GasHfsmFacade.Unbind();
 }
 
 [Collection("SampleWorld")]
@@ -370,11 +360,9 @@ public sealed class SampleWiringTests : IDisposable
     [Fact]
     public void PickupOreEffectIsRegisteredAndCreditsOreBase()
     {
-        PickupOreEffect.Register();
-        Assert.Equal(PickupOreEffect.TypeId, EffectTypeCatalog.TypeIdOf(typeof(PickupOreEffect)));
-
         using TempConfig config = TempConfig.WithHits(1);
         using SampleWorldHarness world = SampleWorldHarness.Boot();
+        Assert.Equal(PickupOreEffect.TypeId, GasWorldContext.Require(world.World).Types.EffectTypeIdOf(typeof(PickupOreEffect)));
         long oreBefore = world.OreBase;
         Assert.True(world.Mine().Succeeded);
         world.FlushCreates();
@@ -689,6 +677,7 @@ internal sealed class SampleWorldHarness : IDisposable
     {
         WorldManager manager = SampleGameplay.CreateWorld(11UL);
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
+        Assert.True(manager.TryBindNativeSpatialIndex(KernelConfigurationFixture.Create()));
         manager.Start(Thread.CurrentThread);
 
         MethodInfo commit = typeof(WorldManager).GetMethod("CommitCommandBuffer", BindingFlags.Instance | BindingFlags.NonPublic)
