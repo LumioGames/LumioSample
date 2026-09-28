@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using Lumio.Sample.Gameplay.Components.Identity;
 using Lumio.GameRuntime.Ecs;
+using Lumio.GameRuntime.Gas;
 using Lumio.GameRuntime.Replication.Binding;
 using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay;
