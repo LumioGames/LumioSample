@@ -47,13 +47,13 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
     }
 
     /// <summary>Registers this type on the GAS catalog. Cost name matches the generated registry.</summary>
-    public static void Register() => AbilityTypeCatalog.Register<MineAbility, Input>(TypeId, "Stamina");
+    public static void Register(GasTypeRegistry registry) => registry.RegisterAbility<MineAbility, Input>(TypeId, "Stamina");
 
     /// <inheritdoc />
-    public override bool CanActivate(in Input input)
+    public override bool CanActivate(in Input input, AbilityComponent owner, out string? failureCode)
     {
         if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId)) return false;
-        AbilityComponent? owner = SampleAbilityAdmission.CurrentOwner;
+        failureCode = null;
         if (owner is null) return false;
         return AdmitTarget(owner, veinId) && WithinReach(owner, veinId);
     }
