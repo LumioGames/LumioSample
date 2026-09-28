@@ -12,8 +12,18 @@ case "$action" in
     [[ $delay =~ ^[0-9]+$ && $jitter =~ ^[0-9]+$ && $loss =~ ^[0-9]+$ ]]
     current=$(tc qdisc show dev lo)
     [[ $current == 'qdisc noqueue '* ]] || { echo "Refusing to replace existing lo qdisc: $current" >&2; exit 1; }
+    # Ubuntu 24.04's iproute2 can lack netem's newer seed option. Preserve the
+    # requested impairment and record whether its random sequence is repeatable.
+    seed_args=()
+    netem_help=$(tc qdisc add dev lo root netem help 2>&1 || true)
+    if [[ $netem_help == *seed* ]]; then
+      seed_args=(seed 270927)
+      echo 'netem random seed: 270927'
+    else
+      echo 'netem random seed: kernel-selected (tc does not support seed)'
+    fi
     tc qdisc add dev lo root handle 917: prio bands 3 priomap 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    tc qdisc add dev lo parent 917:3 handle 918: netem limit 100000 delay "${delay}ms" "${jitter}ms" loss random "${loss}%" seed 270927
+    tc qdisc add dev lo parent 917:3 handle 918: netem limit 100000 delay "${delay}ms" "${jitter}ms" loss random "${loss}%" "${seed_args[@]}"
     tc filter add dev lo parent 917: protocol ip prio 1 u32 match ip protocol 6 0xff match ip dport "$port" 0xffff flowid 917:3
     tc filter add dev lo parent 917: protocol ip prio 2 u32 match ip protocol 6 0xff match ip sport "$port" 0xffff flowid 917:3
     ;;

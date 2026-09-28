@@ -78,7 +78,8 @@ export async function runWeakNetwork({ profile = 'A', output = join(ROOT, '.tmp/
         run.accounts = [...states.keys()].sort();
         const { delay, jitter, loss } = PROFILES[profile];
         // Mark ownership before mutation, so a partial setup also reaches cleanup.
-        shaped = true; network('apply', port, delay, jitter, loss);
+        shaped = true;
+        writeFileSync(join(raw, 'netem-apply.txt'), network('apply', port, delay, jitter, loss));
         writeFileSync(join(raw, 'netem-start.txt'), network('inspect', port));
         run.startMs = Date.now(); run.endMs = run.startMs + 180_000;
         rmSync(hold);

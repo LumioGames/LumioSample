@@ -70,7 +70,8 @@ jobs:
           set -euo pipefail
           dotnet build Gameplay/Lumio.Sample.Gameplay.csproj
           dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -p:LumioEcsSide=client
-          dotnet build Client/Bots/Lumio.Sample.Bots.csproj
+          # Distro SDKs can report ubuntu.24.04-x64; the release uses portable RIDs.
+          dotnet build Client/Bots/Lumio.Sample.Bots.csproj -p:LumioClientBotDirectory="$PWD/Engine/bot/linux-x64"
       - name: Measure 100 moving bots for 180 seconds
         env:
           PROFILE: ${{ matrix.profile }}
