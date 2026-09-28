@@ -95,9 +95,11 @@ public sealed class SampleWiringTests : IDisposable
     [Fact]
     public void CanActivateRejectsUnparsedHexAndMissingOwner()
     {
+        using SampleWorldHarness world = SampleWorldHarness.Boot();
         var ability = new MineAbility();
-        Assert.False(ability.CanActivate(new MineAbility.Input { TargetHex = "not-hex" }));
-        Assert.False(ability.CanActivate(new MineAbility.Input { TargetHex = "0000000000000001" }));
+        AbilityComponent owner = world.World.Get<AbilityComponent>(world.Player);
+        Assert.False(ability.CanActivate(new MineAbility.Input { TargetHex = "not-hex" }, owner, out _));
+        Assert.False(ability.CanActivate(new MineAbility.Input { TargetHex = world.Vein.ToHex() }, null!, out _));
     }
 
     [Fact]

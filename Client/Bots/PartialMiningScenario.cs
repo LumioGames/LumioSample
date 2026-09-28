@@ -96,7 +96,7 @@ public sealed class PartialMiningScenario : BotScenario
     {
         ArgumentNullException.ThrowIfNull(sink);
         WriteReport();
-        sink.That(_plannedSwings is > 0 and <= MaxSafeSwings, $"planned_swings:{_plannedSwings} (must stay below the authored vein_hits_to_break=6)");
+        sink.That(_plannedSwings is > 0 and <= MaxSafeSwings, $"planned_swings:{_plannedSwings} (scenario limit:{MaxSafeSwings})");
         sink.That(_selfId.Length > 0, "self_report:" + _selfId);
         sink.That(_accepted > 0, "activation_accepted");
         sink.That(context.Uplinks >= 1, "bot_uplinked");
