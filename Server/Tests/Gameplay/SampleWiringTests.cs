@@ -652,6 +652,12 @@ internal sealed class SampleWorldHarness : IDisposable
     internal static Lumio.GameRuntime.Hosting.LumioEngine Engine =>
         Lumio.Sample.Tests.EngineRelease.Engine(KernelConfigurationFixture.Create());
 
+    internal static T RequireService<T>(WorldManager manager) where T : class
+    {
+        Assert.True(manager.World.TryGetService<T>(out var service), typeof(T).Name + " must be registered on this world.");
+        return Assert.IsType<T>(service);
+    }
+
     /// <summary>Server world through the process engine: explicit catalog, optional base map, authority subsystems.</summary>
     internal static WorldManager CreateServerWorld(byte[]? voxelSnapshot = null, ulong instanceId = 11UL) =>
         Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
@@ -659,8 +665,8 @@ internal sealed class SampleWorldHarness : IDisposable
             InstanceId = instanceId,
             Config = SampleConfigBinding.Load(),
             Catalog = OfficialCatalog(),
-            VoxelSnapshot = voxelSnapshot ?? Array.Empty<byte>(),
-            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[]
+            InitialVoxelSnapshot = voxelSnapshot ?? Array.Empty<byte>(),
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[]
             {
                 new Lumio.GameRuntime.Hosting.AuthorityBindingSubsystem(),
                 new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem(),
@@ -678,7 +684,7 @@ internal sealed class SampleWorldHarness : IDisposable
             Snapshot = checkpoint.Runtime,
             VoxelSnapshot = checkpoint.Voxel,
             IngressBudget = ingress,
-            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[]
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[]
             {
                 new Lumio.GameRuntime.Hosting.AuthorityBindingSubsystem(),
                 new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem(),
@@ -688,7 +694,7 @@ internal sealed class SampleWorldHarness : IDisposable
     public static SampleWorldHarness Boot()
     {
         WorldManager manager = CreateServerWorld(File.ReadAllBytes(Path.Combine(RepoRoot, "Server", "Assets", "Maps", "sample.voxel")));
-        WorldPersistenceSubsystem host = manager.World.Single<WorldPersistenceSubsystem>();
+        WorldPersistenceSubsystem host = RequireService<WorldPersistenceSubsystem>(manager);
         EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
         // ADR-119 B6: the vein is no longer created synchronously — wait out the scan's create→bind
         // round trip rather than guess a fixed tick count (VeinLocationTestSupport).

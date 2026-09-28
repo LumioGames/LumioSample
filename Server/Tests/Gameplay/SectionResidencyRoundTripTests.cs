@@ -54,10 +54,10 @@ public sealed class SectionResidencyRoundTripTests
             InstanceId = 900,
             Config = SampleConfigBinding.Load(),
             Catalog = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
-            VoxelSnapshot = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel")),
-            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem(SectionEgress) },
+            InitialVoxelSnapshot = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel")),
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem(SectionEgress) },
         });
-        Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem host = manager.World.Single<Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem>();
+        Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem host = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem>(manager);
 
         // No player is ever admitted in this test: PrepareSectionUnload refuses a Section holding a
         // live LogicTransform entity, and B6's scan must have already settled before we pick a Section.

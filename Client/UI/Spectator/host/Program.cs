@@ -64,6 +64,18 @@ public static partial class SpectatorExports
     public static void Close() => s_client?.Dispose();
 
     [JSExport]
+    public static void ShutdownEngine()
+    {
+        try { s_client?.Dispose(); }
+        finally
+        {
+            s_client = null;
+            try { s_engine?.Dispose(); }
+            finally { s_engine = null; s_catalog = null; }
+        }
+    }
+
+    [JSExport]
     public static string ConnectionState() => s_client?.ConnectionState ?? "closed";
 
     [JSExport]

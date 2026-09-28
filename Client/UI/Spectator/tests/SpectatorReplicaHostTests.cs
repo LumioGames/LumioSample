@@ -311,11 +311,11 @@ public sealed class SpectatorReplicaHostTests
     public void LateSpectatorCensusOfHundredPlayerRoomAppliesAsFullSnapshot()
     {
         const int players = 100;
-        WorldManager server = TestEngine.Value.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(new ServerSideRegistryWrapper(GeneratedRegistry.Instance))
+        using WorldManager server = TestEngine.Value.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(new ServerSideRegistryWrapper(GeneratedRegistry.Instance))
         {
             InstanceId = 0x1000000000000001UL,
             Catalog = OfficialCatalog(),
-            TickRate = 20UL,
+            TickRate = 20U,
         });
         SpectatorDump.BindSampleAttributeSeeds(server);
         // The client compile drops *.Server.cs (IdentityComponent.AccountId), so
@@ -382,6 +382,7 @@ public sealed class SpectatorReplicaHostTests
         public override Type WorldEntityType => _inner.WorldEntityType;
         public override IReadOnlyList<Lumio.GameRuntime.Ecs.Annotations.FieldAttributeDeclaration> AttributeDeclarations => _inner.AttributeDeclarations;
         public override Component[] CreateComponents(Type entityType) => _inner.CreateComponents(entityType);
+        public override void CreateWorldServices(World world) => _inner.CreateWorldServices(world);
         public override string WireName(Type entityType) => _inner.WireName(entityType);
         public override bool TryResolveEntityType(string name, out Type entityType) => _inner.TryResolveEntityType(name, out entityType);
         public override bool IsEntityType(Type concrete, Type query) => _inner.IsEntityType(concrete, query);
@@ -401,14 +402,12 @@ public sealed class SpectatorReplicaHostTests
 
     /// <summary>The game's explicit catalog; every engine world carries one (B3).</summary>
     internal static byte[] OfficialCatalog() => File.ReadAllBytes(Path.Combine(
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..")),
+        Lumio.Sample.Tests.EngineRelease.RepoRoot,
         "Server", "Assets", "Maps", "official-catalog.json"));
 
     /// <summary>One process engine for this test assembly, on the release native (B3).</summary>
     private static readonly System.Lazy<Lumio.GameRuntime.Hosting.LumioEngine> TestEngine = new(() =>
-        Lumio.GameRuntime.Hosting.LumioEngine.Start(
-            Environment.GetEnvironmentVariable("LUMIO_NATIVE_TEST_PATH")
-                ?? throw new InvalidOperationException("LUMIO_NATIVE_TEST_PATH must name the verified DLL."),
+        Lumio.Sample.Tests.EngineRelease.Engine(
             new Lumio.Engine.NativeLoader.KernelConfig
             {
                 MaxContexts = 16, MaxHandles = 256, MaxNativeBytes = 64 * 1024 * 1024,

@@ -389,7 +389,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
             InstanceId = 19UL,
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
-            VoxelSnapshot = voxel,
+            InitialVoxelSnapshot = voxel,
         });
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(manager.World, "acct-tryattach-spawn");

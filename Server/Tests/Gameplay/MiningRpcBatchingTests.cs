@@ -100,7 +100,7 @@ public sealed class MiningRpcBatchingTests
             Assert.Empty(adapter.CaptureResultCheckpoint().Results);
             cold.Tick();
             Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.A));
-            DualCutCaptureResult settled = cold.World.Single<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>().Capture();
+            DualCutCaptureResult settled = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(cold).Capture();
             Assert.True(settled.Succeeded, settled.ErrorCode);
             using WorldManager again = RpcWorld.Restore(settled.Checkpoint!.Value);
             again.Tick();
@@ -264,7 +264,7 @@ public sealed class MiningRpcBatchingTests
         internal RpcWorld(bool third = false)
         {
             Manager = SampleWorldHarness.CreateServerWorld(File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel")), 647);
-            Host = Manager.World.Single<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>();
+            Host = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(Manager);
             _connections = EntityBindingQuery.Create(Manager);
             Manager.Enqueue(new AdmitConnectionMessage("miner-a", "account-a", "mining", "player"));
             Manager.Enqueue(new AdmitConnectionMessage("miner-b", "account-b", "mining", "player"));

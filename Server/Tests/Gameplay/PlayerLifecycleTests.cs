@@ -58,7 +58,7 @@ public sealed class PlayerLifecycleTests : IDisposable
             InstanceId = 91UL,
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
-            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
         });
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
         Lumio.Engine.NativeLoader.KernelHandle initialHandle = VoxelHandle(source);
@@ -82,21 +82,23 @@ public sealed class PlayerLifecycleTests : IDisposable
             Snapshot = runtime,
             VoxelSnapshot = wall,
             IngressBudget = source.IngressBudget,
-            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
         });
         Lumio.Engine.NativeLoader.KernelHandle firstHandle = VoxelHandle(manager);
         Assert.NotEqual(initialHandle, firstHandle);
+        var sourcePhysics = AbilityPhysicsBinding.Resolve(source);
+        var sourceConfig = SampleConfigBinding.For(source.World);
         source.Dispose();
         Assert.Same(AbilityPhysicsBinding.Resolve(manager), manager.World.Get<AbilityComponent>(blocked).Physics);
-        Assert.NotSame(AbilityPhysicsBinding.Resolve(source), manager.World.Get<AbilityComponent>(blocked).Physics);
-        Assert.Equal(spent, manager.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleConfigBinding.For(source.World).Stamina.Name));
+        Assert.NotSame(sourcePhysics, manager.World.Get<AbilityComponent>(blocked).Physics);
+        Assert.Equal(spent, manager.World.Get<AttributeComponent>(blocked).GetBaseValue(sourceConfig.Stamina.Name));
         var input = new MoveAbility.Input { Dx = 1 };
         Assert.True(manager.World.Get<AbilityComponent>(blocked).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        float boundary = 4f - (float)SampleConfigBinding.For(source.World).Movement.SweepRadiusMeters;
+        float boundary = 4f - (float)sourceConfig.Movement.SweepRadiusMeters;
         Assert.InRange(manager.World.Get<LogicTransform>(blocked).LocalPosition.X, boundary - 0.00001f, boundary + 0.00001f);
         Assert.True(manager.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        Assert.Equal(new Vector3(3f + (float)SampleConfigBinding.For(source.World).Movement.StepMeters, 4.5f, 6.5f), manager.World.Get<LogicTransform>(open).LocalPosition);
-        DualCutCaptureResult capture = manager.World.Single<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>().Capture();
+        Assert.Equal(new Vector3(3f + (float)sourceConfig.Movement.StepMeters, 4.5f, 6.5f), manager.World.Get<LogicTransform>(open).LocalPosition);
+        DualCutCaptureResult capture = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(manager).Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
         DualCutCheckpointPayload checkpoint = capture.Checkpoint!.Value;
         Assert.True(checkpoint.SectionCount > 0);
@@ -107,7 +109,7 @@ public sealed class PlayerLifecycleTests : IDisposable
             Snapshot = checkpoint.Runtime,
             VoxelSnapshot = checkpoint.Voxel,
             IngressBudget = manager.IngressBudget,
-            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
         });
         Assert.NotEqual(firstHandle, VoxelHandle(restored));
         Assert.NotSame(AbilityPhysicsBinding.Resolve(manager), AbilityPhysicsBinding.Resolve(restored));
@@ -118,7 +120,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(stopped, restored.World.Get<LogicTransform>(blocked).LocalPosition);
         Vector3 openBefore = restored.World.Get<LogicTransform>(open).LocalPosition;
         Assert.True(restored.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
-        Assert.Equal(openBefore + new Vector3((float)SampleConfigBinding.For(source.World).Movement.StepMeters, 0, 0), restored.World.Get<LogicTransform>(open).LocalPosition);
+        Assert.Equal(openBefore + new Vector3((float)sourceConfig.Movement.StepMeters, 0, 0), restored.World.Get<LogicTransform>(open).LocalPosition);
         Assert.Equal(spent, restored.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleConfigBinding.For(source.World).Stamina.Name));
         if (evidencePath is not null)
         {

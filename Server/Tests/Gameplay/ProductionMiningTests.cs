@@ -194,7 +194,7 @@ public sealed class ProductionMiningTests
         Assert.True(capture.Succeeded, capture.ErrorCode);
         WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, source.World.Manager.World.InstanceId,
             source.World.Manager.IngressBudget);
-        WorldPersistenceSubsystem host = manager.World.Single<WorldPersistenceSubsystem>();
+        WorldPersistenceSubsystem host = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(manager);
         source.World.Manager.Dispose();
         // A restored world's SampleMiningComponent starts with an empty location cache — it must
         // re-scan the (already-bound) Section to relearn where the live vein is (ADR-119 §4 B6).
@@ -306,7 +306,7 @@ public sealed class ProductionMiningTests
         Assert.Equal(0U, VoxelGameplayBinding.Resolve(manager)!.Read(section, offset).BlockId);
 
         // Settled once, not once per boot: another cold start from here pays nothing further.
-        using WorldManager second = ColdRestore(host.World.Single<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>());
+        using WorldManager second = ColdRestore(SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(host));
         Assert.Equal(stamina - cost, Stamina(second.Manager, source.Player));
         Assert.Single(second.Manager.World.Each<OrePileComponent>());
     }
@@ -488,7 +488,7 @@ public sealed class ProductionMiningTests
         Assert.True(firstCapture.Succeeded, firstCapture.ErrorCode);
         using WorldManager firstManager = SampleWorldHarness.RestoreServerWorld(firstCapture.Checkpoint!.Value,
             source.World.Manager.World.InstanceId, source.World.Manager.IngressBudget);
-        WorldPersistenceSubsystem firstHost = firstManager.World.Single<WorldPersistenceSubsystem>();
+        WorldPersistenceSubsystem firstHost = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(firstManager);
         source.World.Manager.Dispose();
         firstManager.Tick();
         Assert.Empty(firstManager.World.Each<OrePileComponent>());
