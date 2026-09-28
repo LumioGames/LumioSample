@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "status": "FAIL",
+  "scope": "sample-100-bot-move",
+  "params": {
+    "bots": 100,
+    "durationSeconds": 300,
+    "staggerMs": 1200,
+    "tickRateHz": 20
+  },
+  "clock": "native-core-clock_now",
+  "criteria": {
+    "admitted": {
+      "required": 100,
+      "actual": null,
+      "drops": 100,
+      "protocolViolation": 0,
+      "queueFull": 0
+    },
+    "frameBudget": {
+      "budgetMs": 50,
+      "p99Ms": 33.8101,
+      "overBudgetFrames": 5,
+      "clock": "native-core-clock_now"
+    },
+    "transformConsistency": {
+      "sampledBots": null,
+      "mismatches": null
+    },
+    "rss": {
+      "samples": [],
+      "growthLimit": 0.05,
+      "startBytes": null,
+      "endBytes": null,
+      "basis": null,
+      "windowTicks": [
+        null,
+        null
+      ],
+      "sampling": "per-minute (1200 ticks @ 20 Hz) inside the post-admission steady window",
+      "endGrowthRatio": null,
+      "peakGrowthRatio": null,
+      "raw": {
+        "sampleCount": 2384,
+        "startBytes": 1001906176,
+        "endBytes": 995020800,
+        "peakBytes": 1014792192
+      }
+    }
+  },
+  "evidence": {
+    "verificationJson": "verification.json",
+    "perBotNdjson": "bots/*.ndjson",
+    "timingCsv": "timing.csv",
+    "memoryCsv": "memory.csv"
+  },
+  "rounds": 2,
+  "launchStatus": "FAIL",
+  "perRound": {
+    "round-1": {
+      "round": "round-1",
+      "dir": "C:\\Work\\LumioGames\\LumioSample-toolfix\\.run\\toolfix-final\\stress\\round-1",
+      "launcherStatus": "FAIL",
+      "admitted": {
+        "required": 100,
+        "actual": null,
+        "drops": null,
+        "protocolViolation": null,
+        "queueFull": null
+      },
+      "fleet": {
+        "botsWithMoves": 0,
+        "fleetTotal": 0,
+        "fleetPassed": 0,
+        "minMovesPerBot": null,
+        "totalMoves": 0,
+        "spanSeconds": 0
+      },
+      "tick": {
+        "incarnation": "9ffef66c59314d8088ff385702c999ec",
+        "ticks": 2384,
+        "p99Ms": 33.8101,
+        "frameBudgetMs": 50,
+        "overBudgetFrames": 5
+      },
+      "observers": "missing observers dir .run\\toolfix-final\\stress\\round-1\\observers",
+      "violations": 0,
+      "violationClasses": {
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "rss": {
+        "windowBasis": null,
+        "windowTicks": [
+          null,
+          null
+        ],
+        "minuteSamples": [],
+        "endGrowthRatio": null,
+        "peakGrowthRatio": null,
+        "rawSampleCount": 2384
+      }
+    },
+    "round-2": {
+      "round": "round-2",
+      "dir": "C:\\Work\\LumioGames\\LumioSample-toolfix\\.run\\toolfix-final\\stress\\round-2",
+      "launcherStatus": "FAIL",
+      "admitted": {
+        "required": 100,
+        "actual": null,
+        "drops": null,
+        "protocolViolation": null,
+        "queueFull": null
+      },
+      "fleet": {
+        "botsWithMoves": 0,
+        "fleetTotal": 0,
+        "fleetPassed": 0,
+        "minMovesPerBot": null,
+        "totalMoves": 0,
+        "spanSeconds": 0
+      },
+      "tick": {
+        "incarnation": "2e5ccb874af249f69885e51b5c6ed822",
+        "ticks": 2226,
+        "p99Ms": 23.3345,
+        "frameBudgetMs": 50,
+        "overBudgetFrames": 0
+      },
+      "observers": "missing observers dir .run\\toolfix-final\\stress\\round-2\\observers",
+      "violations": 0,
+      "violationClasses": {
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "rss": {
+        "windowBasis": null,
+        "windowTicks": [
+          null,
+          null
+        ],
+        "minuteSamples": [],
+        "endGrowthRatio": null,
+        "peakGrowthRatio": null,
+        "rawSampleCount": 2226
+      }
+    }
+  },
+  "failures": [
+    "round-1: admitted null != 100",
+    "round-1: ticket_accepted bot dirs 1 != 100",
+    "round-1: launcher status FAIL",
+    "round-1: fleet bots with move.issued 0 != 99",
+    "round-1: move span 0.0s < 280s",
+    "round-1: resident result passed 0 != 99",
+    "round-1: sampled ticks 2384 < 5000 (window incomplete)",
+    "round-1: 5 frames over 50ms",
+    "round-1: missing observers dir .run\\toolfix-final\\stress\\round-1\\observers",
+    "round-1: rss steady window not established (fleet never fully admitted; no observer anchor) — raw peak growth 1.3% over the whole run is not an AC5 verdict",
+    "round-2: admitted null != 100",
+    "round-2: ticket_accepted bot dirs 1 != 100",
+    "round-2: launcher status FAIL",
+    "round-2: fleet bots with move.issued 0 != 99",
+    "round-2: move span 0.0s < 280s",
+    "round-2: resident result passed 0 != 99",
+    "round-2: sampled ticks 2226 < 5000 (window incomplete)",
+    "round-2: missing observers dir .run\\toolfix-final\\stress\\round-2\\observers",
+    "round-2: rss steady window not established (fleet never fully admitted; no observer anchor) — raw peak growth 2.4% over the whole run is not an AC5 verdict"
+  ]
+}

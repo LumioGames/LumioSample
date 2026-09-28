@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "status": "FAIL",
+  "scope": "sample-100-bot-move",
+  "params": {
+    "bots": 100,
+    "durationSeconds": 300,
+    "staggerMs": 1200,
+    "tickRateHz": 20
+  },
+  "clock": "native-core-clock_now",
+  "criteria": {
+    "admitted": {
+      "required": 100,
+      "actual": 49,
+      "drops": 51,
+      "protocolViolation": 0,
+      "queueFull": 0
+    },
+    "frameBudget": {
+      "budgetMs": 50,
+      "p99Ms": 9.2737,
+      "overBudgetFrames": 0,
+      "clock": "native-core-clock_now"
+    },
+    "transformConsistency": {
+      "sampledBots": null,
+      "mismatches": null
+    },
+    "rss": {
+      "samples": [],
+      "growthLimit": 0.05,
+      "startBytes": null,
+      "endBytes": null,
+      "basis": null,
+      "windowTicks": [
+        null,
+        null
+      ],
+      "sampling": "per-minute (1200 ticks @ 20 Hz) inside the post-admission steady window",
+      "endGrowthRatio": null,
+      "peakGrowthRatio": null,
+      "raw": {
+        "sampleCount": 18000,
+        "startBytes": 117456896,
+        "endBytes": 115802112,
+        "peakBytes": 142651392
+      }
+    }
+  },
+  "shas": {
+    "LumioSample": "f98322c2eec8f83b5caf07aa2ad15d9c55b6f8fb",
+    "LumioGameEngine": "e29639f11cbd4b131b4c268da15745b2c0169e5a",
+    "LumioNativeCore": "c4e7a8825f86e3a98cbd6afd32311d3542f0394a",
+    "LumioVoxelEngine": "73b2d5a22adc1a5ad021508ec609ff92ed177a62",
+    "LumioGameRuntime": "b2db9defdab1164af8729dacabeb1a305897d89b",
+    "LumioServer": "e97068a07555939e4d04cc9d52d59e2a92948192",
+    "LumioClient": "553d6b75cbe8a3125a8b6feb0890b5d1ea97f9ec",
+    "LumioPlatform": "1e6a9b9c4969afd3e229817c6f5a6a7183c78d4e"
+  },
+  "evidence": {
+    "verificationJson": "verification.json",
+    "perBotNdjson": "bots/*.ndjson",
+    "timingCsv": "timing.csv",
+    "memoryCsv": "memory.csv"
+  },
+  "rounds": 2,
+  "launchStatus": "FAIL",
+  "perRound": {
+    "round-1": {
+      "round": "round-1",
+      "dir": "C:\\Work\\LumioGames\\LumioSample-toolfix\\.run\\toolfix-final\\accept\\round-1",
+      "launcherStatus": "FAIL",
+      "admitted": {
+        "required": 100,
+        "actual": 49,
+        "drops": 51,
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "fleet": {
+        "botsWithMoves": 0,
+        "fleetTotal": 5,
+        "fleetPassed": 0,
+        "minMovesPerBot": null,
+        "totalMoves": 0,
+        "spanSeconds": 0
+      },
+      "tick": {
+        "incarnation": "753c2dc3f3de489e9656d4cffc3f4eb6",
+        "ticks": 18000,
+        "p99Ms": 9.2737,
+        "frameBudgetMs": 50,
+        "overBudgetFrames": 0
+      },
+      "observers": "missing observers dir .run\\toolfix-final\\accept\\round-1\\observers",
+      "violations": 0,
+      "violationClasses": {
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "rss": {
+        "windowBasis": null,
+        "windowTicks": [
+          null,
+          null
+        ],
+        "minuteSamples": [],
+        "endGrowthRatio": null,
+        "peakGrowthRatio": null,
+        "rawSampleCount": 18000
+      },
+      "shas": {
+        "LumioSample": "f98322c2eec8f83b5caf07aa2ad15d9c55b6f8fb",
+        "LumioGameEngine": "e29639f11cbd4b131b4c268da15745b2c0169e5a",
+        "LumioNativeCore": "c4e7a8825f86e3a98cbd6afd32311d3542f0394a",
+        "LumioVoxelEngine": "73b2d5a22adc1a5ad021508ec609ff92ed177a62",
+        "LumioGameRuntime": "b2db9defdab1164af8729dacabeb1a305897d89b",
+        "LumioServer": "e97068a07555939e4d04cc9d52d59e2a92948192",
+        "LumioClient": "553d6b75cbe8a3125a8b6feb0890b5d1ea97f9ec",
+        "LumioPlatform": "1e6a9b9c4969afd3e229817c6f5a6a7183c78d4e"
+      }
+    },
+    "round-2": {
+      "round": "round-2",
+      "dir": "C:\\Work\\LumioGames\\LumioSample-toolfix\\.run\\toolfix-final\\accept\\round-2",
+      "launcherStatus": "FAIL",
+      "admitted": {
+        "required": 100,
+        "actual": 49,
+        "drops": 51,
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "fleet": {
+        "botsWithMoves": 0,
+        "fleetTotal": 5,
+        "fleetPassed": 0,
+        "minMovesPerBot": null,
+        "totalMoves": 0,
+        "spanSeconds": 0
+      },
+      "tick": {
+        "incarnation": "874810277a7f4509a1c17ab67c91bc62",
+        "ticks": 18000,
+        "p99Ms": 8.6186,
+        "frameBudgetMs": 50,
+        "overBudgetFrames": 0
+      },
+      "observers": "missing observers dir .run\\toolfix-final\\accept\\round-2\\observers",
+      "violations": 0,
+      "violationClasses": {
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "rss": {
+        "windowBasis": null,
+        "windowTicks": [
+          null,
+          null
+        ],
+        "minuteSamples": [],
+        "endGrowthRatio": null,
+        "peakGrowthRatio": null,
+        "rawSampleCount": 18000
+      },
+      "shas": {
+        "LumioSample": "f98322c2eec8f83b5caf07aa2ad15d9c55b6f8fb",
+        "LumioGameEngine": "e29639f11cbd4b131b4c268da15745b2c0169e5a",
+        "LumioNativeCore": "c4e7a8825f86e3a98cbd6afd32311d3542f0394a",
+        "LumioVoxelEngine": "73b2d5a22adc1a5ad021508ec609ff92ed177a62",
+        "LumioGameRuntime": "b2db9defdab1164af8729dacabeb1a305897d89b",
+        "LumioServer": "e97068a07555939e4d04cc9d52d59e2a92948192",
+        "LumioClient": "553d6b75cbe8a3125a8b6feb0890b5d1ea97f9ec",
+        "LumioPlatform": "1e6a9b9c4969afd3e229817c6f5a6a7183c78d4e"
+      }
+    }
+  },
+  "failures": [
+    "round-1: admitted 49 != 100",
+    "round-1: ticket_accepted bot dirs 49 != 100",
+    "round-1: launcher status FAIL",
+    "round-1: fleet bots with move.issued 0 != 99",
+    "round-1: move span 0.0s < 280s",
+    "round-1: resident result passed 0 != 99",
+    "round-1: missing observers dir .run\\toolfix-final\\accept\\round-1\\observers",
+    "round-1: rss steady window not established (fleet never fully admitted; no observer anchor) — raw peak growth 21.4% over the whole run is not an AC5 verdict",
+    "round-2: admitted 49 != 100",
+    "round-2: ticket_accepted bot dirs 49 != 100",
+    "round-2: launcher status FAIL",
+    "round-2: fleet bots with move.issued 0 != 99",
+    "round-2: move span 0.0s < 280s",
+    "round-2: resident result passed 0 != 99",
+    "round-2: missing observers dir .run\\toolfix-final\\accept\\round-2\\observers",
+    "round-2: rss steady window not established (fleet never fully admitted; no observer anchor) — raw peak growth 21.6% over the whole run is not an AC5 verdict"
+  ]
+}
