@@ -435,7 +435,10 @@ async function loadWasmExports() {
 
   try {
     const { dotnet } = await import("./_framework/dotnet.js");
-    const { getAssemblyExports, getConfig, runMain } = await dotnet.create();
+    const { getAssemblyExports, getConfig, runMain, setModuleImports } = await dotnet.create();
+    const { loadEngineWasm } = await import('./engine-wasm.mjs');
+    const nativeCall = await loadEngineWasm();
+    setModuleImports('lumio-engine', { call: nativeCall });
     const config = getConfig();
     const exports = await getAssemblyExports(config.mainAssemblyName);
     await runMain();
@@ -452,6 +455,11 @@ async function loadWasmExports() {
       developmentSession = await connectDevelopmentBridge({ api, config,
         sdk: agentExports.Microsoft.DotNet.HotReload.WebAssembly.Browser.WebAssemblyHotReload });
     }
+    const catalogResponse = await fetch(CATALOG_URL);
+    if (!catalogResponse.ok) throw new Error(`Official catalog unavailable: ${catalogResponse.status}`);
+    const catalogBytes = new Uint8Array(await catalogResponse.arrayBuffer());
+    catalogText = new TextDecoder().decode(catalogBytes);
+    api.InitializeEngine(catalogBytes);
     bindExports(api);
     csharp.boot();
     applyDump(csharp.dumpPositions());
