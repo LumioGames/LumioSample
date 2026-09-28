@@ -127,6 +127,10 @@ jobs:
       # run on every PR even though the job they guard is push/schedule only.
       - run: node --test Tools/test-server-host.test.mjs
       - run: node --test Tools/prepare-server-host-inputs.test.mjs
+      # R-00588 verifier/orchestration unit checks (queueFull classification, AC5 steady
+      # window, DS excerpt redaction): pure logic, no engine binary or Platform needed.
+      - run: node --test integration/stress-r588/verify-rounds.test.mjs
+      - run: node --test integration/stress-r588/run-round.test.mjs
 
   # ADR-123 验证 Fixture 1: what an outsider does. A plain anonymous `git clone
   # --recursive` of this public repository — no actions/checkout, no token, no other

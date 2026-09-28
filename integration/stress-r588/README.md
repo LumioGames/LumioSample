@@ -28,14 +28,21 @@
 ## 复现
 
 ```
-# v0.0.2 起，单轮编排进仓（上一轮是未进仓的 .run/stress-round.mjs）：
-node integration/stress-r588/run-round.mjs <roundDir> [loginPrefix]   # 100 票错峰 + 5×20 打包，全新 Platform 库/轮
+# v0.0.2 起，单轮编排进仓（上一轮是未进仓的 .run/stress-round.mjs）。
+# toolfix v0.0.3 / ADR-133：两轮共用同一个 Platform（账号库），每轮全新存档 + 全新 DS 进程
+# （玩家颜色由 Platform accountId 派生，换库即换身份，两轮必然对不上）：
+node integration/stress-r588/run-round.mjs round-1 AcctWq --keep-platform
+node integration/stress-r588/run-round.mjs round-2 AcctWq --reuse-platform
 node integration/stress-r588/verify-rounds.mjs round-1 round-2 <out>/verification.json
 ```
 
 `run-round.mjs` 调用的仓内工具：`Tools/stress-move.mjs`（驱动 `Tools/launcher.mjs` 跑十四步
 + 100 Bot 300 s 移动窗口）、`integration/stress-r588/observe-replicas.mjs`（五观察者 AC4）、
-HostEntry TickSampleExport（`LUMIO_TICK_SAMPLE_DIR` 落每帧耗时 / RSS CSV）与
-`Engine/platform/docker-compose.yml`（每轮 `down -v` → `up`，Platform 库不跨轮残留）。
-本 README 上半部分描述的 FAIL 是 v0.0.1 一轮的结论；v0.0.2 的两轮证据与判定在
-`integration/acceptance-v0.0.2/r588/`。
+HostEntry TickSampleExport（`LUMIO_TICK_SAMPLE_DIR` 落每帧耗时 / RSS CSV）、
+`Engine/platform/docker-compose.yml`（Platform 账号库；单轮独立跑时仍 down -v → up，
+两轮序列里由 `--keep-platform`/`--reuse-platform` 控制跨轮共用）。每轮还会自动把 DS 的
+准入/关闭相关行（host.admit / host.expire / host.connection_close）脱敏摘录进
+`round-N/ds-admission-close-excerpt.log`——v0.0.2 的教训：verdict.md 引用了该文件但它
+从未入仓，48 条关闭行因此在仓内无法逐行复核。判定器修复（queueFull 分类计数、AC5 稳态
+窗口口径）的重跑证据与说明见 `diagnostics/`。本 README 上半部分描述的 FAIL 是 v0.0.1
+一轮的结论；v0.0.2 的两轮证据与判定在 `integration/acceptance-v0.0.2/r588/`。
