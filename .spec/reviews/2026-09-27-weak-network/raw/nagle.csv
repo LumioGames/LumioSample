@@ -1,0 +1,3 @@
+endpoint,artifact,method,observed_tcp_nodelay,status,reason
+DS server,Engine/server/linux-x64/lumio-ds,release-binary-static-string-scan,unknown,UNVERIFIED,"Source/socket runtime unavailable; no DS process started"
+Bot client,Engine/bot/linux-x64/Lumio.Client.Network.Connection.dll,release-binary-static-string-scan,unknown,UNVERIFIED,"Source/socket runtime unavailable; no Bot process started"

@@ -1,0 +1,90 @@
+name: Weak-network measurement
+
+# Manual only. The engine is an ADR-123 temporary --from-main release built by
+# the engine coordinator, not private source checked out on the public runner.
+on:
+  workflow_dispatch:
+    inputs:
+      engine_run_id:
+        description: 'Actions run containing engine-release-linux-x64 (engine.tar.gz and platform-image.tar)'
+        required: true
+        type: string
+      engine_repository:
+        description: 'Repository that owns the packaging run'
+        required: true
+        default: LumioGames/LumioGameEngine
+        type: string
+      profiles:
+        description: 'Measurement profiles'
+        required: true
+        default: '["A","B","C","D","cutover"]'
+        type: choice
+        options:
+          - '["A","B","C","D","cutover"]'
+          - '["A","C"]'
+          - '["A"]'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      # Each profile owns a fresh runner; no competing bots, qdiscs or Platform stacks.
+      matrix:
+        profile: ${{ fromJSON(inputs.profiles) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download the temporary release artifact
+        uses: actions/download-artifact@v4
+        with:
+          repository: ${{ inputs.engine_repository }}
+          run-id: ${{ inputs.engine_run_id }}
+          name: engine-release-linux-x64
+          path: .tmp/release
+          github-token: ${{ secrets.LUMIO_CI_PAT || github.token }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Install measurement tools
+        run: sudo apt-get update && sudo apt-get install -y iproute2 iptables gcc
+      - name: Prepare the main-branch engine and Platform image
+        run: |
+          set -euo pipefail
+          mkdir -p Engine
+          tar -xzf .tmp/release/engine.tar.gz -C Engine
+          docker load -i .tmp/release/platform-image.tar
+          node Engine/tools/verify-release.mjs --root Engine --rid linux-x64
+          git clone --depth 1 https://github.com/LumioGames/LumioConfig.git ../LumioConfig
+      - name: Build the sample and movement probe
+        run: |
+          set -euo pipefail
+          dotnet build Gameplay/Lumio.Sample.Gameplay.csproj
+          dotnet build Gameplay/Lumio.Sample.Gameplay.csproj -p:LumioEcsSide=client
+          # Distro SDKs can report ubuntu.24.04-x64; the release uses portable RIDs.
+          dotnet build Client/Bots/Lumio.Sample.Bots.csproj -p:LumioClientBotDirectory="$PWD/Engine/bot/linux-x64"
+      - name: Measure 100 moving bots for 180 seconds
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: node Tools/weak-network.mjs "$PROFILE" ".tmp/weak-network/$PROFILE"
+      - name: Retain measurements (never private launch configs or credentials)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weak-network-${{ matrix.profile }}-${{ github.run_attempt }}
+          path: |
+            .tmp/weak-network/${{ matrix.profile }}/run.json
+            .tmp/weak-network/${{ matrix.profile }}/summary.json
+            .tmp/weak-network/${{ matrix.profile }}/raw/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 30

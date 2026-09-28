@@ -1,0 +1,39 @@
+{
+  "round": "round-1",
+  "dir": "C:\\Work\\accept-v002\\LumioSample\\.run\\accept-v002-r588\\round-1",
+  "launcherStatus": "FAIL",
+  "admitted": {
+    "required": 100,
+    "actual": 49,
+    "drops": 51,
+    "protocolViolation": 0,
+    "queueFull": 0
+  },
+  "fleet": {
+    "botsWithMoves": 0,
+    "fleetTotal": 5,
+    "fleetPassed": 0,
+    "minMovesPerBot": null,
+    "totalMoves": 0,
+    "spanSeconds": 0
+  },
+  "tick": {
+    "incarnation": "753c2dc3f3de489e9656d4cffc3f4eb6",
+    "ticks": 18000,
+    "p99Ms": 9.2737,
+    "frameBudgetMs": 50,
+    "overBudgetFrames": 0
+  },
+  "observers": "missing observer records-1.json",
+  "violations": 48,
+  "shas": {
+    "LumioSample": "f98322c2eec8f83b5caf07aa2ad15d9c55b6f8fb",
+    "LumioGameEngine": "e29639f11cbd4b131b4c268da15745b2c0169e5a",
+    "LumioNativeCore": "c4e7a8825f86e3a98cbd6afd32311d3542f0394a",
+    "LumioVoxelEngine": "73b2d5a22adc1a5ad021508ec609ff92ed177a62",
+    "LumioGameRuntime": "b2db9defdab1164af8729dacabeb1a305897d89b",
+    "LumioServer": "e97068a07555939e4d04cc9d52d59e2a92948192",
+    "LumioClient": "553d6b75cbe8a3125a8b6feb0890b5d1ea97f9ec",
+    "LumioPlatform": "1e6a9b9c4969afd3e229817c6f5a6a7183c78d4e"
+  }
+}

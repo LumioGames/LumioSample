@@ -60,7 +60,7 @@ public sealed class MoveAbility : AbilityType<MoveAbility.Input>
     }
 
     /// <summary>Registers this type on the GAS catalog.</summary>
-    public static void Register() => AbilityTypeCatalog.Register<MoveAbility, Input>(TypeId);
+    public static void Register(GasTypeRegistry registry) => registry.RegisterAbility<MoveAbility, Input>(TypeId);
 
     /// <inheritdoc />
     public override bool CanActivate(in Input input) => IsAdmittedStep(input.Dx, input.Dz);

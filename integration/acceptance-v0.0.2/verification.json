@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "scope": "lumo-sample-acceptance-v0.0.2",
+  "date": "2026-09-27",
+  "baseline": {
+    "LumioSample": "f98322c2eec8f83b5caf07aa2ad15d9c55b6f8fb",
+    "engineSubmodule": "LumioEngineRelease v0.0.2 @ 9e57979049fe727e02992ad48116ce1324a42277",
+    "manifestSources": {
+      "LumioGameEngine": "e29639f11cbd4b131b4c268da15745b2c0169e5a",
+      "LumioNativeCore": "c4e7a8825f86e3a98bd6afd32311d3542f0394a",
+      "LumioVoxelEngine": "73b2d5a22adc1a5ad021508ec609ff92ed177a62",
+      "LumioGameRuntime": "b2db9defdab1164af8729dacabeb1a305897d89b",
+      "LumioServer": "e97068a07555939e4d04cc9d52d59e2a92948192",
+      "LumioClient": "553d6b75cbe8a3125a8b6feb0890b5d1ea97f9ec",
+      "LumioPlatform": "1e6a9b9c4969afd3e229817c6f5a6a7183c78d4e"
+    },
+    "platformImage": "ghcr.io/lumiogames/lumio-platform:0.0.2@sha256:b63dbeb2a9cb60578894afe0a6f2b660bb0595976bf72206c7a40f2f90583164",
+    "verifyRelease": "PASS: engine release 0.0.2 (win-x64, linux-x64), 249 files verified for win-x64"
+  },
+  "machine": {
+    "os": "Windows 11 专业版 10.0.26200 (win-x64)",
+    "cpu": "12th Gen Intel(R) Core(TM) i5-12600KF, 10 cores",
+    "dotnet": "10.0.400",
+    "node": "v24.18.0",
+    "docker": "WSL Ubuntu-24.04: docker 29.8.0, compose v5.5.1 (via local docker.exe->WSL shim, see criterion2/docker-wsl-shim.cs)"
+  },
+  "results": {
+    "criterion1-external-compile": { "verdict": "PASS", "evidence": "criterion1/" },
+    "criterion2-one-command-tour": { "verdict": "PASS", "evidence": "criterion2/", "steps": "14/14 PASS, exit 0", "dotnetTest": "135 passed / 0 failed / 0 skipped" },
+    "criterion3-table-driven": { "verdict": "PASS", "evidence": "criterion3/", "proof": "ore_per_vein 4->7 gives step12 amounts=[7]; gameplay DLL sha256+mtime unchanged; 0 literals in source; tree restored clean" },
+    "criterion4-four-categories": { "verdict": "PASS", "evidence": "criterion4/four-categories.md" },
+    "criterion5-dig-through-chain": { "verdict": "PASS", "evidence": "criterion5/mining-chain.md" },
+    "criterion6-persistence": {
+      "verdict": "FAIL",
+      "evidence": "criterion6/",
+      "passed": ["restart per-vein consistency", "unpicked drop stays", "picked drop does not respawn (ore 9->13 once)", "reverse-order relogin", "sha-mismatch negative (DS_FATAL checkpoint_corrupt_manifest)", "first-boot missing base map negative (DS_FATAL base_map_unavailable)"],
+      "failed": ["half-dug vein frozen in store (acceptance-tooling capability; hermetic coverage cited)", "WSL linux-x64 open of migrated store (DS_FATAL clr_host_start_failed status 3 ClrInitFailed)", "restored store with missing base-map file opens silently (engine behaviour)"]
+    },
+    "criterion7-determinism": {
+      "verdict": "PASS",
+      "evidence": "criterion7/verify/verify-evidence.out",
+      "proof": "ok:true; both rounds 587 world events compared bitwise; factsHold=true (3 veins x remaining 6, oreCount 18)",
+      "note": "hue-vs-fresh-platform spec tension recorded in criterion7/verdict.md"
+    },
+    "r588-100-bot-two-rounds": {
+      "verdict": "FAIL",
+      "evidence": "r588/verification.json",
+      "perRound": { "round-1": "49/100 admitted; 48 protocol_violation closes; runtime_query_pending expiries", "round-2": "identical reproduction" },
+      "ac3-frame-budget": "p99 9.27ms of 50ms budget, 0 over-budget frames (NativeCore clock_now)",
+      "ac5-rss": "peak growth 21.6% > 5%",
+      "regressionsFromV001": "none of B-00123/124/125/127 signatures; new stall is admission runtime-query path"
+    }
+  },
+  "defectTicketsPlanned": {
+    "RM-00005": "admission runtime-query stall at ~50 players (R-00588 evidence)",
+    "RM-00006": "linux lumio-ds CLR host failure stage not surfaced + WSL ClrInitFailed; restored store opens silently with missing base map",
+    "RM-00015": "(none - no Sample-side defect; acceptance tooling notes are in-repo)"
+  }
+}

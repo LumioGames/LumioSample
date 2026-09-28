@@ -1218,22 +1218,36 @@ export async function runLauncher(options = {}) {
     } else {
       scenarioDll = resolve(options.scenarioDll);
     }
+    if (options.residentScenarioName && (!scenarioDll || typeof options.onFleetReady !== 'function'))
+      throw new Error('A resident measurement requires a scenario DLL and onFleetReady.');
     const botSessions = spectatorMode ? sessions.slice(0, botCount) : sessions;
     const fleetPerProcess = options.fleetPerProcess ?? 1;
     const botChildren = [];
     const fleetGroupDirs = [];
     // R-00588 fleet packing: >1 packs N accounts per Bot.Host via a ticket manifest;
     // 一进程一账号(默认)保持逐 Bot 目录不变。
-    const packFleet = !spectatorMode && fleetPerProcess > 1 && botSessions.length > 1;
+    // The existing resident scenario route admits exactly one account per process.
+    const packFleet = !spectatorMode && !options.residentScenarioName && fleetPerProcess > 1 && botSessions.length > 1;
     const singleBotSessions = packFleet ? botSessions.slice(0, 1) : botSessions;
+    const measurementTickets = options.residentScenarioName ? mkdtempSync(join(root, '.run', 'measurement-manifests-')) : null;
+    if (measurementTickets) manifestPaths.push(measurementTickets);
     for (const [index, session] of singleBotSessions.entries()) {
       if (index > 0) await sleep(options.staggerMs ?? DEFAULT_STAGGER_MS);
       const botLogDir = freshDir(join(evidence, `bot-${index + 1}`));
-      const tour = index === 0 && scenarioDll != null;
+      const tour = index === 0 && scenarioDll != null && !options.residentScenarioName;
+      let admissionTicket = session.launch.admissionCredential;
+      if (measurementTickets) {
+        admissionTicket = join(measurementTickets, `bot-${index + 1}.json`);
+        writeFileSync(admissionTicket, `${JSON.stringify({ platformOrigin: origin, game: options.slug, password,
+          accounts: [{ loginName: session.login.loginName, launch: {
+            admissionCredential: session.launch.admissionCredential, roomId: session.launch.roomId,
+          } }],
+        })}\n`, { mode: 0o600 });
+      }
       const args = buildBotArgs({
         botDll,
         endpoint,
-        admissionTicket: session.launch.admissionCredential,
+        admissionTicket,
         engineNative,
         kernelConfig: kernelConfigPath,
         configDir,
@@ -1243,6 +1257,7 @@ export async function runLauncher(options = {}) {
         gameplay,
         voxelConfig,
         ...(tour ? { scenarioDll, scenarioName: TOUR_SCENARIO, ticks: options.tourTicks ?? DEFAULT_TOUR_TICKS } : {}),
+        ...(options.residentScenarioName ? { scenarioDll, scenarioName: options.residentScenarioName } : {}),
       });
       log(`$ ${JSON.stringify([dotnet, ...redactArgs(args, session.launch.admissionCredential)])}`);
       const bot = tools.startLogged(dotnet, args, {
@@ -1293,7 +1308,7 @@ export async function runLauncher(options = {}) {
       log(`fleet packing: ${fleetSessions.length} accounts in ${fleetGroupDirs.length} Bot.Host processes (${fleetPerProcess} per process)`);
     }
     // The tour bot exits by design once its scenario completes; only the fleet must stay alive.
-    const tourBot = scenarioDll != null ? botChildren[0] : null;
+    const tourBot = scenarioDll != null && !options.residentScenarioName ? botChildren[0] : null;
     const fleet = tourBot ? botChildren.slice(1) : botChildren;
     const admit = await waitBotsAdmitted({
       bots: packFleet ? 1 : botSessions.length,
@@ -1334,6 +1349,15 @@ export async function runLauncher(options = {}) {
     record('04', 'PASS', spectatorMode
       ? `${admittedTotal} bots admitted; spectator ticket held without Bot.Host`
       : `${admittedTotal} bots admitted with unique tickets`);
+    // A measurement owns its hold window and records failures itself, including bots that
+    // disconnect. It never borrows the tour's assertions or restarts the DS for step 14.
+    if (options.residentScenarioName) {
+      if (typeof options.onFleetReady !== 'function') throw new Error('A resident measurement requires onFleetReady.');
+      report.scope = 'sample-bot-measurement';
+      await options.onFleetReady({ endpoint, ds, bots: botChildren, evidence, tools, report });
+      report.status = 'MEASURED';
+      return report;
+    }
     if (spectatorMode && !externalSpectatorPage) {
       spectatorServer = await hostSpectatorPage({
         options, root, endpoint, spectatorSession: sessions[botCount], report, log,
