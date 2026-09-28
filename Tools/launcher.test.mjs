@@ -199,6 +199,39 @@ function launchFiles(isolated) {
   };
 }
 
+test('resident measurement drives every bot, provides renewal manifests, and does not run the mining tour', async () => {
+  const isolated = mkdtempSync(join(tmpdir(), 'lumio-measure-'));
+  const evidenceDir = join(isolated, 'evidence');
+  const tools = processTools({ evidenceDir, botLogs: [admitLine('Sample1'), admitLine('Sample2')] });
+  const files = launchFiles(isolated);
+  const scenarioDll = touch(isolated, 'Scenario.dll');
+  let measured = false;
+  const report = await runLauncher({ root: isolated, env: {}, bots: 2, staggerMs: 0, fleetPerProcess: 20,
+    ...files, scenarioDll, residentScenarioName: 'Measurement', processTools: tools,
+    sessions: [session('Sample1', 'secret-one'), session('Sample2', 'secret-two')],
+    evidenceDir, origin: 'http://127.0.0.1:8080', slug: 'sample', log() {},
+    onFleetReady: async ({ bots }) => {
+      measured = true;
+      assert.equal(bots.length, 2);
+      const starts = tools.events.filter((e) => e.kind === 'start').slice(1);
+      for (const start of starts) {
+        assert.equal(start.args[start.args.indexOf('--scenario-name') + 1], 'Measurement');
+        const path = start.args[start.args.indexOf('--admission-ticket') + 1];
+        const manifest = JSON.parse(readFileSync(path, 'utf8'));
+        assert.equal(manifest.platformOrigin, 'http://127.0.0.1:8080');
+        assert.ok(manifest.password.length > 0);
+        assert.ok(!start.args.includes('secret-one') && !start.args.includes('secret-two'));
+      }
+    },
+  });
+  assert.equal(measured, true);
+  assert.equal(report.status, 'MEASURED');
+  assert.equal(report.scope, 'sample-bot-measurement');
+  assert.ok(!report.steps.some((step) => step.id === '14'));
+  for (const start of tools.events.filter((e) => e.kind === 'start').slice(1))
+    assert.equal(existsSync(start.args[start.args.indexOf('--admission-ticket') + 1]), false);
+});
+
 const BLOCKED_TOUR_STEPS = ['05', '07', '08', '09', '10', '11', '12', '13', '14'];
 
 function assertTourHonesty(report, lines = []) {

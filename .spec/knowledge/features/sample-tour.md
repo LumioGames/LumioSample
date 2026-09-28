@@ -207,6 +207,32 @@ Bot* 登录名要 Platform 签发的 `LUMIO_BOT_TOOL_CREDENTIAL`。本地 releas
 
 `stress-move.mjs` 与 `spectator-100.mjs` 今天仍按 entity-only 形态起 Bot，没接 `--voxel-config`。对着本仓这份 `runtime+voxel` 的 `Server/Config/Startup/server.json`，它们同样会在第一帧 Section 上 fault；接线归各自的卡，不在本节的十四步启动器里。
 
+## WebSocket 弱网测量
+
+手动工作流 [weak-network.yml](../../../.github/workflows/weak-network.yml) 在每档独立的托管 `ubuntu-24.04` 上运行 [weak-network.mjs](../../../Tools/weak-network.mjs)。输入为 Engine 既有 `sample-regression.yml` 手动开启 `export_weak_network_artifact` 后导出的 Actions run：`engine-release-linux-x64` 包含 `engine.tar.gz`（ADR-123 临时发布树位于归档根）和 `platform-image.tar`（manifest 指向的本地镜像）。解包替换本次工作区 `Engine/` 内容，不改子模块钉号；跨仓下载使用现有凭据，缺读取权限会明确失败。
+
+`WeakNetworkMoveScenario` 只经既有 MoveAbility 发约 4 Hz 移动，100 个独立 Bot 进程沿用常驻场景每进程单账号限制。全部 100 个账号观察到真实 Active 后才释放输入并计时 180 秒。启动器使用私有的临时续票清单，收尾删除；报告和 artifact 不含这些清单。每档记录 DS RSS、TCP Send-Q、宿主可用内存和 load1，用于识别托管机的资源压力。
+
+| 档 | 单向 netem 延迟 | 丢包 |
+|---|---|---|
+| A | 0 | 0 |
+| B | 50±10 ms | 1% |
+| C | 100±20 ms | 3% |
+| D | 150±30 ms | 5% |
+| cutover | 0 | 0；第 60 秒起切断 10 条连接 5 秒 |
+
+netem 仅过滤 loopback 上 DS 端口的双向 TCP，Platform 不进延迟队列。切网从前 10 个独立进程的真实 `ss` 连接取精确四元组，以同一 iptables COMMIT 双向 DROP，恢复前保留每条规则的实际丢包计数；恢复只删除本次规则。新 tuple 的真实重连不伪造断包。脚本拒绝替换已有非默认 qdisc，收尾只移除自己的 handle。
+
+输入确认取 Bot Host 的标准 `Lumio.Client.Bot.Network` Meter。开始点是 transport 接受编码后的 InputCommand，结束点是 owner 取到 WorldChange.AppliedInputSequence；按 account/generation/sequence 逐条累计确认，包含发送队列及 owner 取件等待。停止输入后保留 10 秒确认尾窗，未确认输入保留分母，拒绝发送另计。原始与减去名义注入 RTT 的 p50/p95/p99/max 同时给出，调整后的负数保留。卡顿是超过 250 ms 的连续无更新区间，保留完整 gap 与超出 250 ms 的时长，末尾未恢复的区间标明截尾。
+
+每 Bot 的首末发送时间、跨度和每 10 秒发送/拒绝/确认/更新数量在 `per-bot.csv`、`activity.csv`。Active 下整桶没有发送尝试属于持续性证据不足；非 Active 覆盖的静默保留为真实连接不可用，不能抹成基础设施故障。切网把「始终 Active」「真正离开后重连 Active」「恢复后首个更新」分开；保持状态不算重连成功，恢复前换新 tuple 重连也单列。
+
+tick p99 取既有 `LUMIO_TICK_SAMPLE_DIR` 的 `tick_id,phase,elapsed_nanos,queue_wait_nanos` CSV：只纳入测量窗收到的 WorldChange 所覆盖的 tick，完整 13 相、无重复且数值有效才求和。时钟为 NativeCore `clock_now`。DS 通过 SIGTERM 正常退出并确认 exit 0，确保最后部分批次落盘；空或全零 tick 不合格。每 Bot 缺发送/确认/更新、持续性证据不足、切网非 10 条双向实际丢包及恢复、socket 审计不足都会阻止 `MEASURED`。`MEASURED` 只表示采集完整，延迟与卡顿建议值不作工作流通过门；未测成不能推断传输档不可接受。
+
+只读 `LD_PRELOAD` 审计真实 connect/accept/setsockopt 后的 TCP_NODELAY，按 DS 端口区分两端，不修改参数。任一端为 false 时，[报告器](../../../Tools/weak-network-report.mjs) 要求另一个**不合入**的强制 TCP_NODELAY 对照分支提供 A/C 两档完整数据且两端均为 true。无对照不得生成最终报告。工具不因源码默认值猜测真实 socket 设置。
+
+原始产物在 `.tmp/weak-network/<档>/raw/`，包含 Meter CSV、输入确认、活动分桶、卡顿、恢复、tick、内存曲线、socket 选项、网络配置和计数；`run.json` 与 `engine-manifest.json` 记录环境、源码提交与 Actions run。下载全部档到同一目录后执行 `node Tools/weak-network-report.mjs <目录> [对照目录]`。这里只定义采集方法，真实结论必须来自合格的原始样本。
+
 ## Bot 体素预算的数值依据
 
 [`Server/Assets/Maps/bot-voxel-budget.json`](../../../Server/Assets/Maps/bot-voxel-budget.json) 是 JSON，装不下注释，而 `BotVoxelConfig` 又**拒绝任何未知字段**，所以依据记在这里。地图事实：`sample.layout.json` 是 32×32×16，Section 是 16³，`Server/Config/Startup/server.json` 的 `voxel_baseline_region` 是 `0,0,0..1,0,1`——**全图 4 个 Section**（`s:0:0:0` / `s:0:0:1` / `s:1:0:0` / `s:1:0:1`）。玩法事实：`Gameplay/Tables/tables/mining.txt` 的 `cooldown_ticks=1`，即 20 Hz 下每帧都可能压进一次挖掘预测。
