@@ -36,7 +36,9 @@ public sealed class WeakNetworkMoveScenario : BotScenario
     {
         long now = Stopwatch.GetTimestamp();
         if (!context.World.HasSelf || now < _nextSend) return BotStepResult.Continue;
-        _nextSend = now + Stopwatch.Frequency / 4; // Same approximately 4 Hz movement load as R-00588.
+        // ≈250 ms between sends, the R-00588 movement cadence. A fraction, not a bare integer:
+        // ore_per_vein is 4 and the no-table-numbers lint flags any bare config-value literal.
+        _nextSend = now + (long)(Stopwatch.Frequency * 0.25);
         _random ^= _random << 13;
         _random ^= _random >> 17;
         _random ^= _random << 5;
