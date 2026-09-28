@@ -29,21 +29,18 @@ public sealed class PickupOreEffect : EffectType<PickupOreEffect.Parameters>
         public string FxKey => FxKeyName;
     }
 
-    /// <summary>Registers this type on the GAS catalog.</summary>
-    public static void Register() =>
-        EffectTypeCatalog.Register<PickupOreEffect, Parameters>(TypeId, static (target, magnitude) =>
-        {
-            var effect = new PickupOreEffect();
-            var parameters = new Parameters { Amount = magnitude };
-            effect.Apply(target, in parameters);
-        });
+    public override void Settle(EffectSettlementContext context, NetEntityId target, long magnitude)
+    {
+        var parameters = new Parameters { Amount = magnitude };
+        Apply(context, target, in parameters);
+    }
 
     /// <inheritdoc />
-    public override void Apply(NetEntityId target, in Parameters parameters)
+    public override void Apply(EffectSettlementContext context, NetEntityId target, in Parameters parameters)
     {
-        World? world = EffectSettlementContext.CurrentWorld;
+        World? world = context.World;
         if (world is null || !world.IsLive(target)) return;
-        IEffectWriteGuard guard = EffectSettlementContext.Guard;
+        IEffectWriteGuard guard = context;
         if (!guard.CanWrite)
             throw new System.InvalidOperationException("PickupOreEffect.Apply requires EffectSettlementContext.");
 

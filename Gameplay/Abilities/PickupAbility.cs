@@ -50,7 +50,7 @@ public sealed partial class PickupAbility : AbilityType<PickupAbility.Input>
     }
 
     /// <summary>Registers this type on the GAS catalog. No cost: pickup never touches the stamina ledger.</summary>
-    public static void Register() => AbilityTypeCatalog.Register<PickupAbility, Input>(TypeId);
+    public static void Register(GasTypeRegistry registry) => registry.RegisterAbility<PickupAbility, Input>(TypeId);
 
     /// <inheritdoc />
     public override bool CanActivate(in Input input, AbilityComponent owner, out string? failureCode)
