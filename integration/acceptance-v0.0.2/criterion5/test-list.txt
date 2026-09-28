@@ -1,0 +1,137 @@
+正在发现以下位置中的测试 C:\Work\accept-v002\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\bin\Debug\net10.0\Lumio.Sample.Gameplay.Tests.dll (net10.0|x64)
+在程序集中发现了 135 个测试 - C:\Work\accept-v002\LumioSample\Tools\Lumio.Sample.Gameplay.Tests\bin\Debug\net10.0\Lumio.Sample.Gameplay.Tests.dll (net10.0|x64)
+  Lumio.Sample.Gameplay.Tests.BoxComponentTests.FieldsCarryTheDeclaredScopes
+  Lumio.Sample.Gameplay.Tests.BoxComponentTests.EveryBoxStartsClosedWithEmptyInventory
+  Lumio.Sample.Gameplay.Tests.BoxComponentTests.OpenAddsTheOpenerExactlyOnceEvenWhenCalledTwice
+  Lumio.Sample.Gameplay.Tests.BoxComponentTests.CloseRemovesOnlyTheMatchingOpener
+  Lumio.Sample.Gameplay.Tests.BoxComponentTests.CloseOnAConnectionThatNeverOpenedIsANoOp
+  Lumio.Sample.Gameplay.Tests.CatalogWorldTests.AuthorsTheWallSceneOnTheReleaseNative
+  Lumio.Sample.Gameplay.Tests.DeclarationShapeTests.WorldEntityIsTheOnlyWorldSingleton
+  Lumio.Sample.Gameplay.Tests.DeclarationShapeTests.PlayerEntityUsesObserverIdentityTransformChatAndAbility
+  Lumio.Sample.Gameplay.Tests.DeclarationShapeTests.HandwrittenGameplayHasNoPreprocessorBranches
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MineIsLogicPredictAndPickupIsAuthorityOnly
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.GameplayWritesNoUndoAndOwnsNoPredictionBookkeeping
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MissingSectionDataIsNeverPredictedAsAir(hasCell: False, hasBlockId: True, blockId: 1000, boundEntityHex: "vein", expected: Refuse)
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MissingSectionDataIsNeverPredictedAsAir(hasCell: True, hasBlockId: False, blockId: 0, boundEntityHex: null, expected: AwaitAuthority)
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MissingSectionDataIsNeverPredictedAsAir(hasCell: True, hasBlockId: False, blockId: 1000, boundEntityHex: "vein", expected: AwaitAuthority)
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MissingSectionDataIsNeverPredictedAsAir(hasCell: True, hasBlockId: True, blockId: 0, boundEntityHex: null, expected: Refuse)
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MissingSectionDataIsNeverPredictedAsAir(hasCell: True, hasBlockId: True, blockId: 1000, boundEntityHex: null, expected: Refuse)
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MissingSectionDataIsNeverPredictedAsAir(hasCell: True, hasBlockId: True, blockId: 1000, boundEntityHex: "someone-else", expected: Refuse)
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MissingSectionDataIsNeverPredictedAsAir(hasCell: True, hasBlockId: True, blockId: 1000, boundEntityHex: "vein", expected: Order)
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.SecondMinerInTheSameSectionBumpsTheRevisionAnOlderRecordValidatedOn
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MinerWhoLosesTheCellToAnotherMinerIsRefusedWithoutPayingOrRestoringTheBlock
+  Lumio.Sample.Gameplay.Tests.MineContentionScenarioTests.MoversNeverChangeTheSectionTheMinerIsHoldingARecordIn
+  Lumio.Sample.Gameplay.Tests.MiningRpcBatchingTests.TwoAuthenticatedPlayersPublishOnePhysicalBatchAndSettleExactlyOnce(reverseArrival: False)
+  Lumio.Sample.Gameplay.Tests.MiningRpcBatchingTests.TwoAuthenticatedPlayersPublishOnePhysicalBatchAndSettleExactlyOnce(reverseArrival: True)
+  Lumio.Sample.Gameplay.Tests.MiningRpcBatchingTests.SameDepositCanonicalFirstPlayerWinsRegardlessOfArrival(reverseArrival: False)
+  Lumio.Sample.Gameplay.Tests.MiningRpcBatchingTests.SameDepositCanonicalFirstPlayerWinsRegardlessOfArrival(reverseArrival: True)
+  Lumio.Sample.Gameplay.Tests.MiningRpcBatchingTests.ImmediateStageRefusalIsBusinessRejectDespiteGasCompletedReturn
+  Lumio.Sample.Gameplay.Tests.MiningRpcBatchingTests.ObserverFaultCannotEraseEitherRpcCompletion
+  Lumio.Sample.Gameplay.Tests.MiningRpcBatchingTests.MixedColdCutPaysTwoSuccessesButNeverTheRejectedOwnerWhoseCellAnotherWriterCleared
+  Lumio.Sample.Gameplay.Tests.MoveAbilityTests.MoveInputRoundTripsThroughTheArgumentVector
+  Lumio.Sample.Gameplay.Tests.MoveAbilityTests.CanActivateRejectsAStationaryIntent
+  Lumio.Sample.Gameplay.Tests.MoveAbilityTests.MissingPhysicsPortIsRejectedAndLeavesPositionUnchanged
+  Lumio.Sample.Gameplay.Tests.MoveAbilityTests.AbnormalSweepIsRejectedAndLeavesPositionUnchanged
+  Lumio.Sample.Gameplay.Tests.MoveAbilityTests.OversizeStepIsRejectedAndLeavesPositionUnchanged
+  Lumio.Sample.Gameplay.Tests.MoveAbilityTests.ResolveMoveStopsAtAHardSweepHit
+  Lumio.Sample.Gameplay.Tests.MoveAbilityTests.ResolveMoveTravelsTheFullDisplacementWhenTheSweepMisses
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.BoxAdmissionQueriesOnceBeforeCost(collided: False, fraction: 1)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.BoxAdmissionQueriesOnceBeforeCost(collided: True, fraction: 0)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.BoxAdmissionQueriesOnceBeforeCost(collided: True, fraction: 0.25)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.UnresolvedRejectsBeforeCostWhileOtherPlayerAndLaterInputSucceed
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.UnknownQueryFaultPreservesOriginalDiagnostic
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.CorruptQueryFractionIsAnInternalFault(fraction: NaN)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.CorruptQueryFractionIsAnInternalFault(fraction: ∞)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.CorruptQueryFractionIsAnInternalFault(fraction: -0.100000001)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.CorruptQueryFractionIsAnInternalFault(fraction: 1.10000002)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.InvalidActivationDoesNotQuery(dx: 0, dz: 0)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.InvalidActivationDoesNotQuery(dx: 2, dz: 0)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.InvalidActivationDoesNotQuery(dx: -2147483648, dz: 1)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.ConsecutiveActivationsUseCurrentOriginAndDirectExecuteFails
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.PreparationCannotSurviveMismatchRefusalOrConsumption
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.CorruptQueryPointFailsBeforeCost(nonfinite: True)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.CorruptQueryPointFailsBeforeCost(nonfinite: False)
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.BindPlayerPlacesAnAdmittedPlayerAboveTheCaptureFloor
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.NativeSweepAtAdmissionPoseAdmitsAHorizontalStep
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.TryAttachRestoresCommittedSampleVoxelAndAdmitsAHorizontalStep
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.AdmitPlayerActivateMoveChangesLogicTransformWhenPhysicsPortIsPresent
+  Lumio.Sample.Gameplay.Tests.MoveAbilityWorldTests.ActivateMoveWithoutPhysicsPortLeavesLogicTransformUnchanged
+  Lumio.Sample.Gameplay.Tests.PlayerLifecycleTests.RealHostAabbWallAndOpenMovementSurviveColdRestore
+  Lumio.Sample.Gameplay.Tests.PlayerLifecycleTests.StartAndHydratePreserveExplicitPhysicsBindings
+  Lumio.Sample.Gameplay.Tests.PlayerLifecycleTests.NormalCreateInitializesPlayerOnlyOnTheOwnerTick
+  Lumio.Sample.Gameplay.Tests.PlayerLifecycleTests.HydrationPreservesLedgersAndRestoresTransientAbilityBindings
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.AdmittedPlayerWalksToOreAndMinesThroughNativePhysics
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.ProductionAttachCreatesVeinsFromRestoredOreCells
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.ProductionAttachDiscoversOreOutsideAuthoringRectangle
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.ConfiguredHitsPublishOneRewardAndReplayCannotPublishAgain
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.RejectedFinalHitNeverRewards(reason: "invalid")
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.RejectedFinalHitNeverRewards(reason: "range")
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.RejectedFinalHitNeverRewards(reason: "stamina")
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.NativeManagersKeepMiningAndDisposalIsolated
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.PartialReserveAndDepletedCellSurviveNativeColdRestore
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.CheckpointTakenBeforeTheDigIsOrderedRestoresWithNothingOwed
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.CheckpointTakenInsideTheCrossFrameWindowStillSettlesAfterAColdStart
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.CheckpointTakenAfterSettlementDoesNotPayASecondTime
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.RestoredRecordWhoseDigWasRefusedIsDiscardedWithoutTouchingAnyLedger
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.RefusedDigDoesNotPayAfterColdRestoreWhenAnotherTransactionDugTheSameCell(coldRestore: False)
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.RefusedDigDoesNotPayAfterColdRestoreWhenAnotherTransactionDugTheSameCell(coldRestore: True)
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.RestoredSuccessSettlesOnFirstBusinessFrameAndLegacyUnknownNeverPays(legacy: False)
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.RestoredSuccessSettlesOnFirstBusinessFrameAndLegacyUnknownNeverPays(legacy: True)
+  Lumio.Sample.Gameplay.Tests.ProductionMiningTests.PickedUpDropStaysGoneAndOreLedgerSurvivesTwoColdRestores
+  Lumio.Sample.Gameplay.Tests.SampleMiningLocationTests.MissesWhenNoCandidateSectionIsResident
+  Lumio.Sample.Gameplay.Tests.SampleMiningLocationTests.MissesWhenTheResidentSectionsBindingTableDoesNotNameTheVein
+  Lumio.Sample.Gameplay.Tests.SampleMiningLocationTests.HitsOnceTheOwningSectionIsSubscribedAndBindsTheVein
+  Lumio.Sample.Gameplay.Tests.SampleMiningLocationTests.CandidateSectionsCoverTheAuthoredMapOnce
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.TargetEntityTypesAreTheGeneratedRegistryWireNames
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.NothingIsIssuedBeforeSelfIsBound
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.AVisibleVeinBecomesTheMineTarget
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.MiningContinuesWhileTheVeinIsVisibleAndOutlastsTheConfiguredBreakCount
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.TheDroppedOreIsClaimedOnlyAfterTheTargetVeinLeavesTheCensus
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.ADropThatHasNotArrivedYetIsWaitedForBeforeTheSweepResumes
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.TheRunCompletesWhenTheClaimedDropLeavesTheCensus
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.EverySweepStepIsAnAdmittedMoveInput
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.TwoBotsSpreadOverTheVeinsTheySee
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.TheSameSelfIdPlansTheSameRun
+  Lumio.Sample.Gameplay.Tests.SampleMiningPlanTests.BotSourceEmbedsNoGameplayTableNumbers
+  Lumio.Sample.Gameplay.Tests.SampleTablesTests.TablesReadNumbersFromTheRepoConfigDirectory
+  Lumio.Sample.Gameplay.Tests.SampleTablesTests.ParentDirectoryTablesAreNotScanned
+  Lumio.Sample.Gameplay.Tests.SampleTablesTests.HandwrittenSourceDoesNotEmbedConfigNumbers
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.MineAbilityDoesNotClaimAVoxelWrite
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.VoxelWritersAreIsolatedAndStaleLeaseCannotDetachReplacement
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.SeedCreatesFourLedgersFromAttributesTable
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.VeinPostAttributeSeedsRemainingFromMiningTable
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.CanActivateRejectsUnparsedHexAndMissingOwner
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.GenericActivateWithoutActivateMineWrapperStillAdmits
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.ForeignWriteRefusingTheFinalDigSettlesNothingAndLeavesTheWorldUsable
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.TwoVeinsInOneSectionBothPublishBeforeEitherSettles
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.UnsettledDigsAreBoundedPerPlayerAndPerWorld
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.RejectedStep1WhenOwnerIsDead
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.RejectedStep2WhenOnCooldown
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.RejectedStep5WhenTargetIsNotLive
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.MiningALivePlayerIsRejectedWithoutSideEffects
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.MineDeductsStaminaBaseAndLeavesCurrentUntouchedUntilCopy
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.InsufficientStaminaRejectsAtCostStepAndWritesNothing
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.ExhaustingTheVeinQueuesAnOreDropWithTableAmount
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.PickupOreEffectIsRegisteredAndCreditsOreBase
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.StaminaBelowMiningCostStillAdmitsMoveAndRejectsMineWithoutSideEffects
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.StaminaBelowMiningCostStillAdmitsPickup
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.TwoPlayersFinalHitOnTheSameVeinInOneFrameSettlesOnlyOnce
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.TwoPlayersPickingTheSameDropInOneFrameCashItOnce
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.RepeatedSequenceForMineAndPickupNeverPaysTwice
+  Lumio.Sample.Gameplay.Tests.SampleWiringTests.MineAbilityCostNameMatchesAttributesTable
+  Lumio.Sample.Gameplay.Tests.SdkPackConsumeTests.EmptyEngineFailsWithTheSubmoduleCommand
+  Lumio.Sample.Gameplay.Tests.SdkPackConsumeTests.ManifestAndPackageMustBeTheSameRelease
+  Lumio.Sample.Gameplay.Tests.SdkPackConsumeTests.EngineManifestSelectsTheExactEngineSdkVersion(version: "0.0.1")
+  Lumio.Sample.Gameplay.Tests.SdkPackConsumeTests.EngineManifestSelectsTheExactEngineSdkVersion(version: "0.0.1-main.7f9f8fa")
+  Lumio.Sample.Gameplay.Tests.SdkPackConsumeTests.TheEngineHasExactlyOneSourceEngineSlashSdk
+  Lumio.Sample.Gameplay.Tests.SdkPackConsumeTests.TestProjectDisablesEcsGeneration
+  Lumio.Sample.Gameplay.Tests.SectionResidencyRoundTripTests.SectionUnloadThenReloadKeepsEveryVeinNumberAndValueAndNeverRescansTheSameCells
+  Lumio.Sample.Gameplay.Tests.SourceHygieneTests.SetLocalPositionIsOnlyCalledFromMoveAbility
+  Lumio.Sample.Gameplay.Tests.SourceHygieneTests.MiningCallbackOnlyObservesAndPickupIsAnAbility
+  Lumio.Sample.Gameplay.Tests.SourceHygieneTests.PendingDigIsPersistedEntityStateAndNotAProcessDictionary
+  Lumio.Sample.Gameplay.Tests.SourceHygieneTests.ServerJsonUsesRelativeAssemblyPaths
+  Lumio.Sample.Gameplay.Tests.SourceHygieneTests.CommittedVoxelIsARestoreableCapture
+  Lumio.Sample.Gameplay.Tests.SourceHygieneTests.GameplayOutputShipsNet10SimulationWithDedicatedServerHostBinding
+  Lumio.Sample.Gameplay.Tests.SourceHygieneTests.CiTakesTheEngineOnlyFromTheEngineSubmodule
+  Lumio.Sample.Gameplay.Tests.WorldConfigTests.BootAndRestoreRequireDeclaredBinding
+  Lumio.Sample.Gameplay.Tests.WorldConfigTests.RecompiledTableChangesNewWorldReserveAndLeavesExistingWorldUnchanged

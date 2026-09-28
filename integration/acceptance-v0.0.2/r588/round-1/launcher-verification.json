@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "status": "FAIL",
+  "scope": "sample-100-bot-move",
+  "params": {
+    "bots": 100,
+    "durationSeconds": 300,
+    "staggerMs": null,
+    "tickRateHz": 20
+  },
+  "clock": "native-core-clock_now",
+  "criteria": {
+    "admitted": {
+      "required": 100,
+      "actual": 49,
+      "drops": 51,
+      "protocolViolation": 0,
+      "queueFull": 0
+    },
+    "frameBudget": {
+      "budgetMs": 50,
+      "p99Ms": null,
+      "overBudgetFrames": null,
+      "clock": "native-core-clock_now"
+    },
+    "transformConsistency": {
+      "sampledBots": null,
+      "mismatches": null
+    },
+    "rss": {
+      "samples": [],
+      "growthLimit": 0.05,
+      "startBytes": null,
+      "endBytes": null
+    }
+  },
+  "shas": {
+    "LumioSample": "f98322c2eec8f83b5caf07aa2ad15d9c55b6f8fb",
+    "LumioGameEngine": "e29639f11cbd4b131b4c268da15745b2c0169e5a",
+    "LumioNativeCore": "c4e7a8825f86e3a98cbd6afd32311d3542f0394a",
+    "LumioVoxelEngine": "73b2d5a22adc1a5ad021508ec609ff92ed177a62",
+    "LumioGameRuntime": "b2db9defdab1164af8729dacabeb1a305897d89b",
+    "LumioServer": "e97068a07555939e4d04cc9d52d59e2a92948192",
+    "LumioClient": "553d6b75cbe8a3125a8b6feb0890b5d1ea97f9ec",
+    "LumioPlatform": "1e6a9b9c4969afd3e229817c6f5a6a7183c78d4e"
+  },
+  "evidence": {
+    "verificationJson": "verification.json",
+    "perBotNdjson": "bots/*.ndjson",
+    "timingCsv": "timing.csv",
+    "memoryCsv": "memory.csv"
+  },
+  "rounds": 1,
+  "launchStatus": "FAIL"
+}
