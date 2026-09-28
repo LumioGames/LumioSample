@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using Lumio.GameRuntime.Config;
 using Lumio.GameRuntime.Ecs;
+using Lumio.GameRuntime.Gas;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Identity;
 
