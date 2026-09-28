@@ -87,25 +87,25 @@ public sealed class MiningRpcBatchingTests
         // Reopening the same pre-settlement cut creates independent worlds, each owing one payout.
         for (int restore = 0; restore < 2; restore++)
         {
-            using DedicatedServerHostBinding cold = RpcWorld.Restore(capture.Checkpoint!.Value);
-            HostVoxelWorldAdapter adapter = VoxelGameplayBinding.Resolve(cold.Manager)!;
+            using WorldManager cold = RpcWorld.Restore(capture.Checkpoint!.Value);
+            HostVoxelWorldAdapter adapter = VoxelGameplayBinding.Resolve(cold)!;
             Assert.Equal(2, adapter.CaptureResultCheckpoint().Results.Length);
             Assert.Equal(VoxelTxnState.Unknown, adapter.Abi.QueryReceipt(adapter.Handle, rows.Results[0].BatchTransactionId!).State);
-            Assert.Empty(cold.Manager.DrainOutbox().Operations);
-            Assert.Equal(before, RpcWorld.Stamina(cold.Manager.World, fixture.A));
-            cold.Manager.Tick();
-            Assert.Equal(before - cost, RpcWorld.Stamina(cold.Manager.World, fixture.A));
-            Assert.Equal(before - cost, RpcWorld.Stamina(cold.Manager.World, fixture.B));
-            Assert.Equal(2, cold.Manager.World.Each<OrePileComponent>().Count());
+            Assert.Empty(cold.DrainOutbox().Operations);
+            Assert.Equal(before, RpcWorld.Stamina(cold.World, fixture.A));
+            cold.Tick();
+            Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.A));
+            Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.B));
+            Assert.Equal(2, cold.World.Each<OrePileComponent>().Count());
             Assert.Empty(adapter.CaptureResultCheckpoint().Results);
-            cold.Manager.Tick();
-            Assert.Equal(before - cost, RpcWorld.Stamina(cold.Manager.World, fixture.A));
-            DualCutCaptureResult settled = cold.Capture();
+            cold.Tick();
+            Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.A));
+            DualCutCaptureResult settled = cold.World.Single<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>().Capture();
             Assert.True(settled.Succeeded, settled.ErrorCode);
-            using DedicatedServerHostBinding again = RpcWorld.Restore(settled.Checkpoint!.Value);
-            again.Manager.Tick();
-            Assert.Equal(before - cost, RpcWorld.Stamina(again.Manager.World, fixture.A));
-            Assert.Equal(2, again.Manager.World.Each<OrePileComponent>().Count());
+            using WorldManager again = RpcWorld.Restore(settled.Checkpoint!.Value);
+            again.Tick();
+            Assert.Equal(before - cost, RpcWorld.Stamina(again.World, fixture.A));
+            Assert.Equal(2, again.World.Each<OrePileComponent>().Count());
         }
         fixture.Manager.Tick();
         Assert.Equal(before - cost, fixture.Stamina(fixture.A));
@@ -237,38 +237,34 @@ public sealed class MiningRpcBatchingTests
         Assert.Null(fixture.Adapter.BindingGet(section, cell));
         DualCutCaptureResult capture = fixture.Host.Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
-        using DedicatedServerHostBinding cold = RpcWorld.Restore(capture.Checkpoint!.Value);
-        Assert.Empty(cold.Manager.DrainOutbox().Operations);
-        Assert.Equal(4, VoxelGameplayBinding.Resolve(cold.Manager)!.CaptureResultCheckpoint().Results.Length);
-        cold.Manager.Tick();
-        long cost = SampleConfigBinding.For(cold.Manager.World).Mining.StaminaCost;
-        Assert.Equal(before - cost, RpcWorld.Stamina(cold.Manager.World, fixture.A));
-        Assert.Equal(before, RpcWorld.Stamina(cold.Manager.World, fixture.B));
-        Assert.Equal(before - cost, RpcWorld.Stamina(cold.Manager.World, fixture.C));
-        Assert.Equal(1, cold.Manager.World.Get<VeinReserveComponent>(rejectedVein).Remaining.Value);
-        Assert.Equal(2, cold.Manager.World.Each<OrePileComponent>().Count());
-        cold.Manager.Tick();
-        Assert.Equal(before, RpcWorld.Stamina(cold.Manager.World, fixture.B));
-        Assert.Equal(2, cold.Manager.World.Each<OrePileComponent>().Count());
+        using WorldManager cold = RpcWorld.Restore(capture.Checkpoint!.Value);
+        Assert.Empty(cold.DrainOutbox().Operations);
+        Assert.Equal(4, VoxelGameplayBinding.Resolve(cold)!.CaptureResultCheckpoint().Results.Length);
+        cold.Tick();
+        long cost = SampleConfigBinding.For(cold.World).Mining.StaminaCost;
+        Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.A));
+        Assert.Equal(before, RpcWorld.Stamina(cold.World, fixture.B));
+        Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.C));
+        Assert.Equal(1, cold.World.Get<VeinReserveComponent>(rejectedVein).Remaining.Value);
+        Assert.Equal(2, cold.World.Each<OrePileComponent>().Count());
+        cold.Tick();
+        Assert.Equal(before, RpcWorld.Stamina(cold.World, fixture.B));
+        Assert.Equal(2, cold.World.Each<OrePileComponent>().Count());
     }
 
     private sealed class RpcWorld : IDisposable
     {
         private static string Root => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
         internal readonly WorldManager Manager;
-        internal readonly DedicatedServerHostBinding Host;
+        internal readonly Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem Host;
         private readonly EntityBindingQuery _connections;
         internal readonly NetEntityId A, B, C;
         internal readonly VeinReserveComponent[] Veins;
         internal HostVoxelWorldAdapter Adapter => VoxelGameplayBinding.Resolve(Manager)!;
         internal RpcWorld(bool third = false)
         {
-            Manager = SampleGameplay.CreateWorld(647);
-            Host = Assert.IsType<DedicatedServerHostBinding>(DedicatedServerHostBinding.TryAttach(Manager,
-                KernelConfigurationFixture.Create(), File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
-                File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel"))));
-            Manager.Start(Thread.CurrentThread);
-            WorldTickBinding.Bind(Manager);
+            Manager = SampleWorldHarness.CreateServerWorld(File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel")), 647);
+            Host = Manager.World.Single<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>();
             _connections = EntityBindingQuery.Create(Manager);
             Manager.Enqueue(new AdmitConnectionMessage("miner-a", "account-a", "mining", "player"));
             Manager.Enqueue(new AdmitConnectionMessage("miner-b", "account-b", "mining", "player"));
@@ -315,16 +311,16 @@ public sealed class MiningRpcBatchingTests
         }
         internal long Stamina(NetEntityId entity) => Stamina(Manager.World, entity);
         internal static long Stamina(World world, NetEntityId entity) => world.Get<AttributeComponent>(entity).GetBaseValue("Stamina");
-        internal static DedicatedServerHostBinding Restore(DualCutCheckpointPayload checkpoint)
+        internal static WorldManager Restore(DualCutCheckpointPayload checkpoint)
         {
-            DedicatedServerRestoreResult restored = DedicatedServerHostBinding.RestoreNew(checkpoint.Runtime, checkpoint.Voxel,
-                GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, WorldIngressBudget.Default,
-                File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")), SampleConfigBinding.Load());
-            Assert.True(restored.Succeeded, restored.ErrorCode);
-            DedicatedServerHostBinding host = restored.Binding!;
-            host.Manager.Start(Thread.CurrentThread); WorldTickBinding.Bind(host.Manager);
-            return host;
+            return SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+            {
+                Config = SampleConfigBinding.Load(),
+                Catalog = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
+                Snapshot = checkpoint.Runtime,
+                VoxelSnapshot = checkpoint.Voxel,
+            });
         }
-        public void Dispose() { _connections.Dispose(); Host.Dispose(); Manager.Dispose(); }
+        public void Dispose() { _connections.Dispose(); Manager.Dispose(); }
     }
 }

@@ -39,7 +39,7 @@ public sealed class PlayerLifecycleTests : IDisposable
             File.WriteAllText(evidencePath + ".identity.json", JsonSerializer.Serialize(new
             {
                 native.NativePath, native.BuildId, native.AbiHash, native.BinarySha256,
-                Assemblies = new[] { typeof(SampleGameplay).Assembly, typeof(DedicatedServerHostBinding).Assembly }
+                Assemblies = new[] { typeof(SampleGameplay).Assembly, typeof(Lumio.GameRuntime.Hosting.LumioEngine).Assembly }
                     .Select(assembly => new { assembly.FullName, assembly.Location, assembly.ManifestModule.ModuleVersionId,
                         Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))) })
             }));
@@ -49,19 +49,19 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(binarySha256, scene.BinarySha256, ignoreCase: true);
         byte[] catalog = scene.Catalog;
         byte[] wall = scene.Capture;
-        // Resolve only the frozen public API; absence is an explicit failed test, never a fallback.
-        MethodInfo attachMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("TryAttach", new[] { typeof(WorldManager), typeof(KernelConfig), typeof(byte[]) }), exactMatch: false);
-        MethodInfo restoreMethod = Assert.IsType<MethodInfo>(typeof(DedicatedServerHostBinding).GetMethod("RestoreNew", new[]
+        // B3: the process engine and per-world CreateWorld replace the retired frozen
+        // DedicatedServerHostBinding attach/restore delegates. Same-source still holds:
+        // LumioEngine.Start verified this build-info identity before any world existed.
+        Lumio.GameRuntime.Hosting.LumioEngine engine = SampleWorldHarness.Engine;
+        using WorldManager source = engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
-            typeof(byte[]), typeof(byte[]), typeof(EcsRegistry), typeof(KernelConfig), typeof(ILoggerFactory), typeof(WorldIngressBudget), typeof(byte[]), typeof(WorldConfigBinding)
-        }), exactMatch: false);
-        var attach = attachMethod.CreateDelegate<Func<WorldManager, KernelConfig, byte[], DedicatedServerHostBinding?>>();
-        var restore = restoreMethod.CreateDelegate<Func<byte[], byte[], EcsRegistry, KernelConfig, ILoggerFactory?, WorldIngressBudget, byte[], WorldConfigBinding, DedicatedServerRestoreResult>>();
-        using WorldManager source = SampleGameplay.CreateWorld(91UL);
+            InstanceId = 91UL,
+            Config = SampleConfigBinding.Load(),
+            Catalog = catalog,
+            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
+        });
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
-        using DedicatedServerHostBinding initial = Assert.IsType<DedicatedServerHostBinding>(attach(source, KernelConfigurationFixture.Create(), catalog));
-        source.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(source);
+        Lumio.Engine.NativeLoader.KernelHandle initialHandle = VoxelHandle(source);
         EntityOrder blockedOrder = QueuePlayer(source.World, "native-blocked");
         EntityOrder openOrder = QueuePlayer(source.World, "native-open");
         source.Tick();
@@ -75,14 +75,18 @@ public sealed class PlayerLifecycleTests : IDisposable
         long spent = SampleConfigBinding.For(source.World).Stamina.Initial - 1;
         ledger.SetBaseValue(SampleConfigBinding.For(source.World).Stamina.Name, spent);
         byte[] runtime = source.CaptureSnapshot();
-        DedicatedServerRestoreResult loaded = restore(runtime, wall, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, source.IngressBudget, catalog, SampleConfigBinding.Load());
-        Assert.True(loaded.Succeeded, loaded.ErrorCode);
-        using DedicatedServerHostBinding first = Assert.IsType<DedicatedServerHostBinding>(loaded.Binding);
-        using WorldManager manager = first.Manager;
-        Assert.NotEqual(initial.VoxelWorldHandle, first.VoxelWorldHandle);
-        initial.Dispose();
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        using WorldManager manager = engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            Config = SampleConfigBinding.Load(),
+            Catalog = catalog,
+            Snapshot = runtime,
+            VoxelSnapshot = wall,
+            IngressBudget = source.IngressBudget,
+            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
+        });
+        Lumio.Engine.NativeLoader.KernelHandle firstHandle = VoxelHandle(manager);
+        Assert.NotEqual(initialHandle, firstHandle);
+        source.Dispose();
         Assert.Same(AbilityPhysicsBinding.Resolve(manager), manager.World.Get<AbilityComponent>(blocked).Physics);
         Assert.NotSame(AbilityPhysicsBinding.Resolve(source), manager.World.Get<AbilityComponent>(blocked).Physics);
         Assert.Equal(spent, manager.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleConfigBinding.For(source.World).Stamina.Name));
@@ -92,19 +96,22 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.InRange(manager.World.Get<LogicTransform>(blocked).LocalPosition.X, boundary - 0.00001f, boundary + 0.00001f);
         Assert.True(manager.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
         Assert.Equal(new Vector3(3f + (float)SampleConfigBinding.For(source.World).Movement.StepMeters, 4.5f, 6.5f), manager.World.Get<LogicTransform>(open).LocalPosition);
-        DualCutCaptureResult capture = first.Capture();
+        DualCutCaptureResult capture = manager.World.Single<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>().Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
         DualCutCheckpointPayload checkpoint = capture.Checkpoint!.Value;
         Assert.True(checkpoint.SectionCount > 0);
-        DedicatedServerRestoreResult cold = restore(checkpoint.Runtime, checkpoint.Voxel, GeneratedRegistry.Instance, KernelConfigurationFixture.Create(), null, manager.IngressBudget, catalog, SampleConfigBinding.Load());
-        Assert.True(cold.Succeeded, cold.ErrorCode);
-        using DedicatedServerHostBinding second = Assert.IsType<DedicatedServerHostBinding>(cold.Binding);
-        using WorldManager restored = second.Manager;
-        Assert.NotEqual(first.VoxelWorldHandle, second.VoxelWorldHandle);
+        using WorldManager restored = engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            Config = SampleConfigBinding.Load(),
+            Catalog = catalog,
+            Snapshot = checkpoint.Runtime,
+            VoxelSnapshot = checkpoint.Voxel,
+            IngressBudget = manager.IngressBudget,
+            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
+        });
+        Assert.NotEqual(firstHandle, VoxelHandle(restored));
         Assert.NotSame(AbilityPhysicsBinding.Resolve(manager), AbilityPhysicsBinding.Resolve(restored));
-        first.Dispose();
-        restored.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(restored);
+        manager.Dispose();
         restored.Tick();
         Vector3 stopped = restored.World.Get<LogicTransform>(blocked).LocalPosition;
         Assert.True(restored.World.Get<AbilityComponent>(blocked).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
@@ -118,10 +125,10 @@ public sealed class PlayerLifecycleTests : IDisposable
             File.WriteAllText(evidencePath, JsonSerializer.Serialize(new
             {
                 native.NativePath, native.BuildId, native.AbiHash, native.BinarySha256,
-                Assemblies = new[] { typeof(SampleGameplay).Assembly, typeof(DedicatedServerHostBinding).Assembly }
+                Assemblies = new[] { typeof(SampleGameplay).Assembly, typeof(Lumio.GameRuntime.Hosting.LumioEngine).Assembly }
                     .Select(assembly => new { assembly.FullName, assembly.Location, assembly.ManifestModule.ModuleVersionId,
                         Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location))) }),
-                InitialWorld = initial.VoxelWorldHandle, FirstWorld = first.VoxelWorldHandle, ColdWorld = second.VoxelWorldHandle,
+                InitialWorld = initialHandle.ToString(), FirstWorld = firstHandle.ToString(), ColdWorld = VoxelHandle(restored).ToString(),
                 WallCell = "4,4,4", BlockedStart = "3,4.5,4.5", OpenStart = "3,4.5,6.5", Input = "+X",
                 HalfExtents = SampleConfigBinding.For(source.World).Movement.SweepRadiusMeters, Step = SampleConfigBinding.For(source.World).Movement.StepMeters,
                 PartialBoundaryX = stopped.X, ColdBlockedX = restored.World.Get<LogicTransform>(blocked).LocalPosition.X,
@@ -131,6 +138,10 @@ public sealed class PlayerLifecycleTests : IDisposable
         }
     }
 
+    private static Lumio.Engine.NativeLoader.KernelHandle VoxelHandle(WorldManager manager) =>
+        Lumio.GameRuntime.Hosting.NativeWorldVoxelResources.Require(manager).Voxel.NativeHandle;
+
+    /// <summary>The world-owned native voxel identity (B3 KernelHandle); distinct worlds never share one.</summary>
     internal static void PlaceFixturePlayer(World world, NetEntityId player, Vector3 position)
     {
         LogicTransform logic = world.Get<LogicTransform>(player);
@@ -159,7 +170,12 @@ public sealed class PlayerLifecycleTests : IDisposable
         SampleGameplay.BindPlayer(world.World, order.AssignedId);
         Assert.Same(componentPort, owner.Physics);
         byte[] snapshot = world.World.Manager.CaptureSnapshot();
-        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance, config: SampleConfigBinding.Load());
+        using WorldManager restored = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            Config = SampleConfigBinding.Load(),
+            Catalog = SampleWorldHarness.OfficialCatalog(),
+            Snapshot = snapshot,
+        });
         Assert.Null(restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
         using IDisposable restoredBinding = AbilityPhysicsBinding.Bind(restored, managerPort);
         SampleGameplay.BindPlayer(restored.World, order.AssignedId);
@@ -196,7 +212,12 @@ public sealed class PlayerLifecycleTests : IDisposable
         attributes.SetBaseValue(SampleConfigBinding.For(world.World).Ore.Name, ore);
         attributes.SetCurrentValue(SampleConfigBinding.For(world.World).Ore.Name, ore);
         byte[] snapshot = world.World.Manager.CaptureSnapshot();
-        using WorldManager restored = WorldManager.CreateFromSnapshot(snapshot, GeneratedRegistry.Instance, config: SampleConfigBinding.Load());
+        using WorldManager restored = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            Config = SampleConfigBinding.Load(),
+            Catalog = SampleWorldHarness.OfficialCatalog(),
+            Snapshot = snapshot,
+        });
         AttributeComponent next = restored.World.Get<AttributeComponent>(world.Player);
         // CURRENT is derived, never serialized; phase 9 uses this same evaluator.
         AttributeEvaluator.Recompute(restored.World);

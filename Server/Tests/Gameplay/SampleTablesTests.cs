@@ -24,7 +24,12 @@ public sealed class SampleTablesTests
         string directory = SampleTables.ResolveDirectory(Path.Combine(RepoRoot, "Server", "Config", "Tables"));
         Assert.Equal(Path.GetFullPath(Path.Combine(RepoRoot, "Server", "Config", "Tables")), directory);
 
-        using var manager = WorldManager.Create(GeneratedRegistry.Instance, 1, config: SampleConfigBinding.Load(directory));
+        using var manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = 1,
+            Config = SampleConfigBinding.Load(directory),
+            Catalog = SampleWorldHarness.OfficialCatalog(),
+        });
         var config = Assert.IsAssignableFrom<ISampleConfig>(manager.World.GameplayConfig);
         Assert.Equal(ReadDouble("movement", "step_meters"), config.Movement.StepMeters);
         Assert.Equal(ReadInt("mining", "stamina_cost"), config.Mining.StaminaCost);

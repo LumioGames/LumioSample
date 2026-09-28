@@ -345,30 +345,24 @@ public sealed class MoveAbilityWorldTests : IDisposable
         using NativeEngineLease native = NativeEngineLoader.LoadFromBuildInfo(nativePath);
         byte[] catalog = File.ReadAllBytes(Path.Combine(RepoRoot(), "Server", "Assets", "Maps", "official-catalog.json"));
         byte[] voxel = File.ReadAllBytes(Path.Combine(RepoRoot(), "Server", "Assets", "Maps", "sample.voxel"));
-        using WorldManager source = SampleGameplay.CreateWorld(17UL);
+        using WorldManager source = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = 17UL,
+            Config = SampleConfigBinding.Load(),
+            Catalog = catalog,
+        });
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
-        using DedicatedServerHostBinding attached = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(source, KernelConfigurationFixture.Create(), catalog));
-        source.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(source);
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(source.World, "acct-native-spawn");
         source.Tick();
         byte[] runtime = source.CaptureSnapshot();
-        attached.Dispose();
-        DedicatedServerRestoreResult restored = DedicatedServerHostBinding.RestoreNew(
-            runtime,
-            voxel,
-            GeneratedRegistry.Instance,
-            KernelConfigurationFixture.Create(),
-            null,
-            source.IngressBudget,
-            catalog,
-            SampleConfigBinding.Load());
-        Assert.True(restored.Succeeded, restored.ErrorCode);
-        using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(restored.Binding);
-        using WorldManager manager = binding.Manager;
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        using WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            Config = SampleConfigBinding.Load(),
+            Catalog = catalog,
+            Snapshot = runtime,
+            VoxelSnapshot = voxel,
+            IngressBudget = source.IngressBudget,
+        });
         NetEntityId player = order.AssignedId;
         Assert.Equal(SampleGameplay.AdmittedPlayerPosition(manager.World), manager.World.Get<LogicTransform>(player).LocalPosition);
         AbilityComponent abilities = manager.World.Get<AbilityComponent>(player);
@@ -390,12 +384,14 @@ public sealed class MoveAbilityWorldTests : IDisposable
         using NativeEngineLease native = NativeEngineLoader.LoadFromBuildInfo(nativePath);
         byte[] catalog = File.ReadAllBytes(Path.Combine(RepoRoot(), "Server", "Assets", "Maps", "official-catalog.json"));
         byte[] voxel = File.ReadAllBytes(Path.Combine(RepoRoot(), "Server", "Assets", "Maps", "sample.voxel"));
-        using WorldManager manager = SampleGameplay.CreateWorld(19UL);
+        using WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = 19UL,
+            Config = SampleConfigBinding.Load(),
+            Catalog = catalog,
+            VoxelSnapshot = voxel,
+        });
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
-        using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(), catalog, voxel));
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(manager.World, "acct-tryattach-spawn");
         manager.Tick();
         NetEntityId player = order.AssignedId;

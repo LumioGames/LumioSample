@@ -13,12 +13,26 @@ public sealed class WorldConfigTests
     public void BootAndRestoreRequireDeclaredBinding()
     {
         Assert.Equal(typeof(ISampleConfig), GeneratedRegistry.Instance.RequiredGameplayConfigContract);
-        Assert.Throws<WorldConfigBindingException>(() => WorldManager.Create(GeneratedRegistry.Instance, 1));
-        using var manager = SampleGameplay.CreateWorld(1);
+        // B3: worlds come from the process engine; a registry that declares a config
+        // contract is rejected at the configuration step with the binding exception
+        // wrapped in the registered EngineHostException for that step.
+        EngineHostException missing = Assert.Throws<Lumio.GameRuntime.Hosting.EngineHostException>(() =>
+            SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+            {
+                InstanceId = 1,
+                Catalog = SampleWorldHarness.OfficialCatalog(),
+            }));
+        Assert.IsType<WorldConfigBindingException>(missing.InnerException);
+        using var manager = SampleGameplay.CreateWorld(SampleWorldHarness.Engine, 1, SampleWorldHarness.OfficialCatalog());
         var config = Assert.IsAssignableFrom<ISampleConfig>(manager.World.GameplayConfig);
         Assert.Same(config, SampleConfigBinding.For(manager.World));
-        manager.Start(Thread.CurrentThread);
-        Assert.Throws<WorldConfigBindingException>(() => WorldManager.CreateFromSnapshot(manager.CaptureSnapshot(), GeneratedRegistry.Instance));
+        EngineHostException unrestored = Assert.Throws<Lumio.GameRuntime.Hosting.EngineHostException>(() =>
+            SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+            {
+                Catalog = SampleWorldHarness.OfficialCatalog(),
+                Snapshot = manager.CaptureSnapshot(),
+            }));
+        Assert.IsType<WorldConfigBindingException>(unrestored.InnerException);
     }
 
     [Fact]

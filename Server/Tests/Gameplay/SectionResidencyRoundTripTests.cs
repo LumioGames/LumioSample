@@ -25,7 +25,7 @@ namespace Lumio.Sample.Gameplay.Tests;
 /// Mirrors the production wiring LumioServer's own <c>HostEntry.TryEnableSectionResidency</c> uses
 /// (<c>EnableSectionResidency</c> + <see cref="SectionResidencyOptions"/> + fresh
 /// <see cref="SectionResidencyRegistry"/> + <c>Lumio.Engine.SDK.VoxelSectionExportLimits</c>), against a
-/// real native voxel world (<see cref="DedicatedServerHostBinding.TryAttach"/>) — not the mocked
+/// real native voxel world (the engine-assembled <c>AuthoritySectionSubsystem</c>) — not the mocked
 /// <c>IVoxelSectionResidencyPort</c> GameRuntime's own orchestrator unit tests use.
 /// </para>
 /// </summary>
@@ -34,16 +34,30 @@ public sealed class SectionResidencyRoundTripTests
 {
     private static string Root => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 
+    /// <summary>The production Section egress shape LumioServer HostEntry attaches with.</summary>
+    private static Lumio.GameRuntime.Hosting.SectionProducerOptions SectionEgress => new(
+        new SectionProducerLimits(
+            MaxPhysicalPublications: 16,
+            MaxSectionReferences: 64,
+            MaxLeases: 64,
+            MaxManagedBytes: 1_000_000,
+            // The wire egress budget the DS codec enforces (SectionFrameCodec.MaxPayloadBytes).
+            MaxPayloadBytes: 32_000),
+        new Lumio.Engine.SDK.VoxelSectionExportLimits(
+            MaxSnapshots: 64, MaxRetainedBytes: 4_000_000, MaxScratchBytes: 2_000_000));
+
     [Fact]
     public void SectionUnloadThenReloadKeepsEveryVeinNumberAndValueAndNeverRescansTheSameCells()
     {
-        using WorldManager manager = SampleGameplay.CreateWorld(900);
-        using DedicatedServerHostBinding host = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(),
-                File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
-                File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel"))));
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        using WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = 900,
+            Config = SampleConfigBinding.Load(),
+            Catalog = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
+            VoxelSnapshot = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel")),
+            Subsystems = new Lumio.GameRuntime.Hosting.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem(SectionEgress) },
+        });
+        Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem host = manager.World.Single<Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem>();
 
         // No player is ever admitted in this test: PrepareSectionUnload refuses a Section holding a
         // live LogicTransform entity, and B6's scan must have already settled before we pick a Section.

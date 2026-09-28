@@ -13,9 +13,19 @@ namespace Lumio.Sample.Gameplay;
 /// <summary>Sample catalog hooks: Effect register, player seed, and mine Activate with admission owner.</summary>
 public static partial class SampleGameplay
 {
-    /// <summary>Boots a server world with the generated registry. Hosts and tests share this entry.</summary>
-    public static WorldManager CreateWorld(ulong instanceId) =>
-        WorldManager.Create(GeneratedRegistry.Instance, instanceId, config: SampleConfigBinding.Load());
+    /// <summary>
+    /// Boots a server world with the generated registry. Hosts and tests share this entry:
+    /// the caller owns the process <see cref="Lumio.GameRuntime.Hosting.LumioEngine"/> (B3) and
+    /// supplies the game's explicit voxel catalog; there is no implicit default table.
+    /// </summary>
+    public static WorldManager CreateWorld(Lumio.GameRuntime.Hosting.LumioEngine engine, ulong instanceId,
+        ReadOnlyMemory<byte> catalog) =>
+        engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = instanceId,
+            Config = SampleConfigBinding.Load(),
+            Catalog = catalog,
+        });
 
     /// <summary>Binds transient ability ports to the player's existing ledgers.</summary>
     [SuppressMessage("Design", "CA1510", Justification = "Keep netstandard2.1 compatibility without conditional source branches.")]
