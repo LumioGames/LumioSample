@@ -59,7 +59,7 @@
   "perRound": {
     "round-1": {
       "round": "round-1",
-      "dir": "C:\\Work\\LumioGames\\LumioSample-toolfix\\.run\\toolfix-final\\stress\\round-1",
+      "dir": "C:\\Work\\LumioGames\\LumioSample-toolfix\\.run\\toolfix-p1\\stress\\round-1",
       "launcherStatus": "FAIL",
       "admitted": {
         "required": 100,
@@ -83,12 +83,14 @@
         "frameBudgetMs": 50,
         "overBudgetFrames": 5
       },
-      "observers": "missing observers dir .run\\toolfix-final\\stress\\round-1\\observers",
+      "observers": "missing observers dir .run\\toolfix-p1\\stress\\round-1\\observers",
       "violations": 0,
       "violationClasses": {
         "protocolViolation": 0,
         "queueFull": 0
       },
+      "violationSourceCount": 0,
+      "excerptUsedAsViolationSource": false,
       "rss": {
         "windowBasis": null,
         "windowTicks": [
@@ -103,7 +105,7 @@
     },
     "round-2": {
       "round": "round-2",
-      "dir": "C:\\Work\\LumioGames\\LumioSample-toolfix\\.run\\toolfix-final\\stress\\round-2",
+      "dir": "C:\\Work\\LumioGames\\LumioSample-toolfix\\.run\\toolfix-p1\\stress\\round-2",
       "launcherStatus": "FAIL",
       "admitted": {
         "required": 100,
@@ -127,12 +129,14 @@
         "frameBudgetMs": 50,
         "overBudgetFrames": 0
       },
-      "observers": "missing observers dir .run\\toolfix-final\\stress\\round-2\\observers",
+      "observers": "missing observers dir .run\\toolfix-p1\\stress\\round-2\\observers",
       "violations": 0,
       "violationClasses": {
         "protocolViolation": 0,
         "queueFull": 0
       },
+      "violationSourceCount": 0,
+      "excerptUsedAsViolationSource": false,
       "rss": {
         "windowBasis": null,
         "windowTicks": [
@@ -147,6 +151,7 @@
     }
   },
   "failures": [
+    "round-1: no admissible violation source (no launcher logs, no ds-boot-N/, no lumio-ds*.log, no ds-admission-close-excerpt.log); absence of logs is not absence of violations",
     "round-1: admitted null != 100",
     "round-1: ticket_accepted bot dirs 1 != 100",
     "round-1: launcher status FAIL",
@@ -155,8 +160,9 @@
     "round-1: resident result passed 0 != 99",
     "round-1: sampled ticks 2384 < 5000 (window incomplete)",
     "round-1: 5 frames over 50ms",
-    "round-1: missing observers dir .run\\toolfix-final\\stress\\round-1\\observers",
+    "round-1: missing observers dir .run\\toolfix-p1\\stress\\round-1\\observers",
     "round-1: rss steady window not established (fleet never fully admitted; no observer anchor) — raw peak growth 1.3% over the whole run is not an AC5 verdict",
+    "round-2: no admissible violation source (no launcher logs, no ds-boot-N/, no lumio-ds*.log, no ds-admission-close-excerpt.log); absence of logs is not absence of violations",
     "round-2: admitted null != 100",
     "round-2: ticket_accepted bot dirs 1 != 100",
     "round-2: launcher status FAIL",
@@ -164,7 +170,7 @@
     "round-2: move span 0.0s < 280s",
     "round-2: resident result passed 0 != 99",
     "round-2: sampled ticks 2226 < 5000 (window incomplete)",
-    "round-2: missing observers dir .run\\toolfix-final\\stress\\round-2\\observers",
+    "round-2: missing observers dir .run\\toolfix-p1\\stress\\round-2\\observers",
     "round-2: rss steady window not established (fleet never fully admitted; no observer anchor) — raw peak growth 2.4% over the whole run is not an AC5 verdict"
   ]
 }

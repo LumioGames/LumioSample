@@ -31,14 +31,8 @@
 ## 重跑结果要点
 
 - 两份 JSON 均 `status=FAIL`（轮次本就 FAIL，如实保留）。
-- `admitted.protocolViolation=0, queueFull=0`（两份数据同）：**不是**复现 48——48 条违规行
-  所在的 DS 原始日志（`launcher/lumio-ds*.log`、`launcher/ds-boot-N/*.log`）未随 v0.0.2
-  入仓，verdict.md 引用的 `round-N/ds-admission-close-excerpt.log` 也不在仓，判定器只能数
-  仓内文件。48 的类别构成只能从旧 `verification.json` 的 failures 摘录与 verdict.md 交叉
-  验证：48 条全部 `reason=protocol_violation`（code 1008, trigger=peer_reset），
-  `queue_full` 类 0 条——即修复后口径若有原始日志会得 `protocolViolation=48,
-  queueFull=0`，与 verdict.md 正文一致、与旧 JSON 的「queueFull:48」矛盾。后续轮次
-  `run-round.mjs` 已自动把准入/关闭摘录落进轮目录（脱敏），此缺口不再复发。
+- **P1 复审补丁后的关键行为**：两轮均显式报
+  `no admissible violation source (no launcher logs, no ds-boot-N/, no lumio-ds*.log, no ds-admission-close-excerpt.log); absence of logs is not absence of violations`——48 条违规行所在的 DS 原始日志（`launcher/lumio-ds*.log`、`launcher/ds-boot-N/*.log`）未随 v0.0.2 入仓，verdict.md 引用的 `round-N/ds-admission-close-excerpt.log` 也不在仓，**克隆仓重验不存在任何可扫描的违规源**，`protocolViolation=0/queueFull=0` 因此是「没测到」而非「测到为零」，判定器 fail-closed 拒绝放行（若 admitted=100 也不会假绿）。48 的类别构成只能从旧 `verification.json` 的 failures 摘录与 verdict.md 交叉验证：48 条全部 `reason=protocol_violation`（code 1008, trigger=peer_reset），`queue_full` 类 0 条——即修复后口径若有原始日志或摘录在场会得 `protocolViolation=48, queueFull=0`，与 verdict.md 正文一致、与旧 JSON 的「queueFull:48」矛盾。后续轮次 `run-round.mjs` 已自动把准入/关闭摘录落进轮目录（脱敏），克隆仓重验将数到摘录而非 fail-closed。
 - AC5：两轮（09-27 数据）fleet 未全员准入、无观察者 → 如实记
   `rss steady window not established`，不再拿全程曲线当 AC5 判定输入；全程 raw 曲线
   （`criteria.rss.raw`）保留供审阅。

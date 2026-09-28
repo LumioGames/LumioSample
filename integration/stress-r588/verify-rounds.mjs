@@ -19,6 +19,11 @@
  *   - fleet 未全员准入(无观察者 → 无稳态窗口)时 AC5 如实记「窗口不可得」,
  *     不用全程曲线冒充,也不把「没测到」当「通过」。
  *
+ * P1 复审补丁(同 PR):违规扫描把轮目录 ds-admission-close-excerpt.log 纳入源
+ * (原始 DS 日志在场时它是冗余脱敏子集、跳过防双计;原始缺位——克隆仓重验——时它是
+ * 唯一可扫描源);一轮完全没有任何可扫描违规源时显式 FAIL:「没有日志不等于没有违规」,
+ * 绝不按 0 违规放行。
+ *
  * Usage: node verify-rounds.mjs <round1Dir> <round2Dir> <outVerificationJson>
  * 轮目录布局(由压测编排产生):
  *   launcher/            stress-move.mjs --evidence-dir 的产物(含其 verification.json)
@@ -234,7 +239,27 @@ function admissionEventFiles(launcherDir) {
   return files;
 }
 
-function roundAdmissionEvidence(launcherDir) {
+/**
+ * 违规源选择(P1 fail-closed):原始 DS 日志(launcher 直下 lumio-ds*.log、launcher/ds-boot-N/*.log)
+ * 在场时,轮目录的 ds-admission-close-excerpt.log 是它们的脱敏子集,跳过以免同一行双计;
+ * 原始 DS 日志缺位(克隆仓重验:只有入仓证据)时,摘录是唯一可扫描的违规源。返回实际
+ * 参与违规扫描的文件清单——空清单意味着「无任何可采信的违规源」,判定侧必须 FAIL:
+ * 没有日志不等于没有违规(absence of logs is not absence of violations)。
+ */
+function violationSources(roundDir) {
+  const launcherDir = join(roundDir, 'launcher');
+  const direct = listLogFiles(launcherDir);
+  const boots = listLogFiles(join(launcherDir, 'ds-boot-1')).concat(listLogFiles(join(launcherDir, 'ds-boot-2')));
+  const rawDsLogs = direct.filter((path) => /lumio-ds(?:\.boot-\d+)?\.log$/.test(path));
+  const excerptPath = join(roundDir, 'ds-admission-close-excerpt.log');
+  const rawDsPresent = boots.length > 0 || rawDsLogs.length > 0;
+  const sources = [...direct, ...boots];
+  if (!rawDsPresent && existsSync(excerptPath)) sources.push(excerptPath);
+  return { sources, excerptUsed: !rawDsPresent && existsSync(excerptPath), rawDsPresent };
+}
+
+export function roundAdmissionEvidence(roundDir) {
+  const launcherDir = join(roundDir, 'launcher');
   let admitted = 0;
   let sessions = 0;
   for (const path of admissionEventFiles(launcherDir)) {
@@ -245,19 +270,26 @@ function roundAdmissionEvidence(launcherDir) {
     }
     sessions += 1;
   }
+  const { sources, excerptUsed, rawDsPresent } = violationSources(roundDir);
   const violations = [];
-  for (const path of listLogFiles(launcherDir)) {
+  for (const path of sources) {
     for (const line of readTextIfPresent(path).split('\n')) {
-      if (FORBIDDEN_LINE.test(line)) violations.push({ path, line: line.slice(0, 300) });
-    }
-  }
-  for (const path of listLogFiles(join(launcherDir, 'ds-boot-1')).concat(listLogFiles(join(launcherDir, 'ds-boot-2')))) {
-    for (const line of readTextIfPresent(path).split('\n')) {
+      // 摘录文件自己的头部注释(# 开头)不参与违规判定。
+      if (line.startsWith('#')) continue;
       if (FORBIDDEN_LINE.test(line)) violations.push({ path, line: line.slice(0, 300) });
     }
   }
   const dsLog = readTextIfPresent(join(launcherDir, 'lumio-ds.log')) + readTextIfPresent(join(launcherDir, 'lumio-ds.boot-2.log'));
-  return { admitted, sessions, violations, violationClasses: classifyViolations(violations), dsLogLines: dsLog.trim() ? dsLog.trim().split('\n').length : 0 };
+  return {
+    admitted,
+    sessions,
+    violations,
+    violationClasses: classifyViolations(violations),
+    violationSources: sources,
+    excerptUsed,
+    rawDsPresent,
+    dsLogLines: dsLog.trim() ? dsLog.trim().split('\n').length : 0,
+  };
 }
 
 function observerEvidence(observersDir) {
@@ -317,10 +349,16 @@ function roundRssEvidence(round) {
   };
 }
 
-function roundFailures(label, round) {
+export function roundFailures(label, round) {
   const failures = [];
   const { stress, admission, fleet, tick, observers } = round;
   // AC1 规模与准入
+  if (admission.violationSources.length === 0) {
+    // P1 fail-closed:一轮不存在任何可扫描的违规源(无 launcher 日志、无 ds-boot-N/、
+    // 无 lumio-ds*.log、无摘录)时,protocolViolation/queueFull 的 0 是「没测到」而不是
+    // 「测到为零」——克隆仓重验(只认入仓证据)绝不能因此假绿。
+    failures.push(`${label}: no admissible violation source (no launcher logs, no ds-boot-N/, no lumio-ds*.log, no ds-admission-close-excerpt.log); absence of logs is not absence of violations`);
+  }
   if (stress.criteria.admitted.actual !== FLEET_BOTS) failures.push(`${label}: admitted ${stress.criteria.admitted.actual} != ${FLEET_BOTS}`);
   if (admission.admitted !== FLEET_BOTS) failures.push(`${label}: ticket_accepted bot dirs ${admission.admitted} != ${FLEET_BOTS}`);
   if (admission.violations.length > 0) failures.push(`${label}: ${admission.violations.length} protocol/queue violation lines (first: ${admission.violations[0]?.line})`);
@@ -371,13 +409,13 @@ function loadRound(dir) {
     stress.launchStatus = stress.launchStatus ?? stress.status;
     stress.criteria = stress.criteria ?? {};
     stress.criteria.admitted = { required: 100, actual: null, drops: null, protocolViolation: null, queueFull: null };
-    stress._admittedDerived = roundAdmissionEvidence(launcherDir).admitted;
+    stress._admittedDerived = roundAdmissionEvidence(dir).admitted;
   }
   const tickDir = join(dir, 'tick-samples');
   const round = {
     dir: resolve(dir),
     stress,
-    admission: roundAdmissionEvidence(launcherDir),
+    admission: roundAdmissionEvidence(dir),
     fleet: roundFleetEvidence(launcherDir),
     tick: existsSync(tickDir) ? roundTickEvidence(tickDir) : { error: 'missing tick-samples dir' },
     observers: observerEvidence(join(dir, 'observers')),
@@ -438,6 +476,8 @@ export async function verifyRounds({ round1Dir, round2Dir, outPath }) {
       observers: round.observers.error ?? round.observers,
       violations: round.admission.violations.length,
       violationClasses: round.admission.violationClasses,
+      violationSourceCount: round.admission.violationSources.length,
+      excerptUsedAsViolationSource: round.admission.excerptUsed,
       rss: {
         windowBasis: round.rss.windowBasis,
         windowTicks: [round.rss.windowFromTick, round.rss.windowToTick],
