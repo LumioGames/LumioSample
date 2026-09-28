@@ -40,8 +40,7 @@ public sealed class PickupOreEffect : EffectType<PickupOreEffect.Parameters>
     {
         World? world = context.World;
         if (world is null || !world.IsLive(target)) return;
-        IEffectWriteGuard guard = context;
-        if (!guard.CanWrite)
+        if (!context.CanWrite)
             throw new System.InvalidOperationException("PickupOreEffect.Apply requires EffectSettlementContext.");
 
         AttributeComponent attributes = world.Get<AttributeComponent>(target);
