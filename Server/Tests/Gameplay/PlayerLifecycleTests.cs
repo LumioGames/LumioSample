@@ -77,6 +77,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         byte[] runtime = source.CaptureSnapshot();
         using WorldManager manager = engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
+            InstanceId = source.World.InstanceId,
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
             Snapshot = runtime,
@@ -104,6 +105,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.True(checkpoint.SectionCount > 0);
         using WorldManager restored = engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
+            InstanceId = manager.World.InstanceId,
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
             Snapshot = checkpoint.Runtime,
@@ -121,7 +123,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Vector3 openBefore = restored.World.Get<LogicTransform>(open).LocalPosition;
         Assert.True(restored.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
         Assert.Equal(openBefore + new Vector3((float)sourceConfig.Movement.StepMeters, 0, 0), restored.World.Get<LogicTransform>(open).LocalPosition);
-        Assert.Equal(spent, restored.World.Get<AttributeComponent>(blocked).GetBaseValue(SampleConfigBinding.For(source.World).Stamina.Name));
+        Assert.Equal(spent, restored.World.Get<AttributeComponent>(blocked).GetBaseValue(sourceConfig.Stamina.Name));
         if (evidencePath is not null)
         {
             File.WriteAllText(evidencePath, JsonSerializer.Serialize(new
@@ -174,11 +176,14 @@ public sealed class PlayerLifecycleTests : IDisposable
         byte[] snapshot = world.World.Manager.CaptureSnapshot();
         using WorldManager restored = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
+            InstanceId = world.World.InstanceId,
             Config = SampleConfigBinding.Load(),
             Catalog = SampleWorldHarness.OfficialCatalog(),
-            Snapshot = snapshot,
+            RuntimeOnlySnapshot = snapshot,
         });
-        Assert.Null(restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        Assert.Same(AbilityPhysicsBinding.Resolve(restored), restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        Assert.NotSame(componentPort, restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        restored.World.Get<AbilityComponent>(order.AssignedId).Physics = null;
         using IDisposable restoredBinding = AbilityPhysicsBinding.Bind(restored, managerPort);
         SampleGameplay.BindPlayer(restored.World, order.AssignedId);
         Assert.Same(managerPort, restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
@@ -198,7 +203,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(SampleConfigBinding.For(world.World).Stamina.Initial, attributes.GetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name));
         Assert.Equal(SampleConfigBinding.For(world.World).Ore.Initial, attributes.GetBaseValue(SampleConfigBinding.For(world.World).Ore.Name));
         Assert.NotNull(world.World.Get<AbilityComponent>(order.AssignedId).ActivationContextFactory);
-        Assert.Null(world.World.Get<AbilityComponent>(order.AssignedId).Physics);
+        Assert.Same(AbilityPhysicsBinding.Resolve(world.World.Manager), world.World.Get<AbilityComponent>(order.AssignedId).Physics);
         Assert.NotEqual(0, world.World.Get<IdentityComponent>(order.AssignedId).ColorHue.Value);
     }
 
@@ -216,9 +221,10 @@ public sealed class PlayerLifecycleTests : IDisposable
         byte[] snapshot = world.World.Manager.CaptureSnapshot();
         using WorldManager restored = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
+            InstanceId = world.World.InstanceId,
             Config = SampleConfigBinding.Load(),
             Catalog = SampleWorldHarness.OfficialCatalog(),
-            Snapshot = snapshot,
+            RuntimeOnlySnapshot = snapshot,
         });
         AttributeComponent next = restored.World.Get<AttributeComponent>(world.Player);
         // CURRENT is derived, never serialized; phase 9 uses this same evaluator.
@@ -228,7 +234,8 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.Equal(ore, next.GetBaseValue(SampleConfigBinding.For(world.World).Ore.Name));
         Assert.Equal(ore, next.GetCurrentValue(SampleConfigBinding.For(world.World).Ore.Name));
         Assert.NotNull(restored.World.Get<AbilityComponent>(world.Player).ActivationContextFactory);
-        Assert.Null(restored.World.Get<AbilityComponent>(world.Player).Physics);
+        Assert.Same(AbilityPhysicsBinding.Resolve(restored), restored.World.Get<AbilityComponent>(world.Player).Physics);
+        Assert.NotSame(world.World.Get<AbilityComponent>(world.Player).Physics, restored.World.Get<AbilityComponent>(world.Player).Physics);
     }
 
     internal static EntityOrder QueuePlayer(World world, string account)

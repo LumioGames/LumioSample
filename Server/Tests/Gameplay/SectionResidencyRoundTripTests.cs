@@ -8,6 +8,7 @@ using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Persistence;
 using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay.Components.Vein;
+using Lumio.Sample.Gameplay.Config;
 using Xunit;
 
 namespace Lumio.Sample.Gameplay.Tests;
@@ -35,7 +36,7 @@ public sealed class SectionResidencyRoundTripTests
     private static string Root => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 
     /// <summary>The production Section egress shape LumioServer HostEntry attaches with.</summary>
-    private static Lumio.GameRuntime.Hosting.SectionProducerOptions SectionEgress => new(
+    private static SectionProducerOptions SectionEgress => new(
         new SectionProducerLimits(
             MaxPhysicalPublications: 16,
             MaxSectionReferences: 64,

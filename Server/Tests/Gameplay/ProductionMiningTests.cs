@@ -1,4 +1,5 @@
 using System;
+using Lumio.GameRuntime.Hosting;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -174,7 +175,7 @@ public sealed class ProductionMiningTests
         Assert.Single(first.World.Each<OrePileComponent>());
         Assert.Empty(second.World.Each<OrePileComponent>());
         Assert.Equal(1, second.Remaining);
-        first.Host.Dispose();
+        first.World.Manager.Dispose();
         Assert.True(second.Mine().Succeeded);
         second.FlushCreates();
         second.FlushCreates();
@@ -192,7 +193,7 @@ public sealed class ProductionMiningTests
         System.Numerics.Vector3 center = VeinLocationTestSupport.Locate(source.World, source.Vein).CellCenter;
         DualCutCaptureResult capture = source.Host.Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
-        WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, source.World.Manager.World.InstanceId,
+        using WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, source.World.Manager.World.InstanceId,
             source.World.Manager.IngressBudget);
         WorldPersistenceSubsystem host = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(manager);
         source.World.Manager.Dispose();
@@ -219,9 +220,8 @@ public sealed class ProductionMiningTests
         Assert.Equal(center, manager.World.Get<LogicTransform>(drop.Entity).LocalPosition);
         DualCutCaptureResult depleted = host.Capture();
         Assert.True(depleted.Succeeded, depleted.ErrorCode);
-        WorldManager coldManager = SampleWorldHarness.RestoreServerWorld(depleted.Checkpoint!.Value, manager.World.InstanceId,
+        using WorldManager coldManager = SampleWorldHarness.RestoreServerWorld(depleted.Checkpoint!.Value, manager.World.InstanceId,
             manager.IngressBudget);
-        host.Dispose();
         manager.Dispose();
         coldManager.Tick();
         Assert.False(coldManager.World.IsLive(source.Vein));
@@ -306,9 +306,9 @@ public sealed class ProductionMiningTests
         Assert.Equal(0U, VoxelGameplayBinding.Resolve(manager)!.Read(section, offset).BlockId);
 
         // Settled once, not once per boot: another cold start from here pays nothing further.
-        using WorldManager second = ColdRestore(SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(host));
-        Assert.Equal(stamina - cost, Stamina(second.Manager, source.Player));
-        Assert.Single(second.Manager.World.Each<OrePileComponent>());
+        using WorldManager second = ColdRestore(host);
+        Assert.Equal(stamina - cost, Stamina(second, source.Player));
+        Assert.Single(second.World.Each<OrePileComponent>());
     }
 
     [Fact]
@@ -417,8 +417,9 @@ public sealed class ProductionMiningTests
         Assert.True(source.Mine().Succeeded);
         source.FlushCreates();
         DualCutCheckpointPayload cut = source.Host.Capture().Checkpoint!.Value;
-        WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        using WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
+            InstanceId = source.World.InstanceId,
             Config = SampleConfigBinding.Load(),
             Catalog = SampleWorldHarness.OfficialCatalog(),
             Snapshot = legacy ? source.World.Manager.CaptureSnapshot() : cut.Runtime,
@@ -427,8 +428,6 @@ public sealed class ProductionMiningTests
         });
         Assert.Equal(stamina, Stamina(manager, source.Player));
         Assert.Empty(manager.World.Each<OrePileComponent>());
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
         manager.Tick();
         Assert.Equal(legacy ? stamina : stamina - cost, Stamina(manager, source.Player));
         Assert.Equal(legacy ? 0 : 1, manager.World.Each<OrePileComponent>().Count());
@@ -446,18 +445,18 @@ public sealed class ProductionMiningTests
     /// <summary>Captures the dual cut, boots a new world from it and disposes the source.</summary>
     private static WorldManager ColdRestore(SampleWorldHarness source)
     {
-        WorldManager manager = ColdRestore(source.Host);
+        WorldManager manager = ColdRestore(source.World.Manager);
         source.World.Manager.Dispose();
         return manager;
     }
 
     /// <summary>Boots a new world from <paramref name="from"/>'s dual cut and ticks it into settlement.</summary>
-    private static WorldManager ColdRestore(Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem from)
+    private static WorldManager ColdRestore(WorldManager from)
     {
-        DualCutCaptureResult capture = from.Capture();
+        DualCutCaptureResult capture = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(from).Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
-        WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, from.Manager.World.InstanceId,
-            from.Manager.IngressBudget);
+        WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, from.World.InstanceId,
+            from.IngressBudget);
         // The first business frame consumes restored results; later ticks also exercise non-repetition.
         for (int tick = 0; tick < 3; tick++) manager.Tick();
         return manager;

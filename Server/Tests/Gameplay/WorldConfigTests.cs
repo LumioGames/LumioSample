@@ -1,4 +1,5 @@
 using System;
+using Lumio.GameRuntime.Hosting;
 using System.Threading;
 using Lumio.GameRuntime.Ecs;
 using Lumio.Sample.Gameplay.Config;
@@ -29,8 +30,9 @@ public sealed class WorldConfigTests
         EngineHostException unrestored = Assert.Throws<Lumio.GameRuntime.Hosting.EngineHostException>(() =>
             SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
             {
+                InstanceId = manager.World.InstanceId,
                 Catalog = SampleWorldHarness.OfficialCatalog(),
-                Snapshot = manager.CaptureSnapshot(),
+                RuntimeOnlySnapshot = manager.CaptureSnapshot(),
             }));
         Assert.IsType<WorldConfigBindingException>(unrestored.InnerException);
     }

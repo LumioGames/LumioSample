@@ -165,7 +165,7 @@ public sealed class SpectatorExportTests
     /// wasm has none, so the spectator host never takes that path — booting the export
     /// tests through anything else would test a world the page cannot build.
     /// </summary>
-    private static WorldManager BootClient() => SpectatorReplicaHost.CreateSampleWorld();
+    private static WorldManager BootClient() => SpectatorReplicaHostTests.CreateManager();
 
     [Fact]
     public void DumpPositionsCarriesTheReplicatedColorHue()

@@ -357,6 +357,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
         byte[] runtime = source.CaptureSnapshot();
         using WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
+            InstanceId = source.World.InstanceId,
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
             Snapshot = runtime,

@@ -52,8 +52,8 @@ public sealed partial class MineAbility : AbilityType<MineAbility.Input>
     /// <inheritdoc />
     public override bool CanActivate(in Input input, AbilityComponent owner, out string? failureCode)
     {
-        if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId)) return false;
         failureCode = null;
+        if (!NetEntityId.TryParse(input.TargetHex, out NetEntityId veinId)) return false;
         if (owner is null) return false;
         return AdmitTarget(owner, veinId) && WithinReach(owner, veinId);
     }
