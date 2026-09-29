@@ -54,7 +54,7 @@
 6. `integration/determinism/derive-rounds.mjs`：观察者接入 tick 竞态门放宽（两轮均 tour 前接入、世界静止、普查内容对齐；eventOrder/终态仍严格）；client-clock-transform 具名排除
 7. `Tools/verify-evidence.mjs`：排除清单加 client-clock-transform
 
-## 已知残留（建议另开单）
+## 已知残留（已开单）
 
-- 同一字段 create 清单（声明名大小写）与增量变更（绑定名小写）的 wire 拼写漂移（OreBase/oreBase）：本轮判定器已容忍，契约面应统一
-- det 轮 DS 默认 listen_port=0（随机）而平台票据 wsUrl 固定 9110：本轮以 server.det-overlay.json 钉端口绕过，launcher 可考虑内建
+- **B-00195**：同一字段 create 清单（声明名大小写）与增量变更（绑定名小写）的 wire 拼写漂移（OreBase/oreBase）——本轮判定器已容忍（键统一小写合并），契约面应统一
+- **B-00196**：det 轮 DS 默认 listen_port=0（随机）而平台票据 wsUrl 固定 9110——本轮以 server.det-overlay.json 钉端口绕过，建议 launcher 内建钉扎
