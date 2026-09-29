@@ -6,6 +6,7 @@ using System.Text;
 using Lumio.GameRuntime.Config;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
+using Lumio.GameRuntime.Primitives;
 using Lumio.Sample.Gameplay;
 using Lumio.Sample.Gameplay.Components.Identity;
 
@@ -37,8 +38,8 @@ public static class SpectatorDump
     {
         IGameConfigExportBinding entry = CreateSampleConfigEntry();
         var module = ConfigModule.Create();
-        if (!module.Stage(LoadSampleExport(entry)).Staged || !module.ActivateAtBarrier(default).Activated)
-            throw new InvalidOperationException("Sample config activation failed.");
+        module.Stage(LoadSampleExport(entry)).EnsureSucceeded();
+        module.ActivateAtBarrier(default).EnsureSucceeded();
         return new WorldConfigBinding(module, GeneratedRegistry.Instance, entry);
     }
 
@@ -62,10 +63,10 @@ public static class SpectatorDump
     private static ConfigSnapshot LoadSampleExport(IGameConfigExportBinding entry)
     {
         ConfigTarget target = GeneratedRegistry.Instance.Side == RegistrySide.Server ? ConfigTarget.Server : ConfigTarget.Client;
-        LumioConfigLoadResult result = LumioConfigLoader.Load(new EmbeddedSampleExport(), target,
+        StableResult<LoadedConfig> result = LumioConfigLoader.Load(new EmbeddedSampleExport(), target,
             requiredTables: entry.RequiredTables, typedTableFactory: entry.CreateTypedTables);
-        if (!result.IsSuccess) throw new InvalidOperationException(result.ErrorMessage);
-        return result.CreateSnapshot(new ConfigSnapshotId(1));
+        result.EnsureSucceeded();
+        return result.Value!.CreateSnapshot(new ConfigSnapshotId(1));
     }
 
     private static IAttributeSeedProvider ProjectSampleSeeds()
@@ -183,10 +184,12 @@ public static class SpectatorDump
     public static void ApplyPack(WorldManager manager, ReadOnlySpan<byte> frame)
     {
         if (manager is null) throw new ArgumentNullException(nameof(manager));
-        WorldMessage message = WireCodec.DecodePack(frame);
+        var decoded = WireCodec.DecodePack(frame);
+        if (!decoded.Succeeded) throw new FormatException(decoded.Detail ?? decoded.ErrorId, decoded.Cause);
+        WorldMessage message = decoded.Value!;
         if (message is WelcomeMessage or WorldChangeMessage)
         {
-            manager.Enqueue(message);
+            manager.Enqueue(message).EnsureSucceeded();
             manager.Tick();
         }
     }

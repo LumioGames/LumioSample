@@ -61,7 +61,7 @@ export function buildServerArgs(configPath) {
  */
 export function buildBotArgs({
   botDll, endpoint, admissionTicket, engineNative, kernelConfig, configDir, logDir,
-  accountFrom, accountTo, gameplay, voxelConfig, scenarioDll, scenarioName, ticks,
+  accountFrom, accountTo, gameplay, voxelConfig, catalog, scenarioDll, scenarioName, ticks,
 }) {
   if (kernelConfig == null || String(kernelConfig).trim() === '') throw new TypeError('kernel config path is required (--kernel-config).');
   if (gameplay == null || String(gameplay).trim() === '') {
@@ -70,6 +70,9 @@ export function buildBotArgs({
   if (configDir == null || String(configDir).trim() === '') throw new TypeError('typed config export directory is required (--config-dir).');
   if ((scenarioDll == null) !== (scenarioName == null)) {
     throw new TypeError('--scenario and --scenario-name must be passed together.');
+  }
+  if (scenarioDll != null && (catalog == null || String(catalog).trim() === '')) {
+    throw new TypeError('scenario catalog path is required (--catalog).');
   }
   const args = [
     botDll,
@@ -87,6 +90,7 @@ export function buildBotArgs({
     args.push('--voxel-config', String(voxelConfig).trim());
   }
   if (scenarioDll != null) {
+    args.push('--catalog', String(catalog));
     args.push('--scenario', String(scenarioDll), '--scenario-name', String(scenarioName));
     if (ticks != null && Number.isInteger(ticks) && ticks > 0) args.push('--ticks', String(ticks));
   }

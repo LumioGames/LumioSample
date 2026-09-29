@@ -73,6 +73,19 @@ test('redact hides the admission ticket', () => {
   assert.deepEqual(redactArgs(['--admission-ticket', 'secret'], 'secret'), ['--admission-ticket', '<redacted>']);
 });
 
+test('scenario Bot requires and forwards the game-owned catalog exactly', () => {
+  const options = { kernelConfig: 'kernel.json', gameplay: 'Game.dll', configDir: 'exports/client',
+    scenarioDll: 'Scenarios.dll', scenarioName: 'Mining', ticks: 20 };
+  for (const catalog of [undefined, null, '', '   ']) {
+    assert.throws(() => buildBotArgs({ ...options, catalog }), /--catalog/);
+  }
+  const catalog = 'game assets/official-catalog.json';
+  const args = buildBotArgs({ ...options, catalog });
+  assert.equal(args[args.indexOf('--catalog') + 1], catalog);
+  assert.equal(args[args.indexOf('--scenario-name') + 1], 'Mining');
+  assert.equal(args[args.indexOf('--ticks') + 1], '20');
+});
+
 test('spectator startup forwards its per-run config into real Bot argument construction', () => {
   const source = readFileSync(new URL('./spectator-100.mjs', import.meta.url), 'utf8');
   const call = source.match(/const args = buildBotArgs\((\{[\s\S]*?\})\);/);

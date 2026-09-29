@@ -246,7 +246,7 @@ public sealed partial class SampleMiningComponent
         record.Active.Value = true;
         _awaiting.Add(transaction);
         VoxelStageResult result = adapter.TryStageCoalescibleDigThrough(sectionKey, cellOffset,
-            cell.SectionRevision, transaction);
+            cell.SectionRevision, transaction).Value;
         if (result.Status == VoxelStageStatus.Staged)
         {
             LogStage(Log, transaction, sectionKey, cellOffset,

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using Lumio.Client.Gameplay.ECS;
@@ -169,7 +170,7 @@ public sealed class ChatPipelineTests
         using var fixture = new Fixture();
         using var consumer = fixture.Create();
         var initial = Request(1);
-        var change = (WorldChangeMessage)WireCodec.DecodePack(initial.Update.Span);
+        var change = (WorldChangeMessage)WireCodec.DecodePack(initial.Update.Span).EnsureSucceeded();
         var withSender = new WorldChangeMessage(change.Tick, 0,
             change.Creates.Concat(new[] { new CreateRecord("player", Sender, Array.Empty<FieldValue>()) }).ToArray(),
             change.Fields, change.Destroys, change.Rpcs);
@@ -223,19 +224,20 @@ public sealed class ChatPipelineTests
 
     private sealed class Fixture : IDisposable
     {
-        private readonly NativeEngineLease _lease;
-        private readonly NativeKernelContext _context;
+        // B3: one process engine owns the native identity (lease + context + clock);
+        // the test-only LUMIO_NATIVE_TEST_PATH names the same verified artifact.
+        private readonly Lumio.GameRuntime.Hosting.LumioEngine _engine;
         public bool FailCreation { get; set; }
 
         public Fixture()
         {
-            _lease = NativeEngineLoader.LoadFromBuildInfo(Environment.GetEnvironmentVariable("LUMIO_NATIVE_TEST_PATH")
-                ?? throw new InvalidOperationException("LUMIO_NATIVE_TEST_PATH must name the verified DLL."));
-            _context = _lease.CreateKernelContext(new KernelConfig
-            {
-                MaxContexts = 8, MaxHandles = 64, MaxNativeBytes = 1024 * 1024,
-                MaxJobsQueued = 8, MaxJobsRunning = 2, MaxCompletionItems = 16, LogMailboxCapacity = 128
-            });
+            _engine = Lumio.GameRuntime.Hosting.LumioEngine.Start(Environment.GetEnvironmentVariable("LUMIO_NATIVE_TEST_PATH")
+                ?? throw new InvalidOperationException("LUMIO_NATIVE_TEST_PATH must name the verified DLL."),
+                new KernelConfig
+                {
+                    MaxContexts = 8, MaxHandles = 64, MaxNativeBytes = 1024 * 1024,
+                    MaxJobsQueued = 8, MaxJobsRunning = 2, MaxCompletionItems = 16, LogMailboxCapacity = 128
+                }).EnsureSucceeded();
         }
 
         public ChatConsumer Create(Action<ChatLine>? callback = null)
@@ -252,16 +254,15 @@ public sealed class ChatPipelineTests
         private WorldManager CreateManager()
         {
             if (FailCreation) throw new InvalidOperationException("replacement fixture");
-            var manager = WorldManager.Create(GeneratedRegistry.Instance, config: SampleConfigBinding.Load());
-            try
+            return _engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
             {
-                manager.Start(Thread.CurrentThread);
-                WorldTickBinding.Bind(manager, _context.Hfsm, null);
-                return manager;
-            }
-            catch { manager.Dispose(); throw; }
+                Config = SampleConfigBinding.Load(),
+                Catalog = File.ReadAllBytes(Path.Combine(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..")),
+                    "Server", "Assets", "Maps", "official-catalog.json")),
+                Subsystems = ReplicaSchedulingSubsystem.Create(),
+            }).EnsureSucceeded();
         }
 
-        public void Dispose() { _context.Dispose(); _lease.Dispose(); }
+        public void Dispose() => _engine.Dispose();
     }
 }

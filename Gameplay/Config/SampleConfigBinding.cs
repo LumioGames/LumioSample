@@ -57,10 +57,10 @@ public sealed class SampleConfigBinding : IGameConfigExportBinding
         var entry = new SampleConfigBinding();
         var result = LumioConfigLoader.Load(SampleTables.ResolveDirectory(directory), SampleConfigProjection.Target,
             requiredTables: entry.RequiredTables, typedTableFactory: entry.CreateTypedTables);
-        if (!result.IsSuccess) throw new InvalidOperationException(result.ErrorMessage);
+        result.EnsureSucceeded();
         var module = ConfigModule.Create();
-        if (!module.Stage(result.CreateSnapshot(new ConfigSnapshotId(1))).Staged || !module.ActivateAtBarrier(default).Activated)
-            throw new InvalidOperationException("Sample config activation failed.");
+        module.Stage(result.Value!.CreateSnapshot(new ConfigSnapshotId(1))).EnsureSucceeded();
+        module.ActivateAtBarrier(default).EnsureSucceeded();
         return new WorldConfigBinding(module, GeneratedRegistry.Instance, entry);
     }
 }

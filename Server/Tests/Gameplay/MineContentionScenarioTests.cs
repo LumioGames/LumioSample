@@ -118,8 +118,11 @@ public sealed class MineContentionScenarioTests : IDisposable
         Assert.Equal(section, untouchedLoc.Section);
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageMutation(
             new[] { new VoxelWriteEntry(section, untouchedCell, 0, validatedOn) },
-            Array.Empty<VoxelBindingOp>(), "record-validated-on-the-old-revision").Status);
-        VoxelMutationOutcome refused = world.Adapter.CommitTransactionWithResult("record-validated-on-the-old-revision");
+            Array.Empty<VoxelBindingOp>(), "record-validated-on-the-old-revision").EnsureSucceeded().Status);
+        var commit = world.Adapter.CommitTransactionWithResult("record-validated-on-the-old-revision");
+        Assert.False(commit.Succeeded);
+        Assert.NotNull(commit.ErrorId);
+        VoxelMutationOutcome refused = commit.Value;
         Assert.NotEqual(0, refused.Status);
         Assert.NotEqual(VoxelTxnState.Applied, refused.State);
         Assert.NotEqual(0U, world.Adapter.Read(section, untouchedCell).BlockId);
@@ -231,20 +234,13 @@ public sealed class MineContentionScenarioTests : IDisposable
     private sealed class ContentionWorld : IDisposable
     {
         private readonly WorldManager _manager;
-        private readonly DedicatedServerHostBinding _host;
         private readonly NetEntityId[] _miners;
         private readonly NetEntityId[] _movers;
 
         internal ContentionWorld(int miners, int movers)
         {
-            string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-            _manager = SampleGameplay.CreateWorld(654);
-            _host = Assert.IsType<DedicatedServerHostBinding>(DedicatedServerHostBinding.TryAttach(_manager,
-                KernelConfigurationFixture.Create(),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "official-catalog.json")),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "sample.voxel"))));
-            _manager.Start(Thread.CurrentThread);
-            WorldTickBinding.Bind(_manager);
+            _manager = SampleWorldHarness.CreateServerWorld(
+                File.ReadAllBytes(Path.Combine(SampleWorldHarness.RepoRoot, "Server", "Assets", "Maps", "sample.voxel")), 654);
             var queued = new List<EntityOrder>();
             for (int index = 0; index < miners + movers; index++)
                 queued.Add(PlayerLifecycleTests.QueuePlayer(_manager.World, "contender-" + index));
@@ -335,7 +331,6 @@ public sealed class MineContentionScenarioTests : IDisposable
 
         public void Dispose()
         {
-            _host.Dispose();
             _manager.Dispose();
         }
     }

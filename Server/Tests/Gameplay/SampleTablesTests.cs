@@ -24,7 +24,12 @@ public sealed class SampleTablesTests
         string directory = SampleTables.ResolveDirectory(Path.Combine(RepoRoot, "Server", "Config", "Tables"));
         Assert.Equal(Path.GetFullPath(Path.Combine(RepoRoot, "Server", "Config", "Tables")), directory);
 
-        using var manager = WorldManager.Create(GeneratedRegistry.Instance, 1, config: SampleConfigBinding.Load(directory));
+        using var manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = 1,
+            Config = SampleConfigBinding.Load(directory),
+            Catalog = SampleWorldHarness.OfficialCatalog(),
+        }).EnsureSucceeded();
         var config = Assert.IsAssignableFrom<ISampleConfig>(manager.World.GameplayConfig);
         Assert.Equal(ReadDouble("movement", "step_meters"), config.Movement.StepMeters);
         Assert.Equal(ReadInt("mining", "stamina_cost"), config.Mining.StaminaCost);
@@ -136,7 +141,7 @@ public sealed class SampleTablesTests
         ("Abilities/MineAbility.cs", "if (reserve.Remaining.Value <= 1)") => true,
         ("Abilities/MineAbility.cs", "reserve.Remaining.Value -= 1;") => true,
         // Snapshot identity belongs to the loader lifecycle, not gameplay tuning.
-        ("Config/SampleConfigBinding.cs", "if (!module.Stage(result.CreateSnapshot(new ConfigSnapshotId(1))).Staged || !module.ActivateAtBarrier(default).Activated)") => true,
+        ("Config/SampleConfigBinding.cs", "if (!module.Stage(result.Value!.CreateSnapshot(new ConfigSnapshotId(1))).Succeeded || !module.ActivateAtBarrier(default).Succeeded)") => true,
         _ => false,
     };
 

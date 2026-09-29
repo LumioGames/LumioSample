@@ -11,6 +11,14 @@ namespace Lumio.Sample.Client.Chat.Tests;
 
 public sealed class ChatRegistrationTests
 {
+    private delegate TResult SpanDecoder<TResult>(ReadOnlySpan<byte> bytes);
+
+    public static class DecoderBridge
+    {
+        public static object Invoke<TResult>(MethodInfo method, byte[] bytes)
+            => method.CreateDelegate<SpanDecoder<TResult>>()(bytes)!;
+    }
+
     [Fact]
     public void ConstructingAdapterDoesNotRegisterInputButExplicitGameplayRegistryDoes()
     {
@@ -33,9 +41,13 @@ public sealed class ChatRegistrationTests
 
     private static bool Validate(AssemblyLoadContext context, string json)
     {
-        var type = context.LoadFromAssemblyName(new AssemblyName("Lumio.GameRuntime.Replication"))
-            .GetType("Lumio.GameRuntime.Replication.Chat.ChatEnvelope", true)!;
-        object result = type.GetMethod("Validate", BindingFlags.Public | BindingFlags.Static)!.Invoke(null, new object[] { json })!;
+        var type = context.LoadFromAssemblyName(new AssemblyName("Lumio.GameRuntime.Ecs"))
+            .GetType("Lumio.GameRuntime.Ecs.WireCodec", true)!;
+        MethodInfo decoder = type.GetMethod("DecodeInput", BindingFlags.Public | BindingFlags.Static,
+            binder: null, new[] { typeof(ReadOnlySpan<byte>) }, modifiers: null)!;
+        object result = typeof(DecoderBridge).GetMethod(nameof(DecoderBridge.Invoke))!
+            .MakeGenericMethod(decoder.ReturnType)
+            .Invoke(null, new object[] { decoder, Encoding.UTF8.GetBytes(json) })!;
         return (bool)result.GetType().GetProperty("Succeeded")!.GetValue(result)!;
     }
 

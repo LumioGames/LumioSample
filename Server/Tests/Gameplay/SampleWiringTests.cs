@@ -7,6 +7,8 @@ using System.Linq;
 using System.Threading;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
+using Lumio.GameRuntime.Hosting;
+using Lumio.GameRuntime.Persistence;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay;
@@ -129,7 +131,7 @@ public sealed class SampleWiringTests : IDisposable
         VoxelCellQuery cell = world.Adapter.Read(section, offset);
         // A foreign write to the same section commits first, so the dig carries a stale section revision.
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageWrite(
-            new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").Status);
+            new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").EnsureSucceeded().Status);
 
         Assert.True(world.Mine().Succeeded);
         // The final hit only ordered the dig; nothing is owed until its result comes back.
@@ -187,7 +189,7 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(stamina, world.StaminaBase);
         Assert.Equal(otherStamina, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
         Assert.Empty(world.World.Each<OrePileComponent>());
-        Assert.Equal(2, world.Adapter.CaptureResultCheckpoint().Results.Length);
+        Assert.Equal(2, world.Adapter.CaptureResultCheckpoint().EnsureSucceeded().Results.Length);
         world.FlushCreates();
         Assert.Equal(stamina - cost, world.StaminaBase);
         Assert.Equal(otherStamina - cost, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
@@ -325,14 +327,14 @@ public sealed class SampleWiringTests : IDisposable
         world.FlushCreates();
         long stamina = world.StaminaBase;
         int remaining = world.Remaining;
-        int fxBefore = OnFxLog.ForWorld(world.World).Count;
+        int fxBefore = Effects.CapturesForWorld(world.World).Count;
 
         AbilityActivateResult result = world.Mine();
         Assert.False(result.Succeeded);
         Assert.Equal(3, result.RejectedStep);
         Assert.Equal(stamina, world.StaminaBase);
         Assert.Equal(remaining, world.Remaining);
-        Assert.Equal(fxBefore, OnFxLog.ForWorld(world.World).Count);
+        Assert.Equal(fxBefore, Effects.CapturesForWorld(world.World).Count);
     }
 
     [Fact]
@@ -383,7 +385,7 @@ public sealed class SampleWiringTests : IDisposable
         world.FlushCreates();
         Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
         Assert.False(world.World.IsLive(drop));
-        Assert.Contains(OnFxLog.ForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
+        Assert.Contains(Effects.CapturesForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
     }
 
     [Fact]
@@ -492,7 +494,7 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
         Assert.Equal(rivalOreBefore, world.World.Get<AttributeComponent>(rival).GetBaseValue(ore));
         Assert.Empty(world.World.Each<OrePileComponent>());
-        Assert.Single(OnFxLog.ForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
+        Assert.Single(Effects.CapturesForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
     }
 
     [Fact]
@@ -612,16 +614,18 @@ internal sealed class SampleWorldHarness : IDisposable
 {
     private readonly WorldManager _manager;
     private IDisposable? _writerBinding;
-    private DedicatedServerHostBinding? _host;
-    public DedicatedServerHostBinding Host => _host!;
+    private WorldPersistenceSubsystem? _host;
+    /// <summary>The world's persistence subsystem: dual-cut Capture plus the owning-world seam.</summary>
+    public WorldPersistenceSubsystem Host => _host ?? throw new InvalidOperationException("This harness world was booted without persistence.");
     public HostVoxelWorldAdapter Adapter => VoxelGameplayBinding.Resolve(_manager)!;
 
-    private SampleWorldHarness(WorldManager manager, NetEntityId player, NetEntityId vein)
+    private SampleWorldHarness(WorldManager manager, NetEntityId player, NetEntityId vein, WorldPersistenceSubsystem? host)
     {
         _manager = manager;
         VoxelWriter = new SucceedingVoxelWriter();
         Player = player;
         Vein = vein;
+        _host = host;
     }
 
     public World World => _manager.World;
@@ -640,16 +644,61 @@ internal sealed class SampleWorldHarness : IDisposable
     public long OreBase => World.Get<AttributeComponent>(Player).GetBaseValue(SampleConfigBinding.For(World).Ore.Name);
     public int Remaining => World.Get<VeinReserveComponent>(Vein).Remaining.Value;
 
+    /// <summary>Repo walk shared with the map-reading cases; stable relative to the test output root.</summary>
+    internal static string RepoRoot => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+
+    internal static byte[] OfficialCatalog() => File.ReadAllBytes(Path.Combine(RepoRoot, "Server", "Assets", "Maps", "official-catalog.json"));
+
+    /// <summary>
+    /// One process engine for the serialized Sample world collection (B3): it owns the
+    /// release native identity; each world is an independently disposable CreateWorld.
+    /// </summary>
+    internal static Lumio.GameRuntime.Hosting.LumioEngine Engine =>
+        Lumio.Sample.Tests.EngineRelease.Engine(KernelConfigurationFixture.Create());
+
+    internal static T RequireService<T>(WorldManager manager) where T : class
+    {
+        Assert.True(manager.World.TryGetService<T>(out var service), typeof(T).Name + " must be registered on this world.");
+        return Assert.IsType<T>(service);
+    }
+
+    /// <summary>Server world through the process engine: explicit catalog, optional base map, authority subsystems.</summary>
+    internal static WorldManager CreateServerWorld(byte[]? voxelSnapshot = null, ulong instanceId = 11UL) =>
+        Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = instanceId,
+            Config = SampleConfigBinding.Load(),
+            Catalog = OfficialCatalog(),
+            InitialVoxelSnapshot = voxelSnapshot ?? Array.Empty<byte>(),
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[]
+            {
+                new Lumio.GameRuntime.Hosting.AuthorityBindingSubsystem(),
+                new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem(),
+            },
+        }).EnsureSucceeded();
+
+    /// <summary>Cold restore of a dual-cut capture through the same engine (B3 replacement of RestoreNew).</summary>
+    internal static WorldManager RestoreServerWorld(DualCutCheckpointPayload checkpoint, ulong instanceId,
+        WorldIngressBudget? ingress = null) =>
+        Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = instanceId,
+            Config = SampleConfigBinding.Load(),
+            Catalog = OfficialCatalog(),
+            Snapshot = checkpoint.Runtime,
+            VoxelSnapshot = checkpoint.Voxel,
+            IngressBudget = ingress,
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[]
+            {
+                new Lumio.GameRuntime.Hosting.AuthorityBindingSubsystem(),
+                new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem(),
+            },
+        }).EnsureSucceeded();
+
     public static SampleWorldHarness Boot()
     {
-        WorldManager manager = SampleGameplay.CreateWorld(11UL);
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        DedicatedServerHostBinding host = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "official-catalog.json")),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "sample.voxel"))));
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        WorldManager manager = CreateServerWorld(File.ReadAllBytes(Path.Combine(RepoRoot, "Server", "Assets", "Maps", "sample.voxel")));
+        WorldPersistenceSubsystem host = RequireService<WorldPersistenceSubsystem>(manager);
         EntityOrder player = manager.World.Commands.Create<PlayerEntity>();
         // ADR-119 B6: the vein is no longer created synchronously — wait out the scan's create→bind
         // round trip rather than guess a fixed tick count (VeinLocationTestSupport).
@@ -661,11 +710,11 @@ internal sealed class SampleWorldHarness : IDisposable
         Assert.True(MineAbility.WithinReach(abilities, vein.Entity));
         Assert.True(MineAbility.AdmitTarget(abilities, vein.Entity));
         abilities.Physics = new RecordingAbilityPhysicsPort();
-        return new SampleWorldHarness(manager, player.AssignedId, vein.Entity) { _host = host };
+        return new SampleWorldHarness(manager, player.AssignedId, vein.Entity, host);
     }
 
     /// <summary>Started world with no player; tests explicitly drive the Owner tick.</summary>
-    public static SampleWorldHarness BootEmpty() => new(StartManager(), default, default);
+    public static SampleWorldHarness BootEmpty() => new(StartManager(), default, default, null);
 
     public NetEntityId AdmitPlayer(string accountId)
     {
@@ -677,16 +726,12 @@ internal sealed class SampleWorldHarness : IDisposable
 
     private static WorldManager StartManager()
     {
-        WorldManager manager = SampleGameplay.CreateWorld(11UL);
+        // The engine core already bound spatial, GAS, the base-map voxel world and the
+        // 13-phase tick binding; the owner tick is the plain WorldManager.Tick. The
+        // retired reflection commit/publish loop existed only to substitute for the
+        // tick binding this world now always has (B3 forbids reflection scheduling).
+        WorldManager manager = CreateServerWorld();
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
-        Assert.True(manager.TryBindNativeSpatialIndex(KernelConfigurationFixture.Create()));
-        manager.Start(Thread.CurrentThread);
-
-        MethodInfo commit = typeof(WorldManager).GetMethod("CommitCommandBuffer", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("WorldManager.CommitCommandBuffer is missing; cannot appear entities without Simulation.");
-        MethodInfo publish = typeof(WorldManager).GetMethod("PublishEgress", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("WorldManager.PublishEgress is missing; GAS one-tick cooldown cannot expire.");
-        manager.BindTickLoop(new CommitTickLoop(manager, commit, publish));
         return manager;
     }
 
@@ -709,27 +754,7 @@ internal sealed class SampleWorldHarness : IDisposable
     public void Dispose()
     {
         _writerBinding?.Dispose();
-        _host?.Dispose();
+        _host = null;
         _manager.Dispose();
-    }
-
-    private sealed class CommitTickLoop : IWorldTickLoop
-    {
-        private readonly WorldManager _manager;
-        private readonly MethodInfo _commit;
-        private readonly MethodInfo _publish;
-
-        public CommitTickLoop(WorldManager manager, MethodInfo commit, MethodInfo publish)
-        {
-            _manager = manager;
-            _commit = commit;
-            _publish = publish;
-        }
-
-        public void ExecuteTick()
-        {
-            _commit.Invoke(_manager, null);
-            _publish.Invoke(_manager, null);
-        }
     }
 }

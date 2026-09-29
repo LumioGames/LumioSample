@@ -742,6 +742,7 @@ async function runRestoreStep({
     engineNative: bot.engineNative,
     kernelConfig: bot.kernelConfigPath,
     configDir: bot.configDir,
+    catalog: bot.catalog,
     logDir,
     accountFrom: tourLogin,
     accountTo: tourLogin,
@@ -1192,6 +1193,7 @@ export async function runLauncher(options = {}) {
     // Resolved once, before any bot starts: a budget file the operator named but that is not
     // there is a launcher error, not N bots each faulting on their first SectionFrame.
     const voxelConfig = resolveBotVoxelConfig(options.voxelConfig, root);
+    const catalog = join(root, 'Server', 'Assets', 'Maps', 'official-catalog.json');
     report.botVoxelConfig = voxelConfig;
     // ADR-112 rev2 ix: against a runtime+voxel DS every admitted connection receives the first
     // SectionFrame, and a bot without a voxel budget session_faults on it. The only road to a
@@ -1251,6 +1253,7 @@ export async function runLauncher(options = {}) {
         engineNative,
         kernelConfig: kernelConfigPath,
         configDir,
+        catalog,
         logDir: botLogDir,
         accountFrom: session.login.loginName,
         accountTo: session.login.loginName,
@@ -1290,6 +1293,7 @@ export async function runLauncher(options = {}) {
           engineNative,
           kernelConfig: kernelConfigPath,
           configDir,
+          catalog,
           logDir: groupDir,
           accountFrom: group[0].login.loginName,
           accountTo: group[group.length - 1].login.loginName,
@@ -1376,7 +1380,7 @@ export async function runLauncher(options = {}) {
       options, origin, tools, record, log, report, evidence, children, env, password,
       ds, dsReady: boot.ready, dsExe, bootConfigs, bootLogDirs, runConfig, tourBot, fleet,
       tourLogin: botSessions[0].login.loginName,
-      bot: { dotnet, botDll, engineNative, kernelConfigPath, configDir, gameplay, voxelConfig, scenarioDll },
+      bot: { dotnet, botDll, engineNative, kernelConfigPath, configDir, gameplay, voxelConfig, catalog, scenarioDll },
     });
     report.status = reportStatusFromSteps(report.steps);
     return report;

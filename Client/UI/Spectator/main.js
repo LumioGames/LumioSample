@@ -400,6 +400,9 @@ const csharp = {
   },
 };
 let developmentSession;
+let engineExportsLoaded = false;
+let engineLoadPromise;
+let shutdownEngine = () => {};
 
 function utf8ByteLength(text) {
   if (typeof TextEncoder === "function") return new TextEncoder().encode(text).length;
@@ -408,6 +411,7 @@ function utf8ByteLength(text) {
 
 function bindExports(api) {
   csharp.boot = () => api.Boot();
+  shutdownEngine = typeof api.ShutdownEngine === "function" ? () => api.ShutdownEngine() : () => {};
   csharp.close = typeof api.Close === "function" ? () => api.Close() : () => {};
   csharp.connectionState = typeof api.ConnectionState === "function" ? () => api.ConnectionState() : () => "synchronizing";
   csharp.lastApplyError = typeof api.LastApplyError === "function" ? () => api.LastApplyError() : () => "";
@@ -423,10 +427,21 @@ function bindExports(api) {
   if (typeof api.TakeOutbound === "function") csharp.takeOutbound = () => api.TakeOutbound();
 }
 
-async function loadWasmExports() {
+function loadWasmExports() {
+  return engineLoadPromise ??= initializeWasmExports().finally(() => { engineLoadPromise = null; });
+}
+
+async function initializeWasmExports() {
+  if (engineExportsLoaded) {
+    csharp.boot();
+    applyDump(csharp.dumpPositions());
+    setStatus("wasm-ready");
+    return true;
+  }
   const injected = window.__lumioExports;
   if (injected && typeof injected === "object") {
     bindExports(injected);
+    engineExportsLoaded = true;
     csharp.boot();
     applyDump(csharp.dumpPositions());
     setStatus("wasm-ready", "export stub");
@@ -435,7 +450,7 @@ async function loadWasmExports() {
 
   try {
     const { dotnet } = await import("./_framework/dotnet.js");
-    const { getAssemblyExports, getConfig, runMain } = await dotnet.create();
+    const { getAssemblyExports, getConfig, runMain, setModuleImports } = await dotnet.create();
     const config = getConfig();
     const exports = await getAssemblyExports(config.mainAssemblyName);
     await runMain();
@@ -445,6 +460,9 @@ async function loadWasmExports() {
       console.error("[lumio-spectator] SpectatorExports missing after wasm boot");
       return false;
     }
+    const { loadEngineWasm } = await import('./engine-wasm.mjs');
+    const nativeCall = await loadEngineWasm();
+    setModuleImports('lumio-engine', { call: nativeCall });
     if (globalThis.__lumioDevelopment) {
       const { connectDevelopmentBridge } = await import('./dev-hot-reload.mjs');
       const config = await (await fetch('/dev/config')).json();
@@ -452,7 +470,13 @@ async function loadWasmExports() {
       developmentSession = await connectDevelopmentBridge({ api, config,
         sdk: agentExports.Microsoft.DotNet.HotReload.WebAssembly.Browser.WebAssemblyHotReload });
     }
+    const catalogResponse = await fetch(CATALOG_URL);
+    if (!catalogResponse.ok) throw new Error(`Official catalog unavailable: ${catalogResponse.status}`);
+    const catalogBytes = new Uint8Array(await catalogResponse.arrayBuffer());
+    catalogText = new TextDecoder().decode(catalogBytes);
+    api.InitializeEngine(catalogBytes);
     bindExports(api);
+    engineExportsLoaded = true;
     csharp.boot();
     applyDump(csharp.dumpPositions());
     setStatus("wasm-ready");
@@ -838,4 +862,9 @@ async function start() {
 }
 
 document.getElementById("enter")?.addEventListener("click", () => { void start(); });
+window.addEventListener("pagehide", event => {
+  if (event.persisted) return;
+  try { finish("closed"); }
+  finally { shutdownEngine(); engineExportsLoaded = false; }
+});
 void start();

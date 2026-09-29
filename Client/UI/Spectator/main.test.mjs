@@ -177,6 +177,7 @@ async function runPage({
   const pendingSections = [...sectionFrames];
 
   const sandbox = {
+    addEventListener(type, handler) { this.pageEvents ??= {}; this.pageEvents[type] = handler; },
     location: { search, protocol, pathname, hostname, href: `${protocol}//${hostname}${pathname}${search}` },
     document: {
       getElementById(id) {
@@ -248,6 +249,7 @@ async function runPage({
   sandbox.__lumioExports = {
     Boot() { runtime.boots++; },
     Close() { runtime.closes++; },
+    ShutdownEngine() { runtime.shutdowns = (runtime.shutdowns ?? 0) + 1; },
     ConnectionState() { return runtime.state; },
     LastApplyError() { return runtime.lastApplyError ?? ""; },
     OnBytes() {
@@ -302,6 +304,21 @@ async function runPage({
     pendingSections,
   };
 }
+
+test("page exit closes the replica and shuts down its process engine", async () => {
+  const page = await runPage();
+  page.win.pageEvents.pagehide({ persisted: false });
+  assert.equal(page.runtime.closes, 1);
+  assert.equal(page.runtime.shutdowns, 1);
+  assert.equal(page.spectator.status, "closed");
+});
+
+test("a retained browser page keeps its process engine alive", async () => {
+  const page = await runPage();
+  page.win.pageEvents.pagehide({ persisted: true });
+  assert.equal(page.runtime.closes, 0);
+  assert.equal(page.runtime.shutdowns ?? 0, 0);
+});
 
 test("network disconnect fetches a fresh ticket with CSRF and creates a new replica", async () => {
   const page = await runPage({ fetchLaunch: () => ({ ...LAUNCH, admissionCredential: "fresh-ticket" }) });
@@ -401,6 +418,7 @@ test("missing SpectatorExports after wasm boot fail-closes instead of painting t
   const logged = [];
   const record = (...args) => logged.push(args.map((arg) => String(arg)).join(" "));
   const sandbox = {
+    addEventListener() {},
     location: { search: "", protocol: "http:", pathname: "/games/sample/", hostname: "127.0.0.1", href: "http://127.0.0.1/games/sample/" },
     document: {
       getElementById(id) {

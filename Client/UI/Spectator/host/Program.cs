@@ -2,6 +2,8 @@ using System;
 using System.Runtime.InteropServices.JavaScript;
 using System.Linq;
 using System.Text.Json;
+using Lumio.Client.Engine.Wasm;
+using Lumio.GameRuntime.Hosting;
 
 namespace Lumio.Sample.Client.Spectator;
 
@@ -17,14 +19,29 @@ public static partial class SpectatorExports
         .Where(assembly => !assembly.IsDynamic)
         .Select(assembly => new { name = assembly.GetName().Name, mvid = assembly.ManifestModule.ModuleVersionId, path = "" }));
     private static SpectatorReplicaHost? s_client;
+    private static LumioEngine? s_engine;
+    private static byte[]? s_catalog;
     private static ulong s_moveSequence;
     private static uint s_rng = 1u;
+
+    [JSImport("call", "lumio-engine")]
+    private static partial byte[] CallEngine(string operation, byte[] packet);
+
+    [JSExport]
+    public static void InitializeEngine(byte[] catalog)
+    {
+        if (s_engine is not null) return;
+        if (catalog is null || catalog.Length == 0) throw new ArgumentException("The Sample official block catalog is required.", nameof(catalog));
+        s_catalog = (byte[])catalog.Clone();
+        s_engine = LumioEngine.Start(new EngineWasmPlatform(new EngineWasmTransport(CallEngine), new EngineWasmLoggerFactory(Console.WriteLine))).EnsureSucceeded();
+    }
 
     [JSExport]
     public static void Boot()
     {
         s_client?.Dispose();
-        s_client = new SpectatorReplicaHost(SpectatorReplicaHost.CreateSampleWorld);
+        if (s_engine is null || s_catalog is null) throw new InvalidOperationException("The browser engine has not been initialized.");
+        s_client = new SpectatorReplicaHost(() => SpectatorReplicaHost.CreateSampleWorld(s_engine, s_catalog));
         s_moveSequence = 0;
         s_rng = 1u;
     }
@@ -45,6 +62,18 @@ public static partial class SpectatorExports
 
     [JSExport]
     public static void Close() => s_client?.Dispose();
+
+    [JSExport]
+    public static void ShutdownEngine()
+    {
+        try { s_client?.Dispose(); }
+        finally
+        {
+            s_client = null;
+            try { s_engine?.Dispose(); }
+            finally { s_engine = null; s_catalog = null; }
+        }
+    }
 
     [JSExport]
     public static string ConnectionState() => s_client?.ConnectionState ?? "closed";

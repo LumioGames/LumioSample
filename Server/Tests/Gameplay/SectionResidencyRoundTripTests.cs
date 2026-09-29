@@ -6,8 +6,10 @@ using System.Threading;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Persistence;
+using Lumio.GameRuntime.Primitives;
 using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay.Components.Vein;
+using Lumio.Sample.Gameplay.Config;
 using Xunit;
 
 namespace Lumio.Sample.Gameplay.Tests;
@@ -18,14 +20,14 @@ namespace Lumio.Sample.Gameplay.Tests;
 /// (<see cref="SectionResidencyOrchestrator"/>, ADR-119 决策 7 / R-00730 — merged to LumioGameRuntime
 /// main at commit <c>0b52c22</c>, after this PR's first pass had already been written; see this PR's
 /// fix-round evidence comment for the merge-base check). <see cref="ProductionMiningTests"/> already
-/// covers a full-process cold restart (<c>DualCutCaptureResult</c>/<c>RestoreNew</c>); this covers the
+/// covers a full-process cold restart (<c>DualCutCheckpointPayload</c>/<c>RestoreNew</c>); this covers the
 /// same-process Section-level eviction/reload path acceptance item 2 and block-entity.md B4–B6 actually
 /// ask for, which nothing in this test project exercised before.
 /// <para>
 /// Mirrors the production wiring LumioServer's own <c>HostEntry.TryEnableSectionResidency</c> uses
 /// (<c>EnableSectionResidency</c> + <see cref="SectionResidencyOptions"/> + fresh
 /// <see cref="SectionResidencyRegistry"/> + <c>Lumio.Engine.SDK.VoxelSectionExportLimits</c>), against a
-/// real native voxel world (<see cref="DedicatedServerHostBinding.TryAttach"/>) — not the mocked
+/// real native voxel world (the engine-assembled <c>AuthoritySectionSubsystem</c>) — not the mocked
 /// <c>IVoxelSectionResidencyPort</c> GameRuntime's own orchestrator unit tests use.
 /// </para>
 /// </summary>
@@ -34,16 +36,30 @@ public sealed class SectionResidencyRoundTripTests
 {
     private static string Root => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 
+    /// <summary>The production Section egress shape LumioServer HostEntry attaches with.</summary>
+    private static SectionProducerOptions SectionEgress => new(
+        new SectionProducerLimits(
+            MaxPhysicalPublications: 16,
+            MaxSectionReferences: 64,
+            MaxLeases: 64,
+            MaxManagedBytes: 1_000_000,
+            // The wire egress budget the DS codec enforces (SectionFrameCodec.MaxPayloadBytes).
+            MaxPayloadBytes: 32_000),
+        new Lumio.Engine.SDK.VoxelSectionExportLimits(
+            MaxSnapshots: 64, MaxRetainedBytes: 4_000_000, MaxScratchBytes: 2_000_000));
+
     [Fact]
     public void SectionUnloadThenReloadKeepsEveryVeinNumberAndValueAndNeverRescansTheSameCells()
     {
-        using WorldManager manager = SampleGameplay.CreateWorld(900);
-        using DedicatedServerHostBinding host = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(),
-                File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
-                File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel"))));
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        using WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = 900,
+            Config = SampleConfigBinding.Load(),
+            Catalog = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
+            InitialVoxelSnapshot = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel")),
+            Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem(SectionEgress) },
+        }).EnsureSucceeded();
+        Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem host = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem>(manager);
 
         // No player is ever admitted in this test: PrepareSectionUnload refuses a Section holding a
         // live LogicTransform entity, and B6's scan must have already settled before we pick a Section.
@@ -98,8 +114,8 @@ public sealed class SectionResidencyRoundTripTests
             Assert.False(manager.World.IsLive(id));
         });
 
-        SectionLoadResult loaded = residency.LoadSection(sectionKey, prepared.Record!.Value);
-        Assert.True(loaded.Succeeded, loaded.ErrorCode);
+        StableResult loaded = residency.LoadSection(sectionKey, prepared.Record!.Value);
+        Assert.True(loaded.Succeeded, loaded.ErrorId);
         Assert.Equal(SectionResidencyState.Resident, residency.StateOf(sectionKey));
 
         // B4: every number and value the Section held comes back unchanged, and no new vein was minted.

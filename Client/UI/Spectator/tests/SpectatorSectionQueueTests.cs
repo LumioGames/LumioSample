@@ -29,7 +29,7 @@ public sealed class SpectatorSectionQueueTests
     [Fact]
     public void ApplyFrameQueuesTheSectionWithoutFaultingTheEntityReplica()
     {
-        using var host = new SpectatorReplicaHost(SpectatorReplicaHost.CreateSampleWorld);
+        using var host = new SpectatorReplicaHost(SpectatorReplicaHostTests.CreateManager);
         var self = new NetEntityId(7, 2);
         Assert.True(host.ApplyFrame(WireCodec.EncodePack(new WelcomeMessage(7, self, 9))));
 
@@ -65,7 +65,7 @@ public sealed class SpectatorSectionQueueTests
     [Fact]
     public void AnUndrainedQueueFailsLoudlyInsteadOfGrowingWithoutLimit()
     {
-        using var host = new SpectatorReplicaHost(SpectatorReplicaHost.CreateSampleWorld);
+        using var host = new SpectatorReplicaHost(SpectatorReplicaHostTests.CreateManager);
         byte[] frame = Utf8(ContractSectionFrame);
         for (int i = 0; i < SpectatorReplicaHost.MaxQueuedSectionFrames; i++) Assert.False(host.ApplyFrame(frame));
         Assert.Equal(SpectatorReplicaHost.MaxQueuedSectionFrames, host.PendingSectionFrames);
@@ -75,7 +75,7 @@ public sealed class SpectatorSectionQueueTests
     [Fact]
     public void DisposeDropsVoxelBytesThatBelongedToTheEndingSession()
     {
-        var host = new SpectatorReplicaHost(SpectatorReplicaHost.CreateSampleWorld);
+        var host = new SpectatorReplicaHost(SpectatorReplicaHostTests.CreateManager);
         Assert.False(host.ApplyFrame(Utf8(ContractSectionFrame)));
         Assert.Equal(1, host.PendingSectionFrames);
         host.Dispose();
@@ -92,10 +92,10 @@ public sealed class SpectatorSectionQueueTests
 
         // The browser world the spectator actually runs: replica apply loop, no
         // Native context to bind (WorldTickBinding wants one and wasm has none).
-        WorldManager client = SpectatorReplicaHost.CreateSampleWorld();
+        WorldManager client = SpectatorReplicaHostTests.CreateManager();
         try
         {
-            client.Enqueue(new WelcomeMessage(instance, self, 1UL));
+            client.Enqueue(new WelcomeMessage(instance, self, 1UL)).EnsureSucceeded();
             client.Enqueue(new WorldChangeMessage(
                 1UL,
                 0UL,
@@ -110,7 +110,7 @@ public sealed class SpectatorSectionQueueTests
                 },
                 Array.Empty<FieldChange>(),
                 Array.Empty<DestroyRecord>(),
-                Array.Empty<ClientRpcRecord>()));
+                Array.Empty<ClientRpcRecord>())).EnsureSucceeded();
             client.Tick();
 
             using JsonDocument document = JsonDocument.Parse(SpectatorDump.DumpPositions(client.World));

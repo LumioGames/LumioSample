@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using Lumio.Engine.NativeLoader;
 
 namespace Lumio.Sample.Tests;
 
@@ -34,15 +35,21 @@ internal static class EngineRelease
     internal static string EcsAssembly => Path.Combine(Server, "SDK", "Managed", "Lumio.GameRuntime.Ecs.dll");
 
     /// <summary>
-    /// The Runtime finds <c>liblumio_engine_native</c> through <c>LUMIO_ENGINE_NATIVE_PATH</c>
-    /// (Ecs spatial index, GAS hfsm, Simulation clock). Every test process points it at the
-    /// release native before any test runs, so a Runtime lease and the cases that load
-    /// <see cref="NativeLibrary"/> directly use the same image (R-00785). Set unconditionally, so
-    /// no value inherited from the shell can point these tests at another image.
+    /// B3: the process engine owns the native image. Tests start it once per process with the
+    /// release native's explicit path (the loader checks identity against the sidecar); the
+    /// deleted <c>LUMIO_ENGINE_NATIVE_PATH</c> channel is not used anywhere.
     /// </summary>
-    [System.Runtime.CompilerServices.ModuleInitializer]
-    internal static void UseReleaseNative() =>
-        Environment.SetEnvironmentVariable("LUMIO_ENGINE_NATIVE_PATH", NativeLibrary);
+    private static Lumio.GameRuntime.Hosting.LumioEngine? _engine;
+
+    internal static Lumio.GameRuntime.Hosting.LumioEngine Engine(KernelConfig budget) =>
+        _engine ??= Lumio.GameRuntime.Hosting.LumioEngine.Start(Require(NativeLibrary, "the process engine's native"), budget).EnsureSucceeded();
+
+    internal static void CloseEngine()
+    {
+        if (_engine is null) return;
+        _engine.Dispose();
+        _engine = null;
+    }
 
     internal static string Require(string path, string why)
     {

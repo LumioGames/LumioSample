@@ -26,7 +26,7 @@ public sealed class SpectatorExportTests
 
         using WorldManager client = BootClient();
 
-        client.Enqueue(new WelcomeMessage(instance, self, 1UL));
+        client.Enqueue(new WelcomeMessage(instance, self, 1UL)).EnsureSucceeded();
         client.Enqueue(new WorldChangeMessage(
             1UL,
             0UL,
@@ -39,7 +39,7 @@ public sealed class SpectatorExportTests
             },
             Array.Empty<FieldChange>(),
             Array.Empty<DestroyRecord>(),
-            Array.Empty<ClientRpcRecord>()));
+            Array.Empty<ClientRpcRecord>())).EnsureSucceeded();
         client.Tick();
 
         string json = SpectatorDump.DumpPositions(client.World);
@@ -165,7 +165,7 @@ public sealed class SpectatorExportTests
     /// wasm has none, so the spectator host never takes that path — booting the export
     /// tests through anything else would test a world the page cannot build.
     /// </summary>
-    private static WorldManager BootClient() => SpectatorReplicaHost.CreateSampleWorld();
+    private static WorldManager BootClient() => SpectatorReplicaHostTests.CreateManager();
 
     [Fact]
     public void DumpPositionsCarriesTheReplicatedColorHue()
@@ -176,7 +176,7 @@ public sealed class SpectatorExportTests
         NetEntityId other = new(instance, 3UL);
 
         using WorldManager client = BootClient();
-        client.Enqueue(new WelcomeMessage(instance, self, 1UL));
+        client.Enqueue(new WelcomeMessage(instance, self, 1UL)).EnsureSucceeded();
         client.Enqueue(new WorldChangeMessage(
             1UL,
             0UL,
@@ -188,7 +188,7 @@ public sealed class SpectatorExportTests
             },
             Array.Empty<FieldChange>(),
             Array.Empty<DestroyRecord>(),
-            Array.Empty<ClientRpcRecord>()));
+            Array.Empty<ClientRpcRecord>())).EnsureSucceeded();
         client.Tick();
 
         using JsonDocument document = JsonDocument.Parse(SpectatorDump.DumpPositions(client.World));

@@ -18,4 +18,5 @@ public static class GeneratedEffectRegistry
         if (registry is null) throw new ArgumentNullException(nameof(registry));
         registry.RegisterEffect<global::Lumio.Sample.Gameplay.PickupOreEffect, global::Lumio.Sample.Gameplay.PickupOreEffect.Parameters>(10u);
     }
+
 }

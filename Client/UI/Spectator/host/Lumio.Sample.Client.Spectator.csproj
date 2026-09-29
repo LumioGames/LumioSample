@@ -60,6 +60,9 @@
     <Content Include="..\main.js" Link="wwwroot\main.js" />
     <Content Include="..\spectator.css" Link="wwwroot\spectator.css" />
     <Content Include="$(LumioSpectatorParts)*.mjs" Exclude="$(LumioSpectatorParts)*.test.mjs" Link="wwwroot\%(Filename)%(Extension)" />
+    <Content Include="$(LumioEngineWeb)lumio_engine_wasm.js" Link="wwwroot\lumio_engine_wasm.js" />
+    <Content Include="$(LumioEngineWeb)lumio_engine_wasm_bg.wasm" Link="wwwroot\lumio_engine_wasm_bg.wasm" />
+    <Content Include="$(LumioEngineWeb)engine-wasm-build-info.json" Link="wwwroot\engine-wasm-build-info.json" />
   </ItemGroup>
   <!--
     Block view (?view=blocks, ADR-124 C9). Engine half: the block renderer's three sibling
@@ -158,7 +161,12 @@
       <Private>true</Private>
     </Reference>
   </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Lumio.Client.Engine.Wasm" HintPath="$(_SpectatorReplicaDir)Lumio.Client.Engine.Wasm.dll" />
+    <Reference Include="Lumio.GameRuntime.Hosting" HintPath="$(_SpectatorReplicaDir)Lumio.GameRuntime.Hosting.dll" />
+  </ItemGroup>
   <Target Name="RequireBrowserReplicaAssemblies" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(LumioEngineWeb)lumio_engine_wasm_bg.wasm') OR !Exists('$(LumioEngineWeb)engine-wasm.mjs')" Text="The Engine release is missing its production browser core module." />
     <Error
       Condition="!Exists('$(_SpectatorReplicaDll)')"
       Text="SPECTATOR_REPLICA_DLL_MISSING the Engine/ release has no netstandard2.1 Replica: $(_SpectatorReplicaDll)" />

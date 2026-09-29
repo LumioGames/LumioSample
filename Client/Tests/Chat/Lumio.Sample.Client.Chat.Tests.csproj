@@ -12,6 +12,7 @@
     <ProjectReference Include="../../UI/Chat/Lumio.Sample.Client.Chat.csproj" />
     <Reference Include="Lumio.Client.Gameplay.ECS" HintPath="$(LumioClientGameplayEcsAssembly)" Private="true" />
     <Reference Include="Lumio.Engine.NativeLoader" HintPath="$(LumioNativeLoaderAssembly)" Private="true" />
+    <Reference Include="Lumio.GameRuntime.Hosting" HintPath="$(LumioRuntimeHostingAssembly)" Private="true" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Testing.Platform" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
@@ -19,5 +20,7 @@
   <Target Name="RequireNativeTestLoader" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(LumioNativeLoaderAssembly)' == '' or !Exists('$(LumioNativeLoaderAssembly)')"
            Text="SAMPLE_CHAT_TEST_LOADER_MISSING: set LumioNativeLoaderAssembly to the prebuilt managed test loader." />
+    <Error Condition="'$(LumioRuntimeHostingAssembly)' == '' or !Exists('$(LumioRuntimeHostingAssembly)')"
+           Text="SAMPLE_CHAT_TEST_HOSTING_MISSING: set LumioRuntimeHostingAssembly to the prebuilt Lumio.GameRuntime.Hosting.dll (B3 process engine)." />
   </Target>
 </Project>
