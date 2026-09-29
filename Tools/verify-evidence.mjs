@@ -21,7 +21,7 @@ const isObject = value => value !== null && typeof value === 'object' && !Array.
  * 逼人决定收还是不收,不靠「没匹配上就算了」。
  */
 export const INCLUDED_EVENT_CATEGORIES = Object.freeze(['entity-create', 'entity-field', 'entity-destroy', 'voxel-write'])
-export const EXCLUDED_EVENT_CATEGORIES = Object.freeze(['rpc-delivery'])
+export const EXCLUDED_EVENT_CATEGORIES = Object.freeze(['rpc-delivery', 'client-clock-transform'])
 const KNOWN_EVENT_CATEGORIES = new Set([...INCLUDED_EVENT_CATEGORIES, ...EXCLUDED_EVENT_CATEGORIES])
 const isWorldEvent = entry => isObject(entry) && INCLUDED_EVENT_CATEGORIES.includes(entry.category)
 

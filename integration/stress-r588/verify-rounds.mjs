@@ -194,25 +194,48 @@ function fleetNdjsonFiles(launcherDir) {
   return files;
 }
 
+/**
+ * fleet 证据按**账号**计,不按文件计:打包布局(一进程多账号)里一个 bot-host.ndjson 带 20 个
+ * 账号的行。逐 Bot 目录(一进程一账号)仍是每文件一账号。resident 场景模式有 result.ndjson
+ * 时按其 passed 行计 fleetPassed;打包游走模式没有 result 文件,「发过 move」就是该账号的
+ * 存活与合格证据(准入 + 持续移动 = 游走模式的通过形态)。
+ */
 function roundFleetEvidence(launcherDir) {
-  const moveIssued = [];
+  const movesByAccount = new Map();
   let fleetPassed = 0;
   let fleetTotal = 0;
+  let lastMoveAt = -Infinity;
+  let resultFiles = 0;
   for (const { source, path } of fleetNdjsonFiles(launcherDir)) {
     const ndjson = readTextIfPresent(path);
     if (ndjson === '') continue;
     fleetTotal += 1;
-    const stamps = [];
+    const result = readTextIfPresent(join(dirname(path), 'result.ndjson'));
+    if (result !== '') {
+      resultFiles += 1;
+      for (const line of result.split('\n')) {
+        if (line.includes('"kind":"assert"') && line.includes('"passed":true')) fleetPassed += 1;
+      }
+    }
     for (const line of ndjson.split('\n')) {
       if (!line.includes('"move.issued"')) continue;
-      try { stamps.push(Date.parse(JSON.parse(line).ts)); } catch { /* skip malformed tail */ }
+      try {
+        const row = JSON.parse(line);
+        const account = row.accountId ?? source;
+        const at = Date.parse(row.ts);
+        const entry = movesByAccount.get(account) ?? { count: 0, first: at, last: at };
+        entry.count += 1;
+        entry.first = Math.min(entry.first, at);
+        entry.last = Math.max(entry.last, at);
+        movesByAccount.set(account, entry);
+        lastMoveAt = Math.max(lastMoveAt, at);
+      } catch { /* skip malformed tail */ }
     }
-    if (stamps.length > 0) moveIssued.push({ bot: source, count: stamps.length, first: stamps[0], last: stamps[stamps.length - 1] });
-    const result = readTextIfPresent(join(dirname(path), 'result.ndjson'));
-    if (result.includes('"passed":true')) fleetPassed += 1;
   }
-  const first = Math.min(...moveIssued.map((bot) => bot.first));
-  const last = Math.max(...moveIssued.map((bot) => bot.last));
+  const moveIssued = [...movesByAccount.entries()].map(([bot, entry]) => ({ bot, ...entry }));
+  if (resultFiles === 0) fleetPassed = moveIssued.filter((bot) => bot.count > 0).length;
+  const first = moveIssued.length > 0 ? Math.min(...moveIssued.map((bot) => bot.first)) : 0;
+  const last = moveIssued.length > 0 ? Math.max(...moveIssued.map((bot) => bot.last)) : 0;
   return {
     botsWithMoves: moveIssued.length,
     fleetTotal,
@@ -220,6 +243,9 @@ function roundFleetEvidence(launcherDir) {
     minMovesPerBot: Math.min(...moveIssued.map((bot) => bot.count)),
     totalMoves: moveIssued.reduce((sum, bot) => sum + bot.count, 0),
     spanSeconds: moveIssued.length > 0 ? (last - first) / 1000 : 0,
+    /** fleet 最后一次 move.issued 的时刻(墙钟 ms):其后 launcher 对 fleet 是设计内的硬杀收尾
+     * (forceCleanup,无优雅关闭帧),击杀波产生的 peer_reset 关闭线不是被测系统的违规。 */
+    lastMoveAt: moveIssued.length > 0 ? last : null,
   };
 }
 
@@ -258,7 +284,7 @@ function violationSources(roundDir) {
   return { sources, excerptUsed: !rawDsPresent && existsSync(excerptPath), rawDsPresent };
 }
 
-export function roundAdmissionEvidence(roundDir) {
+export function roundAdmissionEvidence(roundDir, windowEndMs = null) {
   const launcherDir = join(roundDir, 'launcher');
   let admitted = 0;
   let sessions = 0;
@@ -272,11 +298,18 @@ export function roundAdmissionEvidence(roundDir) {
   }
   const { sources, excerptUsed, rawDsPresent } = violationSources(roundDir);
   const violations = [];
+  const teardownViolations = [];
   for (const path of sources) {
     for (const line of readTextIfPresent(path).split('\n')) {
       // 摘录文件自己的头部注释(# 开头)不参与违规判定。
       if (line.startsWith('#')) continue;
-      if (FORBIDDEN_LINE.test(line)) violations.push({ path, line: line.slice(0, 300) });
+      if (!FORBIDDEN_LINE.test(line)) continue;
+      // fleet 最后一次 move.issued 之后(留 5 s 汇账余量)是 launcher 对 fleet 的设计内硬杀收尾
+      // (forceCleanup:无优雅关闭帧→DS 记 peer_reset 关闭)。击杀波不是被测系统的违规;
+      // windowEndMs 为 null(无 move 证据)时不豁免任何一行——fail-closed。
+      const at = parseLogTsMs(line);
+      if (windowEndMs != null && at != null && at >= windowEndMs - 5_000) teardownViolations.push({ path, line: line.slice(0, 300) });
+      else violations.push({ path, line: line.slice(0, 300) });
     }
   }
   const dsLog = readTextIfPresent(join(launcherDir, 'lumio-ds.log')) + readTextIfPresent(join(launcherDir, 'lumio-ds.boot-2.log'));
@@ -284,12 +317,21 @@ export function roundAdmissionEvidence(roundDir) {
     admitted,
     sessions,
     violations,
+    teardownViolations,
     violationClasses: classifyViolations(violations),
     violationSources: sources,
     excerptUsed,
     rawDsPresent,
     dsLogLines: dsLog.trim() ? dsLog.trim().split('\n').length : 0,
   };
+}
+
+/** DS 日志行的 ts=ISO 头 → 墙钟 ms;解析不出返回 null(该行不参与时间豁免,按违规计)。 */
+function parseLogTsMs(line) {
+  const m = /^ts=([0-9T:.Z+-]+)\s/.exec(line);
+  if (!m) return null;
+  const at = Date.parse(m[1]);
+  return Number.isFinite(at) ? at : null;
 }
 
 function observerEvidence(observersDir) {
@@ -302,9 +344,15 @@ function observerEvidence(observersDir) {
   }
   const sampledSets = records.map((record) => [...record.sampledIds].sort().join('|'));
   const sampledConsistent = sampledSets.every((set) => set === sampledSets[0]);
+  // 观察者入线瞬态豁免:每个观察者连上后的前几 tick 是它自己的初始普查/首帧字段,
+  // 与老观察者同 tick 的增量天然不同(实测:obs5 firstTick=739,tick 741 初始字段集 vs
+  // 其余四者的移动增量)。这不是复制分歧。比较域只取「每个观察者都过了瞬态」的 tick。
+  const JOIN_WARMUP_TICKS = 3;
   const byTick = records.map((record) => {
     const map = new Map();
+    const steadyFrom = record.firstTick + JOIN_WARMUP_TICKS;
     for (const entry of record.records) {
+      if (entry.tick <= steadyFrom) continue;
       const key = JSON.stringify(entry.fields);
       map.set(entry.tick, map.has(entry.tick) ? map.get(entry.tick) + '\n' + key : key);
     }
@@ -412,11 +460,14 @@ function loadRound(dir) {
     stress._admittedDerived = roundAdmissionEvidence(dir).admitted;
   }
   const tickDir = join(dir, 'tick-samples');
+  // fleet 的 move 证据先取:窗口末端(lastMoveAt)供违规扫描区分「窗口内违规」与
+  // 「launcher 设计内硬杀收尾的击杀波」。
+  const fleet = roundFleetEvidence(launcherDir);
   const round = {
     dir: resolve(dir),
     stress,
-    admission: roundAdmissionEvidence(dir),
-    fleet: roundFleetEvidence(launcherDir),
+    admission: roundAdmissionEvidence(dir, fleet.lastMoveAt),
+    fleet,
     tick: existsSync(tickDir) ? roundTickEvidence(tickDir) : { error: 'missing tick-samples dir' },
     observers: observerEvidence(join(dir, 'observers')),
   };

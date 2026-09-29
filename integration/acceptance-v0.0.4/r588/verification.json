@@ -1,0 +1,277 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "scope": "sample-100-bot-move",
+  "params": {
+    "bots": 100,
+    "durationSeconds": 300,
+    "staggerMs": 1200,
+    "tickRateHz": 20
+  },
+  "clock": "native-core-clock_now",
+  "criteria": {
+    "admitted": {
+      "required": 100,
+      "actual": 100,
+      "drops": 0,
+      "protocolViolation": 0,
+      "queueFull": 0
+    },
+    "frameBudget": {
+      "budgetMs": 50,
+      "p99Ms": 12.1124,
+      "overBudgetFrames": 0,
+      "clock": "native-core-clock_now"
+    },
+    "transformConsistency": {
+      "sampledBots": 5,
+      "mismatches": 0
+    },
+    "rss": {
+      "samples": [
+        117018624,
+        118259712,
+        119455744,
+        117551104,
+        121884672,
+        121937920
+      ],
+      "growthLimit": 0.05,
+      "startBytes": 117018624,
+      "endBytes": 121937920,
+      "basis": "observer-first-tick",
+      "windowTicks": [
+        634,
+        6634
+      ],
+      "sampling": "per-minute (1200 ticks @ 20 Hz) inside the post-admission steady window",
+      "endGrowthRatio": 0.04203857327872869,
+      "peakGrowthRatio": 0.04203857327872869,
+      "raw": {
+        "sampleCount": 9600,
+        "startBytes": 115240960,
+        "endBytes": 118640640,
+        "peakBytes": 138964992
+      }
+    }
+  },
+  "shas": {
+    "LumioSample": "b4eb1ec00b49a3030e5a0415f74cf2e9deb7336a",
+    "LumioGameEngine": "54930d947a4432e83a45fa5215e38dc08aee12f5",
+    "LumioNativeCore": "c93b5c62ebd6dab32a92f70efef3e5d07151f689",
+    "LumioVoxelEngine": "6eee59fbfd2439ce2b48e31d495c24d4d9076545",
+    "LumioGameRuntime": "d287bcd009a740de45fb279f26aa145ea1d200d5",
+    "LumioServer": "b89b8dbcb6495a52839bc9dd36b508159218d22d",
+    "LumioClient": "4d79f50b26392fe8360ddba2062328dc21d38b72",
+    "LumioPlatform": "49d5a4f0a05a166ca49d81b9157357a9cea8df08"
+  },
+  "evidence": {
+    "verificationJson": "verification.json",
+    "perBotNdjson": "bots/*.ndjson",
+    "timingCsv": "timing.csv",
+    "memoryCsv": "memory.csv"
+  },
+  "rounds": 2,
+  "launchStatus": "PASS",
+  "perRound": {
+    "round-1": {
+      "round": "round-1",
+      "dir": "C:\\Work\\accept-v003\\round-1",
+      "launcherStatus": "PASS",
+      "admitted": {
+        "required": 100,
+        "actual": 100,
+        "drops": 0,
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "fleet": {
+        "botsWithMoves": 99,
+        "fleetTotal": 5,
+        "fleetPassed": 99,
+        "minMovesPerBot": 967,
+        "totalMoves": 96600,
+        "spanSeconds": 509.981,
+        "lastMoveAt": 1790695594300
+      },
+      "tick": {
+        "incarnation": "569d08e2645b4c8387da14df8d953d54",
+        "ticks": 9600,
+        "p99Ms": 12.1124,
+        "frameBudgetMs": 50,
+        "overBudgetFrames": 0
+      },
+      "observers": {
+        "observers": 5,
+        "sampledIds": [
+          "00000000000000010000000000000019",
+          "0000000000000001000000000000002d",
+          "00000000000000010000000000000041",
+          "00000000000000010000000000000055",
+          "00000000000000010000000000000069"
+        ],
+        "sampledConsistent": true,
+        "comparedTicks": 6013,
+        "mismatches": 0,
+        "observerTicks": [
+          [
+            634,
+            6755
+          ],
+          [
+            660,
+            6755
+          ],
+          [
+            687,
+            6755
+          ],
+          [
+            713,
+            6755
+          ],
+          [
+            739,
+            6755
+          ]
+        ],
+        "firstTick": 634
+      },
+      "violations": 0,
+      "violationClasses": {
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "violationSourceCount": 12,
+      "excerptUsedAsViolationSource": false,
+      "rss": {
+        "windowBasis": "observer-first-tick",
+        "windowTicks": [
+          634,
+          6634
+        ],
+        "minuteSamples": [
+          117018624,
+          118259712,
+          119455744,
+          117551104,
+          121884672,
+          121937920
+        ],
+        "endGrowthRatio": 0.04203857327872869,
+        "peakGrowthRatio": 0.04203857327872869,
+        "rawSampleCount": 9600
+      },
+      "shas": {
+        "LumioSample": "b4eb1ec00b49a3030e5a0415f74cf2e9deb7336a",
+        "LumioGameEngine": "54930d947a4432e83a45fa5215e38dc08aee12f5",
+        "LumioNativeCore": "c93b5c62ebd6dab32a92f70efef3e5d07151f689",
+        "LumioVoxelEngine": "6eee59fbfd2439ce2b48e31d495c24d4d9076545",
+        "LumioGameRuntime": "d287bcd009a740de45fb279f26aa145ea1d200d5",
+        "LumioServer": "b89b8dbcb6495a52839bc9dd36b508159218d22d",
+        "LumioClient": "4d79f50b26392fe8360ddba2062328dc21d38b72",
+        "LumioPlatform": "49d5a4f0a05a166ca49d81b9157357a9cea8df08"
+      }
+    },
+    "round-2": {
+      "round": "round-2",
+      "dir": "C:\\Work\\accept-v003\\round-2",
+      "launcherStatus": "PASS",
+      "admitted": {
+        "required": 100,
+        "actual": 100,
+        "drops": 0,
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "fleet": {
+        "botsWithMoves": 99,
+        "fleetTotal": 5,
+        "fleetPassed": 99,
+        "minMovesPerBot": 949,
+        "totalMoves": 94612,
+        "spanSeconds": 510.339,
+        "lastMoveAt": 1790696643835
+      },
+      "tick": {
+        "incarnation": "61c0b913d5d648e48846323620b12097",
+        "ticks": 9600,
+        "p99Ms": 12.3371,
+        "frameBudgetMs": 50,
+        "overBudgetFrames": 0
+      },
+      "observers": {
+        "observers": 5,
+        "sampledIds": [
+          "00000000000000010000000000000019",
+          "0000000000000001000000000000002d",
+          "00000000000000010000000000000041",
+          "00000000000000010000000000000055",
+          "00000000000000010000000000000069"
+        ],
+        "sampledConsistent": true,
+        "comparedTicks": 6014,
+        "mismatches": 0,
+        "observerTicks": [
+          [
+            666,
+            6797
+          ],
+          [
+            696,
+            6797
+          ],
+          [
+            724,
+            6797
+          ],
+          [
+            754,
+            6797
+          ],
+          [
+            780,
+            6798
+          ]
+        ],
+        "firstTick": 666
+      },
+      "violations": 0,
+      "violationClasses": {
+        "protocolViolation": 0,
+        "queueFull": 0
+      },
+      "violationSourceCount": 12,
+      "excerptUsedAsViolationSource": false,
+      "rss": {
+        "windowBasis": "observer-first-tick",
+        "windowTicks": [
+          666,
+          6666
+        ],
+        "minuteSamples": [
+          124100608,
+          120717312,
+          122638336,
+          121602048,
+          122208256,
+          119517184
+        ],
+        "endGrowthRatio": -0.036933130899729355,
+        "peakGrowthRatio": 0,
+        "rawSampleCount": 9600
+      },
+      "shas": {
+        "LumioSample": "b4eb1ec00b49a3030e5a0415f74cf2e9deb7336a",
+        "LumioGameEngine": "54930d947a4432e83a45fa5215e38dc08aee12f5",
+        "LumioNativeCore": "c93b5c62ebd6dab32a92f70efef3e5d07151f689",
+        "LumioVoxelEngine": "6eee59fbfd2439ce2b48e31d495c24d4d9076545",
+        "LumioGameRuntime": "d287bcd009a740de45fb279f26aa145ea1d200d5",
+        "LumioServer": "b89b8dbcb6495a52839bc9dd36b508159218d22d",
+        "LumioClient": "4d79f50b26392fe8360ddba2062328dc21d38b72",
+        "LumioPlatform": "49d5a4f0a05a166ca49d81b9157357a9cea8df08"
+      }
+    }
+  },
+  "failures": []
+}
