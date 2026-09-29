@@ -38,6 +38,10 @@ public sealed class GeneratedRegistry : EcsRegistry
 
     public override void CreateWorldServices(World world) => RegisterGasTypes(new GasWorldContext(world));
 
+    public override IReadOnlyList<IWorldSubsystem> CreateWorldSubsystems() => new IWorldSubsystem[]
+    {
+    };
+
     private GeneratedRegistry()
     {
     }

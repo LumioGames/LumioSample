@@ -144,8 +144,11 @@ public sealed class SourceHygieneTests
     }
 
     [Fact]
-    public void GameplayOutputShipsNet10SimulationWithDedicatedServerHostBinding()
+    public void GameplayOutputShipsNet10SimulationWithWorldTickBinding()
     {
+        // B3: DedicatedServerHostBinding was split into the Hosting authority subsystems; the
+        // net10 Simulation.dll the sibling must resolve is now asserted by WorldTickBinding
+        // plus the Hosting assembly itself carrying the authority subsystem types.
         DirectoryInfo output = new(AppContext.BaseDirectory);
         // SDK artifacts output is bin/<project>/<pivot>; ordinary output is bin/<configuration>/<tfm>.
         string gameplayOutput = output.Parent!.Name == "Lumio.Sample.Gameplay.Tests"
@@ -154,15 +157,18 @@ public sealed class SourceHygieneTests
         string path = Path.Combine(gameplayOutput, "Lumio.GameRuntime.Simulation.dll");
         Assert.True(
             File.Exists(path),
-            "Lumio.GameRuntime.Simulation.dll is missing from Sample gameplay output; HostEntry reflects DedicatedServerHostBinding beside the assemblies server.json names. Probed: " + path);
+            "Lumio.GameRuntime.Simulation.dll is missing from Sample gameplay output. Probed: " + path);
 
         Assembly assembly = Assembly.LoadFrom(path);
         Assert.True(
-            assembly.GetType("Lumio.GameRuntime.Simulation.DedicatedServerHostBinding") is not null,
-            "Lumio.GameRuntime.Simulation.DedicatedServerHostBinding is missing from " + path + ". A netstandard2.1 Simulation.dll Compile-Removes that type; sibling must resolve the net10.0 TFM.");
-        Assert.True(
             assembly.GetType("Lumio.GameRuntime.Simulation.WorldTickBinding") is not null,
             "Lumio.GameRuntime.Simulation.WorldTickBinding is missing from " + path + ".");
+        string hosting = Path.Combine(gameplayOutput, "Lumio.GameRuntime.Hosting.dll");
+        Assert.True(File.Exists(hosting), "Lumio.GameRuntime.Hosting.dll is missing from " + hosting + ".");
+        Assembly hostingAssembly = Assembly.LoadFrom(hosting);
+        Assert.True(
+            hostingAssembly.GetType("Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem") is not null,
+            "Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem is missing from " + hosting + ".");
     }
 
     [Fact]

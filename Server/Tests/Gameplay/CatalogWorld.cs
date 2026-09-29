@@ -3,6 +3,8 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Lumio.Engine.SDK;
+using Lumio.GameRuntime.Ecs;
+using Lumio.GameRuntime.Hosting;
 using Xunit;
 
 namespace Lumio.Sample.Gameplay.Tests;
@@ -32,9 +34,6 @@ internal static class CatalogWorld
     internal const uint WallBlockId = 256u << 8;
 
     // One Chunk column of the 32×32 base map holds 4 Sections at layer 0; room to spare.
-    private const uint ResidentSectionBudget = 64;
-    private const uint ReceiptRetentionEntries = 2;
-
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
 
     internal sealed record Scene(byte[] Catalog, byte[] Capture, string BuildId, string AbiHash, string BinarySha256)
@@ -44,15 +43,12 @@ internal static class CatalogWorld
 
     internal static Scene Author()
     {
-        string native = Lumio.Sample.Tests.EngineRelease.Require(Lumio.Sample.Tests.EngineRelease.NativeLibrary,
-            "the wall scene is authored on the release native");
         string maps = Path.Combine(Lumio.Sample.Tests.EngineRelease.RepoRoot, "Server", "Assets", "Maps");
         byte[] catalog = File.ReadAllBytes(Path.Combine(maps, "official-catalog.json"));
         byte[] baseMap = File.ReadAllBytes(Path.Combine(maps, "sample.voxel"));
 
-        using LumioEngineLease sdk = LumioEngineSdk.LoadNative(native);
-        using NativeVoxelWorld world = sdk.CreateVoxelWorld("Authority", ResidentSectionBudget, ReceiptRetentionEntries, catalog);
-        world.Restore(baseMap);
+        using WorldManager manager = SampleWorldHarness.CreateServerWorld(baseMap);
+        NativeVoxelWorld world = NativeWorldVoxelResources.Require(manager).Voxel;
         VoxelBlockReadResult before = world.ReadCell(Wall);
         Assert.True(before.Presence is VoxelPresence.Ready or VoxelPresence.Unchanged,
             $"the base map must make the wall's Section ready; got {before.Presence}");
@@ -71,7 +67,8 @@ internal static class CatalogWorld
         }
         Assert.Equal(WallBlockId, world.ReadCell(Wall).BlockId);
         Assert.Equal(0u, world.ReadCell(Open).BlockId);
-        return new Scene(catalog, world.Capture(), sdk.BuildId, sdk.AbiHash, sdk.BinarySha256);
+        var identity = Lumio.Sample.Tests.EngineRelease.NativeBuildInfo();
+        return new Scene(catalog, world.Capture(), identity.BuildId, identity.AbiHash, identity.BinarySha256);
     }
 
     /// <summary>The three files the host suite reads (<c>LUMIO_TEST_VOXEL_FIXTURE_DIR</c>).</summary>
@@ -109,9 +106,8 @@ public sealed class CatalogWorldTests
         (string _, string _, string binarySha256) = Lumio.Sample.Tests.EngineRelease.NativeBuildInfo();
         Assert.Equal(binarySha256, scene.BinarySha256, ignoreCase: true);
 
-        using LumioEngineLease sdk = LumioEngineSdk.LoadNative(Lumio.Sample.Tests.EngineRelease.NativeLibrary);
-        using NativeVoxelWorld restored = sdk.CreateVoxelWorld("Authority", 64, 2, scene.Catalog);
-        restored.Restore(scene.Capture);
+        using WorldManager manager = SampleWorldHarness.CreateServerWorld(scene.Capture);
+        NativeVoxelWorld restored = NativeWorldVoxelResources.Require(manager).Voxel;
         Assert.Equal(CatalogWorld.WallBlockId, restored.ReadCell(CatalogWorld.Wall).BlockId);
         Assert.Equal(0u, restored.ReadCell(CatalogWorld.Open).BlockId);
 

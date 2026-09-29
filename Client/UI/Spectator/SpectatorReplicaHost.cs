@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using Lumio.GameRuntime.Hosting;
+using Lumio.Client.Engine.Wasm;
 using Lumio.Client.Gameplay.ECS;
 using Lumio.GameRuntime.Ecs;
 using Lumio.Client.Spectator;
@@ -31,7 +32,7 @@ public sealed class SpectatorReplicaHost : IDisposable
         _replica.ResetForNewSession(new ReplicaResetRequest(1));
     }
 
-    public static WorldManager CreateSampleWorld()
+    public static WorldManager CreateSampleWorld(LumioEngine engine, ReadOnlyMemory<byte> catalog)
     {
         // The Sample client registry declares a gameplay config contract, so the
         // binding is not optional: WorldManager refuses a registry/binding mismatch.
@@ -41,7 +42,9 @@ public sealed class SpectatorReplicaHost : IDisposable
         WorldManager manager;
         try
         {
-            manager = WorldManager.Create(GeneratedRegistry.Instance, config: config);
+            manager = engine.CreateWorld(new WorldCreationOptions(GeneratedRegistry.Instance) {
+                Config = config, Catalog = catalog, Subsystems = ReplicaSchedulingSubsystem.Create(),
+            });
         }
         catch
         {
@@ -49,8 +52,6 @@ public sealed class SpectatorReplicaHost : IDisposable
             throw;
         }
 
-        manager.Start(Thread.CurrentThread);
-        manager.BindTickLoop(new ReplicaApplyTickLoop(manager));
         return manager;
     }
 
@@ -72,6 +73,13 @@ public sealed class SpectatorReplicaHost : IDisposable
             {
                 if (_sections.Count >= MaxQueuedSectionFrames)
                     throw new InvalidOperationException("section_queue_overflow");
+                // Physics/prediction and rendering consume the same authority bytes in
+                // their Rust worlds; no C# Section store or decoder is introduced.
+                if (_replica.World.Manager.World.TryGetService<IWorldVoxelResources>(out var resources)
+                    && resources is EngineWasmWorldVoxelResources wasm)
+                    wasm.DeliverSection(section.SectionX, checked((byte)section.SectionY), section.SectionZ,
+                        section.SectionRevision, section.Encoding, section.PayloadSha256,
+                        section.HasBaseSectionRevision, section.BaseSectionRevision, section.Payload);
                 _sections.Enqueue(section);
                 return false;
             }

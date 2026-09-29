@@ -1,4 +1,5 @@
 using System;
+using Lumio.GameRuntime.Hosting;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -21,14 +22,8 @@ public sealed class ProductionMiningTests
     [Fact]
     public void AdmittedPlayerWalksToOreAndMinesThroughNativePhysics()
     {
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        using WorldManager manager = SampleGameplay.CreateWorld(521);
-        using DedicatedServerHostBinding host = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "official-catalog.json")),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "sample.voxel"))));
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        using WorldManager manager = SampleWorldHarness.CreateServerWorld(
+            File.ReadAllBytes(Path.Combine(SampleWorldHarness.RepoRoot, "Server", "Assets", "Maps", "sample.voxel")), 521);
         EntityOrder player = PlayerLifecycleTests.QueuePlayer(manager.World, "walk-to-mine");
         for (int tick = 0; tick < 4; tick++) manager.Tick();
         AbilityComponent owner = manager.World.Get<AbilityComponent>(player.AssignedId);
@@ -63,14 +58,8 @@ public sealed class ProductionMiningTests
     [Fact]
     public void ProductionAttachCreatesVeinsFromRestoredOreCells()
     {
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        using WorldManager manager = SampleGameplay.CreateWorld(520);
-        using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "official-catalog.json")),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "sample.voxel"))));
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        using WorldManager manager = SampleWorldHarness.CreateServerWorld(
+            File.ReadAllBytes(Path.Combine(SampleWorldHarness.RepoRoot, "Server", "Assets", "Maps", "sample.voxel")), 520);
         VeinLocationTestSupport.TickUntilScanSettles(manager);
         Assert.Equal(4, manager.World.Each<VeinReserveComponent>().Count());
     }
@@ -78,14 +67,8 @@ public sealed class ProductionMiningTests
     [Fact]
     public void ProductionAttachDiscoversOreOutsideAuthoringRectangle()
     {
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        using WorldManager manager = SampleGameplay.CreateWorld(522);
-        using DedicatedServerHostBinding binding = Assert.IsType<DedicatedServerHostBinding>(
-            DedicatedServerHostBinding.TryAttach(manager, KernelConfigurationFixture.Create(),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "official-catalog.json")),
-                File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "sample.voxel"))));
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        using WorldManager manager = SampleWorldHarness.CreateServerWorld(
+            File.ReadAllBytes(Path.Combine(SampleWorldHarness.RepoRoot, "Server", "Assets", "Maps", "sample.voxel")), 522);
         HostVoxelWorldAdapter adapter = VoxelGameplayBinding.Resolve(manager)!;
         const int offset = 10 * 16 + 10;
         VoxelCellQuery cell = adapter.Read(0, offset);
@@ -192,7 +175,7 @@ public sealed class ProductionMiningTests
         Assert.Single(first.World.Each<OrePileComponent>());
         Assert.Empty(second.World.Each<OrePileComponent>());
         Assert.Equal(1, second.Remaining);
-        first.Host.Dispose();
+        first.World.Manager.Dispose();
         Assert.True(second.Mine().Succeeded);
         second.FlushCreates();
         second.FlushCreates();
@@ -210,17 +193,10 @@ public sealed class ProductionMiningTests
         System.Numerics.Vector3 center = VeinLocationTestSupport.Locate(source.World, source.Vein).CellCenter;
         DualCutCaptureResult capture = source.Host.Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        byte[] catalog = File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "official-catalog.json"));
-        DedicatedServerRestoreResult restored = DedicatedServerHostBinding.RestoreNew(
-            capture.Checkpoint!.Value.Runtime, capture.Checkpoint.Value.Voxel, GeneratedRegistry.Instance,
-            KernelConfigurationFixture.Create(), null, source.World.Manager.IngressBudget, catalog, SampleConfigBinding.Load());
-        Assert.True(restored.Succeeded, restored.ErrorCode);
-        using DedicatedServerHostBinding host = restored.Binding!;
-        using WorldManager manager = host.Manager;
-        source.Host.Dispose();
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        using WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, source.World.Manager.World.InstanceId,
+            source.World.Manager.IngressBudget);
+        WorldPersistenceSubsystem host = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(manager);
+        source.World.Manager.Dispose();
         // A restored world's SampleMiningComponent starts with an empty location cache — it must
         // re-scan the (already-bound) Section to relearn where the live vein is (ADR-119 §4 B6).
         VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.TickUntilBound(manager, source.Vein);
@@ -244,15 +220,9 @@ public sealed class ProductionMiningTests
         Assert.Equal(center, manager.World.Get<LogicTransform>(drop.Entity).LocalPosition);
         DualCutCaptureResult depleted = host.Capture();
         Assert.True(depleted.Succeeded, depleted.ErrorCode);
-        DedicatedServerRestoreResult cold = DedicatedServerHostBinding.RestoreNew(
-            depleted.Checkpoint!.Value.Runtime, depleted.Checkpoint.Value.Voxel, GeneratedRegistry.Instance,
-            KernelConfigurationFixture.Create(), null, manager.IngressBudget, catalog, SampleConfigBinding.Load());
-        Assert.True(cold.Succeeded, cold.ErrorCode);
-        using DedicatedServerHostBinding coldHost = cold.Binding!;
-        using WorldManager coldManager = coldHost.Manager;
-        host.Dispose();
-        coldManager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(coldManager);
+        using WorldManager coldManager = SampleWorldHarness.RestoreServerWorld(depleted.Checkpoint!.Value, manager.World.InstanceId,
+            manager.IngressBudget);
+        manager.Dispose();
         coldManager.Tick();
         Assert.False(coldManager.World.IsLive(source.Vein));
         Assert.Equal(3, coldManager.World.Each<VeinReserveComponent>().Count());
@@ -284,8 +254,8 @@ public sealed class ProductionMiningTests
         long stamina = source.StaminaBase;
         int remaining = source.Remaining;
         Vector3 center = VeinLocationTestSupport.Locate(source.World, source.Vein).CellCenter;
-        using DedicatedServerHostBinding host = ColdRestore(source);
-        WorldManager manager = host.Manager;
+        using WorldManager host = ColdRestore(source);
+        WorldManager manager = host;
 
         Assert.Equal(stamina, Stamina(manager, source.Player));
         Assert.True(manager.World.IsLive(source.Vein));
@@ -325,8 +295,8 @@ public sealed class ProductionMiningTests
         Assert.Equal(stamina, source.StaminaBase);
         Assert.Empty(source.World.Each<OrePileComponent>());
 
-        using DedicatedServerHostBinding host = ColdRestore(source);
-        WorldManager manager = host.Manager;
+        using WorldManager host = ColdRestore(source);
+        WorldManager manager = host;
 
         Assert.Equal(stamina - cost, Stamina(manager, source.Player));
         OrePileComponent drop = Assert.Single(manager.World.Each<OrePileComponent>());
@@ -336,9 +306,9 @@ public sealed class ProductionMiningTests
         Assert.Equal(0U, VoxelGameplayBinding.Resolve(manager)!.Read(section, offset).BlockId);
 
         // Settled once, not once per boot: another cold start from here pays nothing further.
-        using DedicatedServerHostBinding second = ColdRestore(host);
-        Assert.Equal(stamina - cost, Stamina(second.Manager, source.Player));
-        Assert.Single(second.Manager.World.Each<OrePileComponent>());
+        using WorldManager second = ColdRestore(host);
+        Assert.Equal(stamina - cost, Stamina(second, source.Player));
+        Assert.Single(second.World.Each<OrePileComponent>());
     }
 
     [Fact]
@@ -356,10 +326,10 @@ public sealed class ProductionMiningTests
         Assert.Equal(stamina - cost, source.StaminaBase);
         Assert.Single(source.World.Each<OrePileComponent>());
 
-        using DedicatedServerHostBinding host = ColdRestore(source);
-        Assert.Equal(stamina - cost, Stamina(host.Manager, source.Player));
-        Assert.Single(host.Manager.World.Each<OrePileComponent>());
-        Assert.False(host.Manager.World.IsLive(source.Vein));
+        using WorldManager host = ColdRestore(source);
+        Assert.Equal(stamina - cost, Stamina(host, source.Player));
+        Assert.Single(host.World.Each<OrePileComponent>());
+        Assert.False(host.World.IsLive(source.Vein));
     }
 
     [Fact]
@@ -385,8 +355,8 @@ public sealed class ProductionMiningTests
         Assert.NotEqual(0U, source.Adapter.Read(section, offset).BlockId);
         Assert.Equal(stamina, source.StaminaBase);
 
-        using DedicatedServerHostBinding host = ColdRestore(source);
-        WorldManager manager = host.Manager;
+        using WorldManager host = ColdRestore(source);
+        WorldManager manager = host;
 
         Assert.Equal(stamina, Stamina(manager, source.Player));
         Assert.Empty(manager.World.Each<OrePileComponent>());
@@ -430,9 +400,9 @@ public sealed class ProductionMiningTests
             Assert.Empty(source.World.Each<OrePileComponent>());
             return;
         }
-        using DedicatedServerHostBinding host = ColdRestore(source);
-        Assert.Equal(stamina, Stamina(host.Manager, source.Player));
-        Assert.Empty(host.Manager.World.Each<OrePileComponent>());
+        using WorldManager host = ColdRestore(source);
+        Assert.Equal(stamina, Stamina(host, source.Player));
+        Assert.Empty(host.World.Each<OrePileComponent>());
     }
 
     [Theory]
@@ -447,18 +417,17 @@ public sealed class ProductionMiningTests
         Assert.True(source.Mine().Succeeded);
         source.FlushCreates();
         DualCutCheckpointPayload cut = source.Host.Capture().Checkpoint!.Value;
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        DedicatedServerRestoreResult restored = DedicatedServerHostBinding.RestoreNew(
-            legacy ? source.World.Manager.CaptureSnapshot() : cut.Runtime, cut.Voxel, GeneratedRegistry.Instance,
-            KernelConfigurationFixture.Create(), null, source.World.Manager.IngressBudget,
-            File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "official-catalog.json")), SampleConfigBinding.Load());
-        Assert.True(restored.Succeeded, restored.ErrorCode);
-        using DedicatedServerHostBinding host = restored.Binding!;
-        using WorldManager manager = host.Manager;
+        using WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
+        {
+            InstanceId = source.World.InstanceId,
+            Config = SampleConfigBinding.Load(),
+            Catalog = SampleWorldHarness.OfficialCatalog(),
+            Snapshot = legacy ? source.World.Manager.CaptureSnapshot() : cut.Runtime,
+            VoxelSnapshot = cut.Voxel,
+            IngressBudget = source.World.Manager.IngressBudget,
+        });
         Assert.Equal(stamina, Stamina(manager, source.Player));
         Assert.Empty(manager.World.Each<OrePileComponent>());
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
         manager.Tick();
         Assert.Equal(legacy ? stamina : stamina - cost, Stamina(manager, source.Player));
         Assert.Equal(legacy ? 0 : 1, manager.World.Each<OrePileComponent>().Count());
@@ -473,32 +442,24 @@ public sealed class ProductionMiningTests
     private static long Stamina(WorldManager manager, NetEntityId player) =>
         manager.World.Get<AttributeComponent>(player).GetBaseValue(SampleConfigBinding.For(manager.World).Stamina.Name);
 
-    /// <summary>Captures the dual cut, boots a new host from it and disposes the source.</summary>
-    private static DedicatedServerHostBinding ColdRestore(SampleWorldHarness source)
+    /// <summary>Captures the dual cut, boots a new world from it and disposes the source.</summary>
+    private static WorldManager ColdRestore(SampleWorldHarness source)
     {
-        DedicatedServerHostBinding host = ColdRestore(source.Host);
-        source.Host.Dispose();
-        return host;
+        WorldManager manager = ColdRestore(source.World.Manager);
+        source.World.Manager.Dispose();
+        return manager;
     }
 
-    /// <summary>Boots a new host from <paramref name="from"/>'s dual cut and ticks it into settlement.</summary>
-    private static DedicatedServerHostBinding ColdRestore(DedicatedServerHostBinding from)
+    /// <summary>Boots a new world from <paramref name="from"/>'s dual cut and ticks it into settlement.</summary>
+    private static WorldManager ColdRestore(WorldManager from)
     {
-        DualCutCaptureResult capture = from.Capture();
+        DualCutCaptureResult capture = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(from).Capture();
         Assert.True(capture.Succeeded, capture.ErrorCode);
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        DedicatedServerRestoreResult restored = DedicatedServerHostBinding.RestoreNew(
-            capture.Checkpoint!.Value.Runtime, capture.Checkpoint.Value.Voxel, GeneratedRegistry.Instance,
-            KernelConfigurationFixture.Create(), null, from.Manager.IngressBudget,
-            File.ReadAllBytes(Path.Combine(root, "Server", "Assets", "Maps", "official-catalog.json")), SampleConfigBinding.Load());
-        Assert.True(restored.Succeeded, restored.ErrorCode);
-        DedicatedServerHostBinding host = restored.Binding!;
-        WorldManager manager = host.Manager;
-        manager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(manager);
+        WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, from.World.InstanceId,
+            from.IngressBudget);
         // The first business frame consumes restored results; later ticks also exercise non-repetition.
         for (int tick = 0; tick < 3; tick++) manager.Tick();
-        return host;
+        return manager;
     }
 
     [Fact]
@@ -524,15 +485,10 @@ public sealed class ProductionMiningTests
         // First restart: the drop must not come back and the ore ledger must be the settled value.
         DualCutCaptureResult firstCapture = source.Host.Capture();
         Assert.True(firstCapture.Succeeded, firstCapture.ErrorCode);
-        DedicatedServerRestoreResult first = DedicatedServerHostBinding.RestoreNew(
-            firstCapture.Checkpoint!.Value.Runtime, firstCapture.Checkpoint.Value.Voxel, GeneratedRegistry.Instance,
-            KernelConfigurationFixture.Create(), null, source.World.Manager.IngressBudget, catalog, SampleConfigBinding.Load());
-        Assert.True(first.Succeeded, first.ErrorCode);
-        using DedicatedServerHostBinding firstHost = first.Binding!;
-        using WorldManager firstManager = firstHost.Manager;
-        source.Host.Dispose();
-        firstManager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(firstManager);
+        using WorldManager firstManager = SampleWorldHarness.RestoreServerWorld(firstCapture.Checkpoint!.Value,
+            source.World.Manager.World.InstanceId, source.World.Manager.IngressBudget);
+        WorldPersistenceSubsystem firstHost = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(firstManager);
+        source.World.Manager.Dispose();
         firstManager.Tick();
         Assert.Empty(firstManager.World.Each<OrePileComponent>());
         Assert.False(firstManager.World.IsLive(drop));
@@ -543,15 +499,9 @@ public sealed class ProductionMiningTests
         // Second restart from the restored world: still no drop, ledger unchanged, nothing replayed.
         DualCutCaptureResult secondCapture = firstHost.Capture();
         Assert.True(secondCapture.Succeeded, secondCapture.ErrorCode);
-        DedicatedServerRestoreResult second = DedicatedServerHostBinding.RestoreNew(
-            secondCapture.Checkpoint!.Value.Runtime, secondCapture.Checkpoint.Value.Voxel, GeneratedRegistry.Instance,
-            KernelConfigurationFixture.Create(), null, firstManager.IngressBudget, catalog, SampleConfigBinding.Load());
-        Assert.True(second.Succeeded, second.ErrorCode);
-        using DedicatedServerHostBinding secondHost = second.Binding!;
-        using WorldManager secondManager = secondHost.Manager;
-        firstHost.Dispose();
-        secondManager.Start(Thread.CurrentThread);
-        WorldTickBinding.Bind(secondManager);
+        using WorldManager secondManager = SampleWorldHarness.RestoreServerWorld(secondCapture.Checkpoint!.Value,
+            firstManager.World.InstanceId, firstManager.IngressBudget);
+        firstManager.Dispose();
         secondManager.Tick();
         Assert.Empty(secondManager.World.Each<OrePileComponent>());
         Assert.False(secondManager.World.IsLive(drop));

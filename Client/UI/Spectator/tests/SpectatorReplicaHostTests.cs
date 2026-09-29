@@ -312,11 +312,13 @@ public sealed class SpectatorReplicaHostTests
     public void LateSpectatorCensusOfHundredPlayerRoomAppliesAsFullSnapshot()
     {
         const int players = 100;
-        WorldManager server = WorldManager.Create(new ServerSideRegistryWrapper(GeneratedRegistry.Instance), 0x1000000000000001UL);
-        server.World.Single<WorldSaveComponent>().TickRate.Value = 20UL;
+        using WorldManager server = TestEngine.Value.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(new ServerSideRegistryWrapper(GeneratedRegistry.Instance))
+        {
+            InstanceId = 0x1000000000000001UL,
+            Catalog = OfficialCatalog(),
+            TickRate = 20U,
+        });
         SpectatorDump.BindSampleAttributeSeeds(server);
-        server.Start(Thread.CurrentThread);
-        server.BindTickLoop(new ServerProjectTickLoop(server));
         // The client compile drops *.Server.cs (IdentityComponent.AccountId), so
         // EntityBindingQuery.Admit cannot run here. Create the observers the way
         // Admit does internally: pending create + Connected observer + generation 1.
@@ -381,56 +383,12 @@ public sealed class SpectatorReplicaHostTests
         public override Type WorldEntityType => _inner.WorldEntityType;
         public override IReadOnlyList<Lumio.GameRuntime.Ecs.Annotations.FieldAttributeDeclaration> AttributeDeclarations => _inner.AttributeDeclarations;
         public override Component[] CreateComponents(Type entityType) => _inner.CreateComponents(entityType);
+        public override void CreateWorldServices(World world) => _inner.CreateWorldServices(world);
         public override string WireName(Type entityType) => _inner.WireName(entityType);
         public override bool TryResolveEntityType(string name, out Type entityType) => _inner.TryResolveEntityType(name, out entityType);
         public override bool IsEntityType(Type concrete, Type query) => _inner.IsEntityType(concrete, query);
         public override int ComponentIndex(Type entityType, Type componentType) => _inner.ComponentIndex(entityType, componentType);
         public override int ComponentIndex(Type entityType, string componentName) => _inner.ComponentIndex(entityType, componentName);
-    }
-
-    /// <summary>Managed tick loop for the producer world: same phase order as
-    /// WorldTickBinding's replication slice, without NativeLoader (tests must
-    /// not pin any engine native ABI).</summary>
-    private sealed class ServerProjectTickLoop : IWorldTickLoop
-    {
-        private static readonly System.Reflection.BindingFlags Flags =
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
-        private readonly WorldManager _manager;
-        private readonly System.Reflection.MethodInfo _capture;
-        private readonly System.Reflection.MethodInfo _apply;
-        private readonly System.Reflection.MethodInfo _commit;
-        private readonly System.Reflection.MethodInfo _project;
-        private readonly System.Reflection.MethodInfo _finalize;
-        private readonly System.Reflection.MethodInfo _egress;
-
-        public ServerProjectTickLoop(WorldManager manager)
-        {
-            _manager = manager;
-            System.Type type = typeof(WorldManager);
-            _capture = Required(type, "CaptureIngress");
-            _apply = Required(type, "ApplyCapturedInputs");
-            _commit = Required(type, "CommitCommandBuffer");
-            _project = Required(type, "ProjectReplication");
-            _finalize = Required(type, "FinalizeGasAndEvents");
-            _egress = Required(type, "PublishEgress");
-        }
-
-        public bool IsFaulted => false;
-        public string FaultedPhaseName => string.Empty;
-        public void SettlePrediction(World world) { }
-
-        public void ExecuteTick()
-        {
-            _capture.Invoke(_manager, null);
-            _apply.Invoke(_manager, null);
-            _commit.Invoke(_manager, null);
-            _project.Invoke(_manager, null);
-            _finalize.Invoke(_manager, null);
-            _egress.Invoke(_manager, null);
-        }
-
-        private static System.Reflection.MethodInfo Required(System.Type type, string name)
-            => type.GetMethod(name, Flags) ?? throw new InvalidOperationException("WorldManager missing " + name);
     }
 
     private static byte[] InitialChange(NetEntityId self) => WireCodec.EncodePack(new WorldChangeMessage(1, 0,
@@ -441,6 +399,20 @@ public sealed class SpectatorReplicaHostTests
         },
         Array.Empty<FieldChange>(), Array.Empty<DestroyRecord>(), Array.Empty<ClientRpcRecord>()));
 
-    internal static WorldManager CreateManager() => SpectatorReplicaHost.CreateSampleWorld();
+    internal static WorldManager CreateManager() => SpectatorReplicaHost.CreateSampleWorld(TestEngine.Value, OfficialCatalog());
+
+    /// <summary>The game's explicit catalog; every engine world carries one (B3).</summary>
+    internal static byte[] OfficialCatalog() => File.ReadAllBytes(Path.Combine(
+        Lumio.Sample.Tests.EngineRelease.RepoRoot,
+        "Server", "Assets", "Maps", "official-catalog.json"));
+
+    /// <summary>One process engine for this test assembly, on the release native (B3).</summary>
+    private static readonly System.Lazy<Lumio.GameRuntime.Hosting.LumioEngine> TestEngine = new(() =>
+        Lumio.Sample.Tests.EngineRelease.Engine(
+            new Lumio.Engine.NativeLoader.KernelConfig
+            {
+                MaxContexts = 16, MaxHandles = 256, MaxNativeBytes = 64 * 1024 * 1024,
+                MaxJobsQueued = 8, MaxJobsRunning = 2, MaxCompletionItems = 16, LogMailboxCapacity = 128,
+            }));
 }
 

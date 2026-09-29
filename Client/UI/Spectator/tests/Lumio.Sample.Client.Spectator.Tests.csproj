@@ -22,6 +22,7 @@
   <ItemGroup>
     <Compile Include="../SpectatorDump.cs" Link="Spectator/SpectatorDump.cs" />
     <Compile Include="../SpectatorReplicaHost.cs" Link="Spectator/SpectatorReplicaHost.cs" />
+    <Compile Include="../../../../Server/Tests/EngineRelease.cs" Link="EngineRelease.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" Version="3.2.2" />
@@ -40,6 +41,7 @@
     <Reference Include="Lumio.Client.Gameplay.ECS" HintPath="$(LumioSpectatorReplicaDir)Lumio.Client.Gameplay.ECS.dll" />
     <Reference Include="Lumio.Client.Log" HintPath="$(LumioSpectatorReplicaDir)Lumio.Client.Log.dll" />
     <Reference Include="Lumio.Client.Spectator" HintPath="$(LumioSpectatorReplicaDir)Lumio.Client.Spectator.dll" />
+    <Reference Include="Lumio.Client.Engine.Wasm" HintPath="$(LumioSpectatorReplicaDir)Lumio.Client.Engine.Wasm.dll" />
     <ProjectReference Include="$(LumioSampleRepoRoot)Gameplay/Lumio.Sample.Gameplay.csproj">
       <Properties>LumioEcsSide=client</Properties>
     </ProjectReference>
