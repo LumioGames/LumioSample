@@ -1,0 +1,3 @@
+﻿{"kind":"started","meaning":"process_up","account":"host","pid":47244,"state":"Disconnected","utc":"2026-09-29T03:56:54.2607258Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctPersistC01","pid":47244,"state":"Active","utc":"2026-09-29T03:56:56.2020485Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctPersistC01","pid":47244,"state":"Active","utc":"2026-09-29T03:56:56.2022999Z"}
