@@ -80,8 +80,9 @@ public sealed class MiningRpcBatchingTests
             Assert.Equal(1UL, operation.Operation.ConnectionGeneration);
             Assert.Equal(operation.Operation.Sender == fixture.A ? "miner-a" : "miner-b", operation.Operation.Connection);
         }
-        Assert.Equal(fixture.A, rows.Results[0].Operation!.Value.Sender);
-        Assert.Equal(fixture.B, rows.Results[1].Operation!.Value.Sender);
+        // ADR-129 preserves the server's actual arrival order across connections.
+        Assert.Equal(reverseArrival ? fixture.B : fixture.A, rows.Results[0].Operation!.Value.Sender);
+        Assert.Equal(reverseArrival ? fixture.A : fixture.B, rows.Results[1].Operation!.Value.Sender);
 
         StableResult<DualCutCheckpointPayload?> capture = fixture.Host.Capture();
         Assert.True(capture.Succeeded, capture.ErrorId);
@@ -121,7 +122,7 @@ public sealed class MiningRpcBatchingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void SameDepositCanonicalFirstPlayerWinsRegardlessOfArrival(bool reverseArrival)
+    public void SameDepositFirstArrivingPlayerWins(bool reverseArrival)
     {
         using TempConfig config = TempConfig.WithHits(1);
         using var fixture = new RpcWorld();
@@ -129,17 +130,19 @@ public sealed class MiningRpcBatchingTests
         PlayerLifecycleTests.PlaceFixturePlayer(fixture.Manager.World, fixture.B,
             VeinLocationTestSupport.Locate(fixture.Manager.World, vein.Entity).CellCenter);
         long before = fixture.Stamina(fixture.A);
+        NetEntityId winner = reverseArrival ? fixture.B : fixture.A;
+        NetEntityId rejected = reverseArrival ? fixture.A : fixture.B;
         fixture.SendPair(1, vein.Entity, vein.Entity, reverseArrival);
         fixture.Manager.Tick();
         WorldOperationResult[] results = fixture.Manager.DrainOutbox().Operations.ToArray();
-        Assert.Equal(OperationOutcomeKind.Succeeded, results.Single(row => row.Operation.Sender == fixture.A).Outcome.Kind);
-        Assert.Equal(OperationOutcomeKind.BusinessReject, results.Single(row => row.Operation.Sender == fixture.B).Outcome.Kind);
-        Assert.Single(fixture.Adapter.CaptureResultCheckpoint().EnsureSucceeded().Results);
+        Assert.Equal(OperationOutcomeKind.Succeeded, results.Single(row => row.Operation.Sender == winner).Outcome.Kind);
+        Assert.Equal(OperationOutcomeKind.BusinessReject, results.Single(row => row.Operation.Sender == rejected).Outcome.Kind);
+        Assert.Equal(winner, Assert.Single(fixture.Adapter.CaptureResultCheckpoint().EnsureSucceeded().Results).Operation!.Value.Sender);
         Assert.Equal(before, fixture.Stamina(fixture.A));
         Assert.Equal(before, fixture.Stamina(fixture.B));
         fixture.Manager.Tick();
-        Assert.Equal(before - SampleConfigBinding.For(fixture.Manager.World).Mining.StaminaCost, fixture.Stamina(fixture.A));
-        Assert.Equal(before, fixture.Stamina(fixture.B));
+        Assert.Equal(before - SampleConfigBinding.For(fixture.Manager.World).Mining.StaminaCost, fixture.Stamina(winner));
+        Assert.Equal(before, fixture.Stamina(rejected));
         Assert.Single(fixture.Manager.World.Each<OrePileComponent>());
     }
 

@@ -1,0 +1,2 @@
+判据4 PASS：四类各出现一次——体素写（DS 日志 voxel.* 事件见 ds-log-events.txt）、矿脉储量在实体（VeinReserveComponent+稀疏引用，具名测试 139/139 内含）、掉落为实体（结构单 OreDropEntity，step12 挖穿掉落+step13 拾取 PASS）、火花仅 .Client.cs（MiningFx.Client.cs 不在 server 生成面，SampleWiringTests 守护）。
+判据5 PASS：step9-13 链路全 PASS（前两镐储量-1 方块不变=step9/10 mining_stage/pre；第三镐挖穿=vein_dug_through、同帧地形单=mining_applied；掉落实体=step12 amounts；拾取 Effect=step13 drop_collected；体力不足拒绝与竞争只兑现一次由 MiningRpcBatchingTests/SameDepositCanonicalFirstPlayerWins 覆盖，139/139 绿）。

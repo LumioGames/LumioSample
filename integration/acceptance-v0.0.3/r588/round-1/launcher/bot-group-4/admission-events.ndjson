@@ -1,0 +1,17 @@
+﻿{"kind":"started","meaning":"process_up","account":"host","pid":26636,"state":"Disconnected","utc":"2026-09-29T04:11:31.3244827Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq62","pid":26636,"state":"Active","utc":"2026-09-29T04:11:34.0450951Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq62","pid":26636,"state":"Active","utc":"2026-09-29T04:11:34.0454053Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq63","pid":26636,"state":"Active","utc":"2026-09-29T04:11:35.2342687Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq63","pid":26636,"state":"Active","utc":"2026-09-29T04:11:35.2348161Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq64","pid":26636,"state":"Active","utc":"2026-09-29T04:11:36.3840547Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq64","pid":26636,"state":"Active","utc":"2026-09-29T04:11:36.3843355Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq65","pid":26636,"state":"Active","utc":"2026-09-29T04:11:37.6420743Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq65","pid":26636,"state":"Active","utc":"2026-09-29T04:11:37.6424618Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq66","pid":26636,"state":"Active","utc":"2026-09-29T04:11:38.8308093Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq66","pid":26636,"state":"Active","utc":"2026-09-29T04:11:38.8311921Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq67","pid":26636,"state":"Active","utc":"2026-09-29T04:11:40.0756251Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq67","pid":26636,"state":"Active","utc":"2026-09-29T04:11:40.0758880Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq68","pid":26636,"state":"Active","utc":"2026-09-29T04:11:41.2973185Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq68","pid":26636,"state":"Active","utc":"2026-09-29T04:11:41.2976033Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq69","pid":26636,"state":"Active","utc":"2026-09-29T04:11:42.4944588Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq69","pid":26636,"state":"Active","utc":"2026-09-29T04:11:42.4947178Z"}

@@ -1,0 +1,21 @@
+{
+  "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+  "rows": [
+    {
+      "cooldown_frames": 150,
+      "damage": 120,
+      "effect_id": "50001",
+      "id": 40001,
+      "name": "fireball"
+    },
+    {
+      "cooldown_frames": 90,
+      "damage": 90,
+      "effect_id": "50002",
+      "id": 40002,
+      "name": "frostbolt"
+    }
+  ],
+  "table": "skills",
+  "target": "S"
+}

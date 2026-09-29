@@ -202,7 +202,7 @@ public sealed class SampleMiningPlanTests
     }
 
     /// <summary>
-    /// The bot assembly carries no gameplay table number. It has no business knowing what a hit
+    /// The bot assembly carries no gameplay rule number. It has no business knowing what a hit
     /// costs, how many hits break a vein or how much ore one holds: those are authority rules it
     /// observes the effect of.
     /// </summary>
@@ -222,6 +222,7 @@ public sealed class SampleMiningPlanTests
 
         string bots = Path.Combine(RepoRoot, "Client", "Bots");
         Assert.True(Directory.Exists(bots), bots);
+        var measurementStatements = new HashSet<string>(StringComparer.Ordinal);
         foreach (string file in Directory.GetFiles(bots, "*.cs", SearchOption.AllDirectories))
         {
             if (Array.Exists(GeneratedDirectories, directory =>
@@ -230,14 +231,40 @@ public sealed class SampleMiningPlanTests
             foreach (string line in File.ReadLines(file))
             {
                 string code = line.Split("//", 2, StringSplitOptions.None)[0].Trim();
+                string relativeFile = Path.GetRelativePath(bots, file).Replace('\\', '/');
+                if (IsMeasurementStatement(relativeFile, code))
+                    Assert.True(measurementStatements.Add(code), "Duplicate measurement exception: " + code);
                 foreach (string token in banned)
                 {
-                    string pattern = @"(?<![A-Za-z0-9_.])" + Regex.Escape(token) + @"[uUlLfFdDmM]?(?![A-Za-z0-9_.])";
-                    Assert.False(Regex.IsMatch(code, pattern), file + " embeds config token " + token + ": " + code);
+                    Assert.False(EmbedsGameplayNumber(relativeFile, code, token), file + " embeds config token " + token + ": " + code);
                 }
             }
         }
+        Assert.True(measurementStatements.SetEquals(MeasurementStatements), "Measurement exception statements changed; review ADR 0004.");
     }
+
+    // ADR 0004: exact statements only, never a file-wide or numeric-value exemption.
+    private static readonly HashSet<string> MeasurementStatements = new(StringComparer.Ordinal)
+    {
+        "_nextSend = now + Stopwatch.Frequency / 4;",
+        "_random ^= _random << 13;",
+        "(int dx, int dz) = (_random % 4) switch { 0 => (1, 0), 1 => (-1, 0), 2 => (0, 1), _ => (0, -1) };",
+    };
+
+    private static bool IsMeasurementStatement(string relativeFile, string code) =>
+        relativeFile == "WeakNetworkMoveScenario.cs" && MeasurementStatements.Contains(code);
+
+    private static bool EmbedsGameplayNumber(string relativeFile, string code, string token) =>
+        !IsMeasurementStatement(relativeFile, code) && Regex.IsMatch(code,
+            @"(?<![A-Za-z0-9_.])" + Regex.Escape(token) + @"[uUlLfFdDmM]?(?![A-Za-z0-9_.])");
+
+    [Theory]
+    [InlineData("WeakNetworkMoveScenario.cs", "const int staminaCost = 13;", "13")]
+    [InlineData("WeakNetworkMoveScenario.cs", "int ore = 4;", "4")]
+    [InlineData("WeakNetworkMoveScenario.cs", "_random ^= _random << 13; int cost = 13;", "13")]
+    [InlineData("MiningScenario.cs", "_nextSend = now + Stopwatch.Frequency / 4;", "4")]
+    public void MeasurementExceptionsStillRejectGameplayLiterals(string relativeFile, string code, string token) =>
+        Assert.True(EmbedsGameplayNumber(relativeFile, code, token));
 
     private static readonly string[] GeneratedDirectories = { "obj", "bin" };
 

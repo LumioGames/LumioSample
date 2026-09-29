@@ -1,0 +1,75 @@
+{
+  "baselineId": "LGE-V1.4-2026-08-27",
+  "compilerHash": "97415650f9e7f453d846a2c1fe0a04e26fcdb7cda3d1fd8c869e7d1343258c7b",
+  "contentFingerprint": "a5bb9ad55a02768d4e102c18bd688c5554a9871496a55832a6c0a892756403f8",
+  "endpoint": "server",
+  "formatVersion": 1,
+  "inputHash": "f0eac4d5213ebd7081c846cbb1213ee41ab2cd1d262d3fccb938045c7eb98e37",
+  "origins": "origins.json",
+  "outputHash": "323f9947ca1fb928fcb248b79bbf6a1b6dad995505531d6202e6720ec5e1d3f6",
+  "packageFingerprint": "eba108cd5f7ee48c0f332aa8d5e081e92963809f530a747287787ca2fab92b09",
+  "projectionRoots": {
+    "S": "server/manifest.json",
+    "V": "voxel/manifest.json"
+  },
+  "publicRoot": "eba108cd5f7ee48c0f332aa8d5e081e92963809f530a747287787ca2fab92b09",
+  "releaseFingerprint": "ea1699796e175a7ca09f7abce063d3faea79c89f6a22842e838eeed64fe433d9",
+  "revisionId": "a5bb9ad55a02768d4e102c18bd688c5554a9871496a55832a6c0a892756403f8",
+  "sharedPrediction": {
+    "columns": [
+      "mining.cooldown_ticks",
+      "mining.stamina_cost",
+      "movement.step_meters",
+      "movement.sweep_radius_meters"
+    ],
+    "fingerprint": "8e526dea15af4d974edf7f3485587605628183e4eaab65c25868cd8058721ec9",
+    "specVersion": "split-export/1"
+  },
+  "sourceFingerprint": "85f8949a91e579ee95f8f3c8cce608252f090099f1cc9a4de664ac8596a814b7",
+  "specVersion": "split-export/1",
+  "tables": [
+    {
+      "contentFingerprint": "25643aa38fc00fb137166d865a4a4c3d2df4b2e539939aae6ae86fe443d336a4",
+      "sourceFingerprint": "b5fdea0ba559e21c224c5e45058b31b5461238f9135609995dd4fc68e250d7db",
+      "table": "attributes"
+    },
+    {
+      "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+      "sourceFingerprint": "3ea963e5ded01171a0ed4a0b70f2154688648f3d14055ef56d478b8ba1bd0357",
+      "table": "drops"
+    },
+    {
+      "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
+      "sourceFingerprint": "c800925661133fd9cb1b6591eeb3038de7253f813c6b03bbb2c9f05f622d2bf7",
+      "table": "effects"
+    },
+    {
+      "contentFingerprint": "cad70e55770cdc1b63120f0c6196bda73002b031016c21d3c706754b81f131e4",
+      "sourceFingerprint": "ed9b0d9718f41f272cd1a8f1a6d519a70d98f733d9d4909a74775704f6f7135f",
+      "table": "map"
+    },
+    {
+      "contentFingerprint": "a310a9f63a25f0a0bf38e900762e087163b88834ad1d2a952ec9c2e11f634216",
+      "sourceFingerprint": "6040f58c4e3432c5c69f59ebdcde9b3a8e6a9fad3ceb37c3dfbf2c1e4fd37ba2",
+      "table": "mining"
+    },
+    {
+      "contentFingerprint": "15521920e3f3740715b31dd8d2bce1b455b4d7619a0b696401fb7590e540438a",
+      "sourceFingerprint": "52ee9bddfe016869f003cbf71dd32a4a6026aec0fe7feb018787af9335b44bbf",
+      "table": "movement"
+    },
+    {
+      "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+      "sourceFingerprint": "a10eb3b674957381a510f243e95c4a55bd6b6a22af78405329af4184acfc3325",
+      "table": "skills"
+    }
+  ],
+  "targetManifests": {
+    "S": "server/manifest.json",
+    "V": "voxel/manifest.json"
+  },
+  "targets": [
+    "S",
+    "V"
+  ]
+}

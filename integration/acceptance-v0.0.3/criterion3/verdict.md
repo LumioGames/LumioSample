@@ -1,0 +1,1 @@
+判据3 PASS：源表 ore_per_vein 4→7（Gameplay/Tables/tables/mining.txt）→ sync-config-export 重导出（指纹合法）→ 换文件重启 → step12 amounts=[7]，全步 PASS；玩法程序集 sha256 前后一致（dll-before/after.txt），未重编。反例：手改导出 JSON 被导出指纹拒绝（TABLE_PACKAGE_FINGERPRINT_MISMATCH，见 c3-fingerprint-reject.log 摘自 .run-tour-c3b）。已还原 4。
