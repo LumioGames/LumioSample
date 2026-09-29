@@ -229,7 +229,7 @@ public sealed class PlayerLifecycleTests : IDisposable
         }).EnsureSucceeded();
         AttributeComponent next = restored.World.Get<AttributeComponent>(world.Player);
         // CURRENT is derived, never serialized; phase 9 uses this same evaluator.
-        AttributeEvaluator.Recompute(restored.World);
+        AttributeComponent.Recompute(restored.World);
         Assert.Equal(spent, next.GetBaseValue(SampleConfigBinding.For(world.World).Stamina.Name));
         Assert.Equal(spent, next.GetCurrentValue(SampleConfigBinding.For(world.World).Stamina.Name));
         Assert.Equal(ore, next.GetBaseValue(SampleConfigBinding.For(world.World).Ore.Name));

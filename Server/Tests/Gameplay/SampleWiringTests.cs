@@ -327,14 +327,14 @@ public sealed class SampleWiringTests : IDisposable
         world.FlushCreates();
         long stamina = world.StaminaBase;
         int remaining = world.Remaining;
-        int fxBefore = OnFxLog.ForWorld(world.World).Count;
+        int fxBefore = Effects.CapturesForWorld(world.World).Count;
 
         AbilityActivateResult result = world.Mine();
         Assert.False(result.Succeeded);
         Assert.Equal(3, result.RejectedStep);
         Assert.Equal(stamina, world.StaminaBase);
         Assert.Equal(remaining, world.Remaining);
-        Assert.Equal(fxBefore, OnFxLog.ForWorld(world.World).Count);
+        Assert.Equal(fxBefore, Effects.CapturesForWorld(world.World).Count);
     }
 
     [Fact]
@@ -385,7 +385,7 @@ public sealed class SampleWiringTests : IDisposable
         world.FlushCreates();
         Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
         Assert.False(world.World.IsLive(drop));
-        Assert.Contains(OnFxLog.ForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
+        Assert.Contains(Effects.CapturesForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
     }
 
     [Fact]
@@ -494,7 +494,7 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(oreBefore + SampleConfigBinding.For(world.World).Mining.OrePerVein, world.OreBase);
         Assert.Equal(rivalOreBefore, world.World.Get<AttributeComponent>(rival).GetBaseValue(ore));
         Assert.Empty(world.World.Each<OrePileComponent>());
-        Assert.Single(OnFxLog.ForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
+        Assert.Single(Effects.CapturesForWorld(world.World), row => row.FxKey == PickupOreEffect.FxKeyName);
     }
 
     [Fact]
