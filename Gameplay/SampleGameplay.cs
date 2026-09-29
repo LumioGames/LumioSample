@@ -25,7 +25,7 @@ public static partial class SampleGameplay
             InstanceId = instanceId,
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
-        });
+        }).EnsureSucceeded();
 
     /// <summary>Binds transient ability ports to the player's existing ledgers.</summary>
     [SuppressMessage("Design", "CA1510", Justification = "Keep netstandard2.1 compatibility without conditional source branches.")]

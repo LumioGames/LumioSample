@@ -350,7 +350,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
             InstanceId = 17UL,
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
-        });
+        }).EnsureSucceeded();
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(source.World, "acct-native-spawn");
         source.Tick();
@@ -363,7 +363,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
             Snapshot = runtime,
             VoxelSnapshot = voxel,
             IngressBudget = source.IngressBudget,
-        });
+        }).EnsureSucceeded();
         NetEntityId player = order.AssignedId;
         Assert.Equal(SampleGameplay.AdmittedPlayerPosition(manager.World), manager.World.Get<LogicTransform>(player).LocalPosition);
         AbilityComponent abilities = manager.World.Get<AbilityComponent>(player);
@@ -391,7 +391,7 @@ public sealed class MoveAbilityWorldTests : IDisposable
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
             InitialVoxelSnapshot = voxel,
-        });
+        }).EnsureSucceeded();
         manager.World.Single<WorldSaveComponent>().TickRate.Value = manager.World.Registry.DeclaredTickRateHz;
         EntityOrder order = PlayerLifecycleTests.QueuePlayer(manager.World, "acct-tryattach-spawn");
         manager.Tick();

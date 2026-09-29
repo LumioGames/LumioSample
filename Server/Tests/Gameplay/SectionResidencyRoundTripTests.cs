@@ -6,6 +6,7 @@ using System.Threading;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Persistence;
+using Lumio.GameRuntime.Primitives;
 using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay.Components.Vein;
 using Lumio.Sample.Gameplay.Config;
@@ -19,7 +20,7 @@ namespace Lumio.Sample.Gameplay.Tests;
 /// (<see cref="SectionResidencyOrchestrator"/>, ADR-119 决策 7 / R-00730 — merged to LumioGameRuntime
 /// main at commit <c>0b52c22</c>, after this PR's first pass had already been written; see this PR's
 /// fix-round evidence comment for the merge-base check). <see cref="ProductionMiningTests"/> already
-/// covers a full-process cold restart (<c>DualCutCaptureResult</c>/<c>RestoreNew</c>); this covers the
+/// covers a full-process cold restart (<c>DualCutCheckpointPayload</c>/<c>RestoreNew</c>); this covers the
 /// same-process Section-level eviction/reload path acceptance item 2 and block-entity.md B4–B6 actually
 /// ask for, which nothing in this test project exercised before.
 /// <para>
@@ -57,7 +58,7 @@ public sealed class SectionResidencyRoundTripTests
             Catalog = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
             InitialVoxelSnapshot = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel")),
             Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem(SectionEgress) },
-        });
+        }).EnsureSucceeded();
         Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem host = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.AuthoritySectionSubsystem>(manager);
 
         // No player is ever admitted in this test: PrepareSectionUnload refuses a Section holding a
@@ -113,8 +114,8 @@ public sealed class SectionResidencyRoundTripTests
             Assert.False(manager.World.IsLive(id));
         });
 
-        SectionLoadResult loaded = residency.LoadSection(sectionKey, prepared.Record!.Value);
-        Assert.True(loaded.Succeeded, loaded.ErrorCode);
+        StableResult loaded = residency.LoadSection(sectionKey, prepared.Record!.Value);
+        Assert.True(loaded.Succeeded, loaded.ErrorId);
         Assert.Equal(SectionResidencyState.Resident, residency.StateOf(sectionKey));
 
         // B4: every number and value the Section held comes back unchanged, and no new vein was minted.

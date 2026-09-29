@@ -95,7 +95,7 @@ public sealed class SpectatorSectionQueueTests
         WorldManager client = SpectatorReplicaHostTests.CreateManager();
         try
         {
-            client.Enqueue(new WelcomeMessage(instance, self, 1UL));
+            client.Enqueue(new WelcomeMessage(instance, self, 1UL)).EnsureSucceeded();
             client.Enqueue(new WorldChangeMessage(
                 1UL,
                 0UL,
@@ -110,7 +110,7 @@ public sealed class SpectatorSectionQueueTests
                 },
                 Array.Empty<FieldChange>(),
                 Array.Empty<DestroyRecord>(),
-                Array.Empty<ClientRpcRecord>()));
+                Array.Empty<ClientRpcRecord>())).EnsureSucceeded();
             client.Tick();
 
             using JsonDocument document = JsonDocument.Parse(SpectatorDump.DumpPositions(client.World));

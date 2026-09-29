@@ -118,8 +118,11 @@ public sealed class MineContentionScenarioTests : IDisposable
         Assert.Equal(section, untouchedLoc.Section);
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageMutation(
             new[] { new VoxelWriteEntry(section, untouchedCell, 0, validatedOn) },
-            Array.Empty<VoxelBindingOp>(), "record-validated-on-the-old-revision").Status);
-        VoxelMutationOutcome refused = world.Adapter.CommitTransactionWithResult("record-validated-on-the-old-revision");
+            Array.Empty<VoxelBindingOp>(), "record-validated-on-the-old-revision").EnsureSucceeded().Status);
+        var commit = world.Adapter.CommitTransactionWithResult("record-validated-on-the-old-revision");
+        Assert.False(commit.Succeeded);
+        Assert.NotNull(commit.ErrorId);
+        VoxelMutationOutcome refused = commit.Value;
         Assert.NotEqual(0, refused.Status);
         Assert.NotEqual(VoxelTxnState.Applied, refused.State);
         Assert.NotEqual(0U, world.Adapter.Read(section, untouchedCell).BlockId);

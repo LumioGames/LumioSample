@@ -26,7 +26,7 @@ public sealed class SpectatorExportTests
 
         using WorldManager client = BootClient();
 
-        client.Enqueue(new WelcomeMessage(instance, self, 1UL));
+        client.Enqueue(new WelcomeMessage(instance, self, 1UL)).EnsureSucceeded();
         client.Enqueue(new WorldChangeMessage(
             1UL,
             0UL,
@@ -39,7 +39,7 @@ public sealed class SpectatorExportTests
             },
             Array.Empty<FieldChange>(),
             Array.Empty<DestroyRecord>(),
-            Array.Empty<ClientRpcRecord>()));
+            Array.Empty<ClientRpcRecord>())).EnsureSucceeded();
         client.Tick();
 
         string json = SpectatorDump.DumpPositions(client.World);
@@ -176,7 +176,7 @@ public sealed class SpectatorExportTests
         NetEntityId other = new(instance, 3UL);
 
         using WorldManager client = BootClient();
-        client.Enqueue(new WelcomeMessage(instance, self, 1UL));
+        client.Enqueue(new WelcomeMessage(instance, self, 1UL)).EnsureSucceeded();
         client.Enqueue(new WorldChangeMessage(
             1UL,
             0UL,
@@ -188,7 +188,7 @@ public sealed class SpectatorExportTests
             },
             Array.Empty<FieldChange>(),
             Array.Empty<DestroyRecord>(),
-            Array.Empty<ClientRpcRecord>()));
+            Array.Empty<ClientRpcRecord>())).EnsureSucceeded();
         client.Tick();
 
         using JsonDocument document = JsonDocument.Parse(SpectatorDump.DumpPositions(client.World));

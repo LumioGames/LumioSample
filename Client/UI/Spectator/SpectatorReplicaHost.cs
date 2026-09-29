@@ -44,11 +44,12 @@ public sealed class SpectatorReplicaHost : IDisposable
         {
             manager = engine.CreateWorld(new WorldCreationOptions(GeneratedRegistry.Instance) {
                 Config = config, Catalog = catalog, Subsystems = ReplicaSchedulingSubsystem.Create(),
-            });
+            }).EnsureSucceeded();
         }
-        catch
+        catch (Exception primary)
         {
-            config.Dispose();
+            try { config.Dispose(); }
+            catch (Exception cleanup) { primary.Data["Sample.ConfigCleanup"] = cleanup; }
             throw;
         }
 
@@ -84,12 +85,8 @@ public sealed class SpectatorReplicaHost : IDisposable
                 return false;
             }
 
-            WorldMessage message;
-            try
-            {
-                message = WireCodec.DecodePack(frame);
-            }
-            catch (FormatException error) when (IsUnknownMessageType(error))
+            var decoded = WireCodec.DecodePack(frame);
+            if (!decoded.Succeeded && decoded.Cause is FormatException error && IsUnknownMessageType(error))
             {
                 // Bot.Host maps the remaining unknown types (HandshakeAck,
                 // OperationReceipt under the baseline profile) to Unknown and
@@ -97,6 +94,8 @@ public sealed class SpectatorReplicaHost : IDisposable
                 // same-tick hello frames or the dump stays empty.
                 return false;
             }
+            if (!decoded.Succeeded) throw new FormatException(decoded.Detail ?? decoded.ErrorId, decoded.Cause);
+            WorldMessage message = decoded.Value!;
             if (message is WelcomeMessage)
             {
                 if (!_replica.TryObserveWelcome(frame)) throw new InvalidOperationException("welcome_rejected");

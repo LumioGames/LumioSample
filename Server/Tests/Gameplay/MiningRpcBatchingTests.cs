@@ -7,6 +7,7 @@ using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
 using Lumio.GameRuntime.Persistence;
+using Lumio.GameRuntime.Primitives;
 using Lumio.GameRuntime.Replication.Binding;
 using Lumio.GameRuntime.Simulation;
 using Lumio.Sample.Gameplay.Components.Ore;
@@ -82,12 +83,12 @@ public sealed class MiningRpcBatchingTests
         Assert.Equal(fixture.A, rows.Results[0].Operation!.Value.Sender);
         Assert.Equal(fixture.B, rows.Results[1].Operation!.Value.Sender);
 
-        DualCutCaptureResult capture = fixture.Host.Capture();
-        Assert.True(capture.Succeeded, capture.ErrorCode);
+        StableResult<DualCutCheckpointPayload?> capture = fixture.Host.Capture();
+        Assert.True(capture.Succeeded, capture.ErrorId);
         // Reopening the same pre-settlement cut creates independent worlds, each owing one payout.
         for (int restore = 0; restore < 2; restore++)
         {
-            using WorldManager cold = RpcWorld.Restore(capture.Checkpoint!.Value);
+            using WorldManager cold = RpcWorld.Restore(capture.Value!.Value);
             HostVoxelWorldAdapter adapter = VoxelGameplayBinding.Resolve(cold)!;
             Assert.Equal(2, adapter.CaptureResultCheckpoint().Results.Length);
             Assert.Equal(VoxelTxnState.Unknown, adapter.Abi.QueryReceipt(adapter.Handle, rows.Results[0].BatchTransactionId!).State);
@@ -100,9 +101,9 @@ public sealed class MiningRpcBatchingTests
             Assert.Empty(adapter.CaptureResultCheckpoint().Results);
             cold.Tick();
             Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.A));
-            DualCutCaptureResult settled = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(cold).Capture();
-            Assert.True(settled.Succeeded, settled.ErrorCode);
-            using WorldManager again = RpcWorld.Restore(settled.Checkpoint!.Value);
+            StableResult<DualCutCheckpointPayload?> settled = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(cold).Capture();
+            Assert.True(settled.Succeeded, settled.ErrorId);
+            using WorldManager again = RpcWorld.Restore(settled.Value!.Value);
             again.Tick();
             Assert.Equal(before - cost, RpcWorld.Stamina(again.World, fixture.A));
             Assert.Equal(2, again.World.Each<OrePileComponent>().Count());
@@ -151,9 +152,9 @@ public sealed class MiningRpcBatchingTests
         VeinLocationTestSupport.VeinLocation loc = VeinLocationTestSupport.Locate(fixture.Manager.World, vein.Entity);
         ulong revision = fixture.Adapter.Read(loc.Section, loc.Offset).SectionRevision;
         Assert.Equal(VoxelStageStatus.Staged, fixture.Adapter.TryStageDigThrough(loc.Section,
-            loc.Offset, revision, "external-same-cell").Status);
+            loc.Offset, revision, "external-same-cell").EnsureSucceeded().Status);
         long before = fixture.Stamina(fixture.A);
-        fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.A, vein.Entity, "miner-a"));
+        fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.A, vein.Entity, "miner-a")).EnsureSucceeded();
         fixture.Manager.Tick();
         WorldOperationResult result = Assert.Single(fixture.Manager.DrainOutbox().Operations);
         Assert.Equal(OperationOutcomeKind.BusinessReject, result.Outcome.Kind);
@@ -205,9 +206,9 @@ public sealed class MiningRpcBatchingTests
         Assert.True(world.TryReserveDestroyBatch(new[] { rejectedVein }, out WorldDestroyReservation? held));
         using (held)
         {
-            fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.C, fixture.Veins[2].Entity, "miner-c"));
-            fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.B, rejectedVein, "miner-b"));
-            fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.A, fixture.Veins[0].Entity, "miner-a"));
+            fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.C, fixture.Veins[2].Entity, "miner-c")).EnsureSucceeded();
+            fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.B, rejectedVein, "miner-b")).EnsureSucceeded();
+            fixture.Manager.Enqueue(RpcWorld.Input(1, fixture.A, fixture.Veins[0].Entity, "miner-a")).EnsureSucceeded();
             fixture.Manager.Tick();
         }
         WorldOperationResult[] operations = fixture.Manager.DrainOutbox().Operations.ToArray();
@@ -231,13 +232,13 @@ public sealed class MiningRpcBatchingTests
         ulong revision = fixture.Adapter.Read(section, cell).SectionRevision;
         Assert.Equal(VoxelStageStatus.Staged, fixture.Adapter.TryStageMutation(
             new[] { new VoxelWriteEntry(section, cell, 0, revision) },
-            new[] { new VoxelBindingOp(section, cell, null) { ExpectedSectionRevision = revision } }, "foreign-clear").Status);
-        Assert.Equal(VoxelTxnState.Applied, fixture.Adapter.CommitTransactionWithResult("foreign-clear").State);
+            new[] { new VoxelBindingOp(section, cell, null) { ExpectedSectionRevision = revision } }, "foreign-clear").EnsureSucceeded().Status);
+        Assert.Equal(VoxelTxnState.Applied, fixture.Adapter.CommitTransactionWithResult("foreign-clear").EnsureSucceeded().State);
         Assert.Equal(0U, fixture.Adapter.Read(section, cell).BlockId);
         Assert.Null(fixture.Adapter.BindingGet(section, cell));
-        DualCutCaptureResult capture = fixture.Host.Capture();
-        Assert.True(capture.Succeeded, capture.ErrorCode);
-        using WorldManager cold = RpcWorld.Restore(capture.Checkpoint!.Value);
+        StableResult<DualCutCheckpointPayload?> capture = fixture.Host.Capture();
+        Assert.True(capture.Succeeded, capture.ErrorId);
+        using WorldManager cold = RpcWorld.Restore(capture.Value!.Value);
         Assert.Empty(cold.DrainOutbox().Operations);
         Assert.Equal(4, VoxelGameplayBinding.Resolve(cold)!.CaptureResultCheckpoint().Results.Length);
         cold.Tick();
@@ -266,9 +267,9 @@ public sealed class MiningRpcBatchingTests
             Manager = SampleWorldHarness.CreateServerWorld(File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "sample.voxel")), 647);
             Host = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(Manager);
             _connections = EntityBindingQuery.Create(Manager);
-            Manager.Enqueue(new AdmitConnectionMessage("miner-a", "account-a", "mining", "player"));
-            Manager.Enqueue(new AdmitConnectionMessage("miner-b", "account-b", "mining", "player"));
-            if (third) Manager.Enqueue(new AdmitConnectionMessage("miner-c", "account-c", "mining", "player"));
+            Manager.Enqueue(new AdmitConnectionMessage("miner-a", "account-a", "mining", "player")).EnsureSucceeded();
+            Manager.Enqueue(new AdmitConnectionMessage("miner-b", "account-b", "mining", "player")).EnsureSucceeded();
+            if (third) Manager.Enqueue(new AdmitConnectionMessage("miner-c", "account-c", "mining", "player")).EnsureSucceeded();
             for (int i = 0; i < 4; i++) Manager.Tick();
             Assert.True(_connections.TryResolveConnectionState("miner-a", out A, out ulong ga));
             Assert.True(_connections.TryResolveConnectionState("miner-b", out B, out ulong gb));
@@ -296,7 +297,8 @@ public sealed class MiningRpcBatchingTests
         {
             InputCommandMessage a = Input(sequence, A, targetA, "miner-a");
             InputCommandMessage b = Input(sequence, B, targetB, "miner-b");
-            Manager.Enqueue(reverse ? b : a); Manager.Enqueue(reverse ? a : b);
+            Manager.Enqueue(reverse ? b : a).EnsureSucceeded();
+            Manager.Enqueue(reverse ? a : b).EnsureSucceeded();
         }
         internal static InputCommandMessage Input(ulong sequence, NetEntityId sender, NetEntityId target, string connection) =>
             new(sequence, WireCodec.ServerRpc, sender, EncodeRpc(target, sequence), connection, 1) { ReceiptParts = new[] { 0 } };
@@ -319,7 +321,7 @@ public sealed class MiningRpcBatchingTests
                 Catalog = File.ReadAllBytes(Path.Combine(Root, "Server", "Assets", "Maps", "official-catalog.json")),
                 Snapshot = checkpoint.Runtime,
                 VoxelSnapshot = checkpoint.Voxel,
-            });
+            }).EnsureSucceeded();
         }
         public void Dispose() { _connections.Dispose(); Manager.Dispose(); }
     }

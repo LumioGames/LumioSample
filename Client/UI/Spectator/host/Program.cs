@@ -33,7 +33,7 @@ public static partial class SpectatorExports
         if (s_engine is not null) return;
         if (catalog is null || catalog.Length == 0) throw new ArgumentException("The Sample official block catalog is required.", nameof(catalog));
         s_catalog = (byte[])catalog.Clone();
-        s_engine = LumioEngine.Start(new EngineWasmPlatform(new EngineWasmTransport(CallEngine), new EngineWasmLoggerFactory(Console.WriteLine)));
+        s_engine = LumioEngine.Start(new EngineWasmPlatform(new EngineWasmTransport(CallEngine), new EngineWasmLoggerFactory(Console.WriteLine))).EnsureSucceeded();
     }
 
     [JSExport]

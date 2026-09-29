@@ -16,7 +16,7 @@ public static class SampleVoxelWriterBinding
     {
         if (manager is null) throw new ArgumentNullException(nameof(manager));
         if (writer is null) throw new ArgumentNullException(nameof(writer));
-        manager.EnsureOwnerAccess();
+        manager.RuntimeServices.RequireOwner();
         var lease = new Lease(manager, writer);
         lock (Gate)
         {
@@ -28,7 +28,7 @@ public static class SampleVoxelWriterBinding
 
     internal static ISampleVoxelWriter? Resolve(WorldManager manager)
     {
-        manager.EnsureOwnerAccess();
+        manager.RuntimeServices.RequireOwner();
         lock (Gate)
             return Bindings.TryGetValue(manager, out Lease? lease) ? lease.Writer : null;
     }

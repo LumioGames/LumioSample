@@ -129,7 +129,7 @@ public sealed class SampleWiringTests : IDisposable
         VoxelCellQuery cell = world.Adapter.Read(section, offset);
         // A foreign write to the same section commits first, so the dig carries a stale section revision.
         Assert.Equal(VoxelStageStatus.Staged, world.Adapter.TryStageWrite(
-            new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").Status);
+            new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").EnsureSucceeded().Status);
 
         Assert.True(world.Mine().Succeeded);
         // The final hit only ordered the dig; nothing is owed until its result comes back.
@@ -673,7 +673,7 @@ internal sealed class SampleWorldHarness : IDisposable
                 new Lumio.GameRuntime.Hosting.AuthorityBindingSubsystem(),
                 new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem(),
             },
-        });
+        }).EnsureSucceeded();
 
     /// <summary>Cold restore of a dual-cut capture through the same engine (B3 replacement of RestoreNew).</summary>
     internal static WorldManager RestoreServerWorld(DualCutCheckpointPayload checkpoint, ulong instanceId,
@@ -691,7 +691,7 @@ internal sealed class SampleWorldHarness : IDisposable
                 new Lumio.GameRuntime.Hosting.AuthorityBindingSubsystem(),
                 new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem(),
             },
-        });
+        }).EnsureSucceeded();
 
     public static SampleWorldHarness Boot()
     {

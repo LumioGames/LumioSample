@@ -8,6 +8,7 @@ using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
 using Lumio.GameRuntime.Coordination;
 using Lumio.GameRuntime.Persistence;
+using Lumio.GameRuntime.Primitives;
 using Lumio.Sample.Gameplay.Config;
 using Lumio.Sample.Gameplay.Components.Ore;
 using Lumio.GameRuntime.Simulation;
@@ -74,7 +75,7 @@ public sealed class ProductionMiningTests
         VoxelCellQuery cell = adapter.Read(0, offset);
         uint ore = SampleConfigBinding.For(manager.World).Map.OreBlockType << 8;
         Assert.Equal(VoxelStageStatus.Staged, adapter.TryStageWrite(
-            new[] { new VoxelWriteEntry(0, offset, ore, cell.SectionRevision) }, "ore-outside-authoring-rectangle").Status);
+            new[] { new VoxelWriteEntry(0, offset, ore, cell.SectionRevision) }, "ore-outside-authoring-rectangle").EnsureSucceeded().Status);
         VeinReserveComponent vein = VeinLocationTestSupport.TickUntilVeinBoundAt(manager, 10, 10);
         VeinLocationTestSupport.TickUntilScanSettles(manager);
         Assert.Equal(5, manager.World.Each<VeinReserveComponent>().Count());
@@ -133,8 +134,10 @@ public sealed class ProductionMiningTests
 
         // A drained logical request is unavailable history, never a Native replay identity.
         string transaction = applied!.Value.TxnId;
-        Assert.Equal(VoxelStageStatus.OutcomeUnknown, world.Adapter.TryStageDigThrough(
-            section, offset, revision, transaction, VoxelSubmissionIntent.Replay).Status);
+        var replay = world.Adapter.TryStageDigThrough(section, offset, revision, transaction, VoxelSubmissionIntent.Replay);
+        Assert.False(replay.Succeeded);
+        Assert.NotNull(replay.ErrorId);
+        Assert.Equal(VoxelStageStatus.OutcomeUnknown, replay.Value.Status);
         world.FlushCreates();
         Assert.Empty(world.Adapter.DrainResults().Results);
         Assert.Equal(1, notifications);
@@ -191,9 +194,9 @@ public sealed class ProductionMiningTests
         int remaining = source.Remaining;
         long stamina = source.StaminaBase;
         System.Numerics.Vector3 center = VeinLocationTestSupport.Locate(source.World, source.Vein).CellCenter;
-        DualCutCaptureResult capture = source.Host.Capture();
-        Assert.True(capture.Succeeded, capture.ErrorCode);
-        using WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, source.World.Manager.World.InstanceId,
+        StableResult<DualCutCheckpointPayload?> capture = source.Host.Capture();
+        Assert.True(capture.Succeeded, capture.ErrorId);
+        using WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Value!.Value, source.World.Manager.World.InstanceId,
             source.World.Manager.IngressBudget);
         WorldPersistenceSubsystem host = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(manager);
         source.World.Manager.Dispose();
@@ -218,9 +221,9 @@ public sealed class ProductionMiningTests
         manager.Tick(); // the final dig's terrain result settles one frame after it commits
         OrePileComponent drop = Assert.Single(manager.World.Each<OrePileComponent>());
         Assert.Equal(center, manager.World.Get<LogicTransform>(drop.Entity).LocalPosition);
-        DualCutCaptureResult depleted = host.Capture();
-        Assert.True(depleted.Succeeded, depleted.ErrorCode);
-        using WorldManager coldManager = SampleWorldHarness.RestoreServerWorld(depleted.Checkpoint!.Value, manager.World.InstanceId,
+        StableResult<DualCutCheckpointPayload?> depleted = host.Capture();
+        Assert.True(depleted.Succeeded, depleted.ErrorId);
+        using WorldManager coldManager = SampleWorldHarness.RestoreServerWorld(depleted.Value!.Value, manager.World.InstanceId,
             manager.IngressBudget);
         manager.Dispose();
         coldManager.Tick();
@@ -348,7 +351,7 @@ public sealed class ProductionMiningTests
         int offset = loc.Offset;
         VoxelCellQuery cell = source.Adapter.Read(section, offset);
         Assert.Equal(VoxelStageStatus.Staged, source.Adapter.TryStageWrite(
-            new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").Status);
+            new[] { new VoxelWriteEntry(section, 0, 0, cell.SectionRevision) }, "competing-write").EnsureSucceeded().Status);
 
         Assert.True(source.Mine().Succeeded);
         source.FlushCreates(); // phase 8 refuses the dig; the refusal has not been drained yet
@@ -386,7 +389,7 @@ public sealed class ProductionMiningTests
         int offset = loc.Offset;
         VoxelCellQuery cell = source.Adapter.Read(section, offset);
         Assert.Equal(VoxelStageStatus.Staged, source.Adapter.TryStageDigThrough(
-            section, offset, cell.SectionRevision, "foreign-dig-before-player").Status);
+            section, offset, cell.SectionRevision, "foreign-dig-before-player").EnsureSucceeded().Status);
         Assert.True(source.Mine().Succeeded);
         source.FlushCreates();
         Assert.Equal(0U, source.Adapter.Read(section, offset).BlockId);
@@ -416,7 +419,7 @@ public sealed class ProductionMiningTests
         long cost = SampleConfigBinding.For(source.World).Mining.StaminaCost;
         Assert.True(source.Mine().Succeeded);
         source.FlushCreates();
-        DualCutCheckpointPayload cut = source.Host.Capture().Checkpoint!.Value;
+        DualCutCheckpointPayload cut = source.Host.Capture().Value!.Value;
         using WorldManager manager = SampleWorldHarness.Engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
             InstanceId = source.World.InstanceId,
@@ -425,7 +428,7 @@ public sealed class ProductionMiningTests
             Snapshot = legacy ? source.World.Manager.CaptureSnapshot() : cut.Runtime,
             VoxelSnapshot = cut.Voxel,
             IngressBudget = source.World.Manager.IngressBudget,
-        });
+        }).EnsureSucceeded();
         Assert.Equal(stamina, Stamina(manager, source.Player));
         Assert.Empty(manager.World.Each<OrePileComponent>());
         manager.Tick();
@@ -453,9 +456,9 @@ public sealed class ProductionMiningTests
     /// <summary>Boots a new world from <paramref name="from"/>'s dual cut and ticks it into settlement.</summary>
     private static WorldManager ColdRestore(WorldManager from)
     {
-        DualCutCaptureResult capture = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(from).Capture();
-        Assert.True(capture.Succeeded, capture.ErrorCode);
-        WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Checkpoint!.Value, from.World.InstanceId,
+        StableResult<DualCutCheckpointPayload?> capture = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(from).Capture();
+        Assert.True(capture.Succeeded, capture.ErrorId);
+        WorldManager manager = SampleWorldHarness.RestoreServerWorld(capture.Value!.Value, from.World.InstanceId,
             from.IngressBudget);
         // The first business frame consumes restored results; later ticks also exercise non-repetition.
         for (int tick = 0; tick < 3; tick++) manager.Tick();
@@ -483,9 +486,9 @@ public sealed class ProductionMiningTests
         Assert.Empty(source.World.Each<OrePileComponent>());
 
         // First restart: the drop must not come back and the ore ledger must be the settled value.
-        DualCutCaptureResult firstCapture = source.Host.Capture();
-        Assert.True(firstCapture.Succeeded, firstCapture.ErrorCode);
-        using WorldManager firstManager = SampleWorldHarness.RestoreServerWorld(firstCapture.Checkpoint!.Value,
+        StableResult<DualCutCheckpointPayload?> firstCapture = source.Host.Capture();
+        Assert.True(firstCapture.Succeeded, firstCapture.ErrorId);
+        using WorldManager firstManager = SampleWorldHarness.RestoreServerWorld(firstCapture.Value!.Value,
             source.World.Manager.World.InstanceId, source.World.Manager.IngressBudget);
         WorldPersistenceSubsystem firstHost = SampleWorldHarness.RequireService<WorldPersistenceSubsystem>(firstManager);
         source.World.Manager.Dispose();
@@ -497,9 +500,9 @@ public sealed class ProductionMiningTests
         Assert.Equal(oreAfter, firstManager.World.Get<AttributeComponent>(source.Player).GetBaseValue(oreName));
 
         // Second restart from the restored world: still no drop, ledger unchanged, nothing replayed.
-        DualCutCaptureResult secondCapture = firstHost.Capture();
-        Assert.True(secondCapture.Succeeded, secondCapture.ErrorCode);
-        using WorldManager secondManager = SampleWorldHarness.RestoreServerWorld(secondCapture.Checkpoint!.Value,
+        StableResult<DualCutCheckpointPayload?> secondCapture = firstHost.Capture();
+        Assert.True(secondCapture.Succeeded, secondCapture.ErrorId);
+        using WorldManager secondManager = SampleWorldHarness.RestoreServerWorld(secondCapture.Value!.Value,
             firstManager.World.InstanceId, firstManager.IngressBudget);
         firstManager.Dispose();
         secondManager.Tick();

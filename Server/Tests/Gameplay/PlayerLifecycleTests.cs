@@ -10,6 +10,7 @@ using Lumio.Engine.NativeLoader;
 using Lumio.GameRuntime.Ecs;
 using Lumio.GameRuntime.Gas;
 using Lumio.GameRuntime.Persistence;
+using Lumio.GameRuntime.Primitives;
 using Lumio.GameRuntime.Simulation;
 using Microsoft.Extensions.Logging;
 using Lumio.Sample.Gameplay;
@@ -59,7 +60,7 @@ public sealed class PlayerLifecycleTests : IDisposable
             Config = SampleConfigBinding.Load(),
             Catalog = catalog,
             Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
-        });
+        }).EnsureSucceeded();
         source.World.Single<WorldSaveComponent>().TickRate.Value = source.World.Registry.DeclaredTickRateHz;
         Lumio.Engine.NativeLoader.KernelHandle initialHandle = VoxelHandle(source);
         EntityOrder blockedOrder = QueuePlayer(source.World, "native-blocked");
@@ -84,7 +85,7 @@ public sealed class PlayerLifecycleTests : IDisposable
             VoxelSnapshot = wall,
             IngressBudget = source.IngressBudget,
             Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
-        });
+        }).EnsureSucceeded();
         Lumio.Engine.NativeLoader.KernelHandle firstHandle = VoxelHandle(manager);
         Assert.NotEqual(initialHandle, firstHandle);
         var sourcePhysics = AbilityPhysicsBinding.Resolve(source);
@@ -99,9 +100,9 @@ public sealed class PlayerLifecycleTests : IDisposable
         Assert.InRange(manager.World.Get<LogicTransform>(blocked).LocalPosition.X, boundary - 0.00001f, boundary + 0.00001f);
         Assert.True(manager.World.Get<AbilityComponent>(open).Activate<MoveAbility, MoveAbility.Input>(in input).Succeeded);
         Assert.Equal(new Vector3(3f + (float)sourceConfig.Movement.StepMeters, 4.5f, 6.5f), manager.World.Get<LogicTransform>(open).LocalPosition);
-        DualCutCaptureResult capture = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(manager).Capture();
-        Assert.True(capture.Succeeded, capture.ErrorCode);
-        DualCutCheckpointPayload checkpoint = capture.Checkpoint!.Value;
+        StableResult<DualCutCheckpointPayload?> capture = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(manager).Capture();
+        Assert.True(capture.Succeeded, capture.ErrorId);
+        DualCutCheckpointPayload checkpoint = capture.Value!.Value;
         Assert.True(checkpoint.SectionCount > 0);
         using WorldManager restored = engine.CreateWorld(new Lumio.GameRuntime.Hosting.WorldCreationOptions(GeneratedRegistry.Instance)
         {
@@ -112,7 +113,7 @@ public sealed class PlayerLifecycleTests : IDisposable
             VoxelSnapshot = checkpoint.Voxel,
             IngressBudget = manager.IngressBudget,
             Subsystems = new Lumio.GameRuntime.Ecs.IWorldSubsystem[] { new Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem() },
-        });
+        }).EnsureSucceeded();
         Assert.NotEqual(firstHandle, VoxelHandle(restored));
         Assert.NotSame(AbilityPhysicsBinding.Resolve(manager), AbilityPhysicsBinding.Resolve(restored));
         manager.Dispose();
@@ -180,7 +181,7 @@ public sealed class PlayerLifecycleTests : IDisposable
             Config = SampleConfigBinding.Load(),
             Catalog = SampleWorldHarness.OfficialCatalog(),
             RuntimeOnlySnapshot = snapshot,
-        });
+        }).EnsureSucceeded();
         Assert.Same(AbilityPhysicsBinding.Resolve(restored), restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
         Assert.NotSame(componentPort, restored.World.Get<AbilityComponent>(order.AssignedId).Physics);
         restored.World.Get<AbilityComponent>(order.AssignedId).Physics = null;
@@ -225,7 +226,7 @@ public sealed class PlayerLifecycleTests : IDisposable
             Config = SampleConfigBinding.Load(),
             Catalog = SampleWorldHarness.OfficialCatalog(),
             RuntimeOnlySnapshot = snapshot,
-        });
+        }).EnsureSucceeded();
         AttributeComponent next = restored.World.Get<AttributeComponent>(world.Player);
         // CURRENT is derived, never serialized; phase 9 uses this same evaluator.
         AttributeEvaluator.Recompute(restored.World);

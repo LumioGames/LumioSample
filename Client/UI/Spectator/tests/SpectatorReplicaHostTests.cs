@@ -150,8 +150,12 @@ public sealed class SpectatorReplicaHostTests
         host.Dispose();
 
         Assert.Equal(created, managers.Count);
-        Assert.All(managers, manager => Assert.Throws<ObjectDisposedException>(() =>
-            manager.Enqueue(new WelcomeMessage(7, new NetEntityId(7, 2), 9))));
+        Assert.All(managers, manager =>
+        {
+            var admission = manager.Enqueue(new WelcomeMessage(7, new NetEntityId(7, 2), 9));
+            Assert.False(admission.Succeeded);
+            Assert.Equal(OperationAdmissionStatus.Closed, admission.Value);
+        });
         Assert.Null(host.World);
         Assert.False(host.InputEnabled);
         Assert.Equal("closed", host.ConnectionState);
@@ -317,7 +321,7 @@ public sealed class SpectatorReplicaHostTests
             InstanceId = 0x1000000000000001UL,
             Catalog = OfficialCatalog(),
             TickRate = 20U,
-        });
+        }).EnsureSucceeded();
         SpectatorDump.BindSampleAttributeSeeds(server);
         // The client compile drops *.Server.cs (IdentityComponent.AccountId), so
         // EntityBindingQuery.Admit cannot run here. Create the observers the way

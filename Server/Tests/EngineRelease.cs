@@ -42,7 +42,7 @@ internal static class EngineRelease
     private static Lumio.GameRuntime.Hosting.LumioEngine? _engine;
 
     internal static Lumio.GameRuntime.Hosting.LumioEngine Engine(KernelConfig budget) =>
-        _engine ??= Lumio.GameRuntime.Hosting.LumioEngine.Start(Require(NativeLibrary, "the process engine's native"), budget);
+        _engine ??= Lumio.GameRuntime.Hosting.LumioEngine.Start(Require(NativeLibrary, "the process engine's native"), budget).EnsureSucceeded();
 
     internal static void CloseEngine()
     {

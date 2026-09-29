@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using Lumio.Client.Gameplay.ECS;
@@ -169,7 +170,7 @@ public sealed class ChatPipelineTests
         using var fixture = new Fixture();
         using var consumer = fixture.Create();
         var initial = Request(1);
-        var change = (WorldChangeMessage)WireCodec.DecodePack(initial.Update.Span);
+        var change = (WorldChangeMessage)WireCodec.DecodePack(initial.Update.Span).EnsureSucceeded();
         var withSender = new WorldChangeMessage(change.Tick, 0,
             change.Creates.Concat(new[] { new CreateRecord("player", Sender, Array.Empty<FieldValue>()) }).ToArray(),
             change.Fields, change.Destroys, change.Rpcs);
@@ -236,7 +237,7 @@ public sealed class ChatPipelineTests
                 {
                     MaxContexts = 8, MaxHandles = 64, MaxNativeBytes = 1024 * 1024,
                     MaxJobsQueued = 8, MaxJobsRunning = 2, MaxCompletionItems = 16, LogMailboxCapacity = 128
-                });
+                }).EnsureSucceeded();
         }
 
         public ChatConsumer Create(Action<ChatLine>? callback = null)
@@ -259,7 +260,7 @@ public sealed class ChatPipelineTests
                 Catalog = File.ReadAllBytes(Path.Combine(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..")),
                     "Server", "Assets", "Maps", "official-catalog.json")),
                 Subsystems = ReplicaSchedulingSubsystem.Create(),
-            });
+            }).EnsureSucceeded();
         }
 
         public void Dispose() => _engine.Dispose();
