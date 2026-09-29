@@ -173,11 +173,24 @@ export function writeDsAdmissionCloseExcerpt(roundDirPath) {
 }
 
 async function admittedCount() {
+  // Fleet 模式下准入事件在 launcher/bot-group-*/admission-events.ndjson（每进程一份、
+  // 每账号一行 ticket_accepted），tour bot 在 launcher/bot-N/。逐目录枚举会漏 fleet，
+  // 永远数不到 100 → 观察者被跳过 → AC4/AC5 判据失据。与 verify-rounds 的
+  // roundAdmissionEvidence 同口径：递归数 ticket_accepted 行。
   let admitted = 0;
-  for (let index = 1; index <= BOTS; index += 1) {
-    const path = join(roundDir, 'launcher', `bot-${index}`, 'admission-events.ndjson');
-    if (existsSync(path) && readFileSync(path, 'utf8').includes('"meaning":"ticket_accepted"')) admitted += 1;
-  }
+  const walk = (dir) => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.name === 'admission-events.ndjson') {
+        for (const line of readFileSync(path, 'utf8').split('\n')) {
+          if (line.includes('"meaning":"ticket_accepted"')) admitted += 1;
+        }
+      }
+    }
+  };
+  walk(join(roundDir, 'launcher'));
   return admitted;
 }
 
@@ -186,6 +199,9 @@ async function main() {
   if (keepPlatform && reusePlatform) throw new Error('--keep-platform (round 1) and --reuse-platform (round 2) are mutually exclusive');
   mkdirSync(join(roundDir, 'tick-samples'), { recursive: true });
   mkdirSync(join(roundDir, 'observers'), { recursive: true });
+  // tick 采样目录必须给绝对路径：DS/Bot.Host 的 cwd 在 Engine 发布树里，相对路径会把
+  // 样本写进发布树，verify-release 在下一次起 DS 时以 sdk_version_mismatch 拒绝整个发布。
+  const tickSampleDir = resolve(join(roundDir, 'tick-samples'));
   await platformUp();
   const env = {
     ...process.env,
@@ -193,10 +209,10 @@ async function main() {
     // R-00588：组内准入错峰（LumioClient#159）；25ms 默认在 20 账号/进程下会触发 DS 并发准入失败。
     LUMIO_BOT_ADMIT_STAGGER_MS: process.env.LUMIO_BOT_ADMIT_STAGGER_MS ?? '1200',
     // HostEntry 故障详情出口：tick 异常的完整类型+消息落这里（DS 日志只留 runtime_failure）。
-    LUMIO_HOSTENTRY_FAULT_LOG: join(roundDir, 'hostentry-fault.log'),
+    LUMIO_HOSTENTRY_FAULT_LOG: resolve(join(roundDir, 'hostentry-fault.log')), // 绝对路径：消费进程 cwd 在发布树内
     LUMIO_DS_CONFIG: writeDsOverlay(),
     LUMIO_SCENARIO_DLL: SCENARIO_DLL,
-    LUMIO_TICK_SAMPLE_DIR: join(roundDir, 'tick-samples'),
+    LUMIO_TICK_SAMPLE_DIR: tickSampleDir,
   };
   const args = [
     'Tools/stress-move.mjs',

@@ -1,0 +1,20 @@
+{
+  "startedAt": 1790696137423,
+  "finishedAt": 1790696444283,
+  "count": 5,
+  "accounts": [
+    "AcctObsR1",
+    "AcctObsR2",
+    "AcctObsR3",
+    "AcctObsR4",
+    "AcctObsR5"
+  ],
+  "holdSeconds": 300,
+  "sampleIndices": [
+    19,
+    39,
+    59,
+    79,
+    99
+  ]
+}

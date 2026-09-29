@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "scope": "criterion6-persistence",
+  "evidence": "C:\\Work\\accept-v003\\integration\\acceptance-v0.0.4\\criterion6",
+  "checks": [
+    {
+      "name": "tickets",
+      "status": "PASS",
+      "detail": "5 accounts minted (AcctPersistA1, AcctPersistB1, AcctPersistC1, AcctPersistD1, AcctPersistObs); role tickets re-minted per leg"
+    },
+    {
+      "name": "boot1-ready",
+      "status": "PASS",
+      "detail": "endpoint=ws://127.0.0.1:9110/"
+    },
+    {
+      "name": "boot1-role-half",
+      "status": "PASS",
+      "detail": "half-dug observed in stream: vein 0005 remaining=5 (slow-pickaxe cadence, killed on first decrement)"
+    },
+    {
+      "name": "boot1-half-target-known",
+      "status": "PASS",
+      "detail": "half target hex=00000005"
+    },
+    {
+      "name": "boot1-role-leave",
+      "status": "PASS",
+      "detail": "AcctPersistB1 role=leave passed"
+    },
+    {
+      "name": "boot1-role-pick",
+      "status": "PASS",
+      "detail": "AcctPersistC1 role=pick passed"
+    },
+    {
+      "name": "boot1-scenario",
+      "status": "PASS",
+      "detail": "three roles completed: half=true leave={\"kind\":\"assert\",\"bot\":\"bot-0\",\"step\":7164,\"passed\":true,\"failed\":\"\"}\r\n{\"kind\":\"run\",\"bots\":1,\"ticks\":7164,\"uplinks\":7160,\"commandStreamSha256\":\"db0a622df8fc04d1f4bb564ae801c8b0e57f377cc88f30866ce98f3dd4c84beb\",\"passed\":true}\r\n pick={\"kind\":\"assert\",\"bot\":\"bot-0\",\"step\":7465,\"passed\":true,\"failed\":\"\"}\r\n{\"kind\":\"run\",\"bots\":1,\"ticks\":7465,\"uplinks\":7461,\"commandStreamSha256\":\"c3a2c52350963eeebd6898f87b3c4ac06d169e0c325099f785145da0036caca2\",\"passed\":true}\r\n"
+    },
+    {
+      "name": "boot1-checkpoints",
+      "status": "PASS",
+      "detail": "generations after scenario: 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56"
+    },
+    {
+      "name": "boot1-world-shape",
+      "status": "PASS",
+      "detail": "veins=2 remaining=[6,5] drops=1 halfDug=true"
+    },
+    {
+      "name": "boot2-ready",
+      "status": "PASS",
+      "detail": "endpoint=ws://127.0.0.1:9110/ (same store rebooted)"
+    },
+    {
+      "name": "boot2-verify-AcctPersistC1",
+      "status": "PASS",
+      "detail": "AcctPersistC1 verify passed (veins==2, oreDrops==1)"
+    },
+    {
+      "name": "boot2-verify-AcctPersistA1",
+      "status": "PASS",
+      "detail": "AcctPersistA1 verify passed (veins==2, oreDrops==1)"
+    },
+    {
+      "name": "boot2-verify-scenario",
+      "status": "PASS",
+      "detail": "verify bots passed: C={\"kind\":\"assert\",\"bot\":\"bot-0\",\"step\":603,\"passed\":true,\"failed\":\"\"}\r\n{\"kind\":\"run\",\"bots\":1,\"ticks\":603,\"uplinks\":1,\"commandStreamSha256\":\"58448bf7037a2031154df8f0ccf4100118821b223d8c60cb33d4a40f60cb7675\",\"passed\":true}\r\n A={\"kind\":\"assert\",\"bot\":\"bot-0\",\"step\":603,\"passed\":true,\"failed\":\"\"}\r\n{\"kind\":\"run\",\"bots\":1,\"ticks\":603,\"uplinks\":1,\"commandStreamSha256\":\"58448bf7037a2031154df8f0ccf4100118821b223d8c60cb33d4a40f60cb7675\",\"passed\":true}\r\n"
+    },
+    {
+      "name": "restart-veins-identical",
+      "status": "PASS",
+      "detail": "boot1 [0002:6 0005:5] vs boot2 [0002:6 0005:5]"
+    },
+    {
+      "name": "restart-unpicked-drop-stays",
+      "status": "PASS",
+      "detail": "drops after restart=1"
+    },
+    {
+      "name": "restart-ore-ledger",
+      "status": "PASS",
+      "detail": "picker C ore boot1=13 boot2=13 (9 initial + 4 picked; boot1 world also carries A/B at 9)"
+    },
+    {
+      "name": "wsl-check-config",
+      "status": "PASS",
+      "detail": "linux-x64 lumio-ds --check-config: \u0000"
+    }
+  ],
+  "startedAt": "2026-09-29T20:46:56.252Z",
+  "engine": {
+    "version": "0.0.4",
+    "rid": "win-x64",
+    "commit": null
+  },
+  "platformOrigin": "http://127.0.0.1:8080",
+  "recorder1Close": "{\"worldChanges\":11214,\"closeCode\":1006}",
+  "boot1": {
+    "world": {
+      "veins": [
+        {
+          "id": "00000000000000010000000000000002",
+          "remaining": 6
+        },
+        {
+          "id": "00000000000000010000000000000005",
+          "remaining": 5
+        }
+      ],
+      "drops": [
+        "0000000000000001000000000000000b"
+      ],
+      "ore": {
+        "00000000000000010000000000000006": {
+          "base": "9",
+          "current": "9"
+        },
+        "00000000000000010000000000000008": {
+          "current": "9"
+        },
+        "0000000000000001000000000000000a": {
+          "current": "13"
+        }
+      },
+      "playerCount": 3
+    }
+  },
+  "recorder2Close": "{\"worldChanges\":949,\"closeCode\":1006}",
+  "boot2": {
+    "world": {
+      "veins": [
+        {
+          "id": "00000000000000010000000000000002",
+          "remaining": 6
+        },
+        {
+          "id": "00000000000000010000000000000005",
+          "remaining": 5
+        }
+      ],
+      "drops": [
+        "0000000000000001000000000000000b"
+      ],
+      "ore": {
+        "00000000000000010000000000000006": {
+          "base": "9",
+          "current": "9"
+        },
+        "00000000000000010000000000000008": {
+          "current": "9"
+        },
+        "0000000000000001000000000000000a": {
+          "current": "13"
+        },
+        "00000000000000010000000000000401": {
+          "current": "9"
+        }
+      },
+      "playerCount": 4
+    }
+  },
+  "oreLedger": {
+    "selfC1": "0000000000000001000000000000000a",
+    "selfC2": "0000000000000001000000000000000a",
+    "selfA2": "00000000000000010000000000000401",
+    "oreC1": {
+      "current": "13"
+    },
+    "oreC2": {
+      "current": "13"
+    },
+    "oreA2": {
+      "current": "9"
+    }
+  },
+  "completedAt": "2026-09-29T20:57:26.675Z",
+  "status": "FAIL",
+  "error": "TypeError [ERR_INVALID_ARG_VALUE]: The argument 'args[5]' must be a string without null bytes. Received 'LUMIO_ACCOUNT_PASSWORD=LumioAcceptance-v002-c6 exec node /mnt/c/Work/accept-v003/integration/determinism/record-round.mjs --ori...\n    at validateArgumentNullCheck (node:child_process:1008:11)\n    at validateArgumentsNullCheck (node:child_process:1015:5)\n    at normalizeSpawnArguments (node:child_process:585:3)\n    at spawn (node:child_process:789:13)\n    at main (file:///C:/Work/accept-v003/integration/run-persistence.mjs:474:23)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///C:/Work/accept-v003/integration/run-persistence.mjs:684:1"
+}

@@ -1,0 +1,2 @@
+{"kind":"assert","bot":"bot-0","step":7790,"passed":true,"failed":""}
+{"kind":"run","bots":1,"ticks":7790,"uplinks":7786,"commandStreamSha256":"464b29de43bb8a0a93dbfcfc97b8040090b6df7d761e904944c6eff593f60aaa","passed":true}

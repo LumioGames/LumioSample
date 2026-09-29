@@ -34,6 +34,8 @@ public sealed class AcceptancePersistenceScenario : BotScenario
     private const int SettleGraceTicks = 160;
     private const int DwellTicks = SampleMiningPlan.DwellTicks;
     private const int SlowCycleTicks = 45;
+    // VeinReserveComponent.remaining 的字段地址:half 角色自律停手的唯一真值来源。
+    private const string ReserveField = "VeinReserveComponent.remaining";
     private const int ApproachStepBudget = 3000;
     private const int SweepArmCells = SampleMiningPlan.SweepArmCells;
     private static readonly int[] SweepX = { 1, 0, -1, 0 };
@@ -66,6 +68,8 @@ public sealed class AcceptancePersistenceScenario : BotScenario
     private bool _veinDugThrough;
     private bool _dropPicked;
     private int _dropSeen;
+    private Lumio.Client.Bot.BotFieldLookup _fields;
+    private int _baseline = -1;
 
     /// <inheritdoc />
     public override IReadOnlyList<string> RequiredCapabilities => Capabilities;
@@ -75,6 +79,7 @@ public sealed class AcceptancePersistenceScenario : BotScenario
     {
         BotWorldView world = context.World;
         if (world.HasSelf) _selfId = world.Self.NetEntityId;
+        _fields = world.Fields;
         (double X, double Y, double Z) PositionOf(string hex)
         {
             var position = world.WorldPositions[hex];
@@ -184,8 +189,10 @@ public sealed class AcceptancePersistenceScenario : BotScenario
             _cycleTick = 0;
         }
 
-        // 靠近阶段：每 tick 一步游走（tour 同速）。看得见够不着时挖了也是被拒，
-        // 先用位置查询贴到目标旁边（格心距 ≤2.1，覆盖对角邻接（地图角落的矿脉只能对角贴近））。
+        // 靠近阶段：每 tick 一步游走（tour 同速）。服务端 MineAbility.WithinReach 的触及
+        // 半径 = 移动步长 1.25 m（格心距）；对角邻格 ≈1.77 m 超出触及，每一镐都被权威
+        // 以超距拒绝（B-00172 轮实证：2.1 半径下 half 角色 15 分钟无一镐命中）。必须贴到
+        // **正交邻接**（格心距恰 1.25 m ≤ reach）再进入慢镐阶段；1.3 容纳正交、排除对角。
         if (positionOf != null && _approachSteps < ApproachStepBudget)
         {
             try
@@ -194,7 +201,7 @@ public sealed class AcceptancePersistenceScenario : BotScenario
                 (double sx, _, double sz) = positionOf(_selfHex);
                 double dx = vx - sx;
                 double dz = vz - sz;
-                if (dx * dx + dz * dz > 2.1 * 2.1)
+                if (dx * dx + dz * dz > 1.3 * 1.3)
                 {
                     _approachSteps++;
                     return SampleBotCommand.Move(Math.Sign(dx), Math.Sign(dz));
@@ -209,8 +216,21 @@ public sealed class AcceptancePersistenceScenario : BotScenario
             }
         }
 
-        // 贴近后：慢镐速——每 SlowCycleTicks 一镐，驱动器 500ms 一轮必能在储量首次
-        // 下降后、下一镐到来前把本进程杀掉。
+        // 边扫边挥(pick 角色的 AdvanceFull 同款纪律):vein 的位置不随实体下发(位置的
+        // 唯一来源是权威绑定表),位置逼近整体落空后退化为盲扫;扫掠跨过矿脉自身格心
+        // (距离 0)的那一镐必然落进触及内。慢镐速不再靠拉长挥镐间隔实现——那会把命中
+        // 变成概率事件(1 镐 / SlowCycleTicks 且每格只经过一 tick,B-00172 轮实证 15 分钟
+        // 无一命中)——而是靠**确认储量下降后自律停手**:Fields 读 VeinReserveComponent
+        // .remaining 的确认值,首次下降即 Done、优雅登出,驱动器 500ms 一轮的观察流
+        // 判定只是兜底。半挖语义(恰好一镐、不挖穿)由本侧结构性保证,不再依赖杀进程
+        // 时序。冷却 cooldown_ticks=1,取 2 tick 一镐留观察余量。
+        int current = ReadReserve();
+        if (current >= 0)
+        {
+            if (_baseline < 0 || current > _baseline) _baseline = current;
+            if (current < _baseline) return SampleBotCommand.Done; // 首次下降:半挖已成,自律停手
+        }
+
         if (_cycleTick == 0)
         {
             _cycleTick = 1;
@@ -219,9 +239,29 @@ public sealed class AcceptancePersistenceScenario : BotScenario
         }
 
         _cycleTick++;
-        if (_cycleTick < SlowCycleTicks) return SampleBotCommand.Wait;
+        if (_cycleTick < 2)
+        {
+            _cycleTick = 0;
+            return NextSweepStep();
+        }
         _cycleTick = 0;
-        return SampleBotCommand.Wait;
+        return NextSweepStep();
+    }
+
+    // VeinReserveComponent.remaining 的确认值;Fields 未投递到本副本时返回 -1。
+    private int ReadReserve()
+    {
+        try
+        {
+            if (_target.Length == 0) return -1;
+            var observed = _fields[_target, ReserveField];
+            long? value = observed.Found ? observed.Value.WholeNumber : null;
+            return value.HasValue ? (int)value.Value : -1;
+        }
+        catch (Exception error) when (error is IndexOutOfRangeException or KeyNotFoundException or InvalidOperationException)
+        {
+            return -1;
+        }
     }
 
     private SampleBotCommand AdvanceFull(IReadOnlyList<SampleBotEntity> census, Func<string, bool> isVanished)

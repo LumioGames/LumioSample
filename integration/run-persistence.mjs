@@ -23,16 +23,16 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { createHash } from 'node:crypto';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loginAndLaunch } from '../../Tools/account-client.mjs';
+import { loginAndLaunch } from '../Tools/account-client.mjs';
 import {
   assertDsClrInputs, assertRunnableDsConfig, deriveRunDsConfig, engineClrInputs, writeKernelConfigForRun,
-} from '../../Tools/ds-config.mjs';
-import { buildBotArgs, buildServerArgs, findDsReady, resolveDsEndpoint } from '../../Tools/ds-ready.mjs';
-import { loadProcessTools } from '../../Tools/engine-tools.mjs';
-import { prepareEngine, resolveHostfxr } from '../../Tools/engine-release.mjs';
-import { startReleasePlatform } from '../../Tools/launcher.mjs';
+} from '../Tools/ds-config.mjs';
+import { buildBotArgs, buildServerArgs, findDsReady, resolveDsEndpoint } from '../Tools/ds-ready.mjs';
+import { loadProcessTools } from '../Tools/engine-tools.mjs';
+import { prepareEngine, resolveHostfxr } from '../Tools/engine-release.mjs';
+import { startReleasePlatform } from '../Tools/launcher.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EVIDENCE = resolve(process.argv[2] ?? join(ROOT, '.run', 'accept-v002-c6'));
 // 账号名必须以数字结尾：Bot.Host 把 --account-from 当「前缀[+尾数]」枚举，无尾随数字的
 // 名字会被补成 <name>01。体力预算（100 / 镐 13、无回复）决定一个账号只够一个角色：
@@ -70,24 +70,26 @@ function deriveWorld(rawPath) {
     if (value.kind !== 'world') continue;
     for (const created of value.creates ?? []) {
       const fields = {};
-      for (let i = 2; i < created.length; i += 1) fields[`${created[i][0]}.${created[i][1]}`] = created[i][2];
+      for (let i = 2; i < created.length; i += 1) fields[`${created[i][0]}.${created[i][1]}`.toLowerCase()] = created[i][2];
       entities.set(created[0], { type: created[1], fields });
     }
     for (const [id, component, field, value2] of value.fields ?? []) {
       const entity = entities.get(id);
-      if (entity != null) entity.fields[`${component}.${field}`] = value2;
+      if (entity != null) entity.fields[`${component}.${field}`.toLowerCase()] = value2;
     }
     for (const id of value.destroys ?? []) entities.delete(id);
   }
   const veins = [...entities.entries()]
     .filter(([, entity]) => entity.type === 'vein')
-    .map(([id, entity]) => ({ id, remaining: Number(entity.fields['VeinReserveComponent.remaining'] ?? NaN) }))
+    .map(([id, entity]) => ({ id, remaining: Number(entity.fields['veinreservecomponent.remaining'] ?? NaN) }))
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const drops = [...entities.entries()].filter(([, entity]) => entity.type === 'oreDrop').map(([id]) => id).sort();
   const ore = {};
+  // 同一字段两条 wire 路径拼写不一致:create 清单带声明名(OreBase/OreCurrent,声明表的大小写),
+  // 增量变更带绑定名(oreBase/oreCurrent)。两种都读;拼写漂移本身已在验收记录中如实登记。
   for (const [id, entity] of entities) {
     if (entity.type !== 'player') continue;
-    ore[id] = { base: entity.fields['AttributeComponent.oreBase'], current: entity.fields['AttributeComponent.oreCurrent'] };
+    ore[id] = { base: entity.fields['attributecomponent.orebase'], current: entity.fields['attributecomponent.orecurrent'] };
   }
   return { veins, drops, ore, playerCount: Object.keys(ore).length };
 }
@@ -422,14 +424,17 @@ async function main() {
       `picker C ore boot1=${oreValue(oreC1)} boot2=${oreC2 ? oreValue(oreC2) : 'n/a'} (9 initial + 4 picked; boot1 world also carries A/B at 9)`);
 
     // ── 搬迁：整套存档目录拷进 WSL，linux-x64 同一发布物直接打开 ────────────
-    const wslDir = '/mnt/c/Work/accept-v002/LumioSample/' + relativePosix(ROOT, EVIDENCE) + '/wsl';
-    const engineLinux = '/mnt/c/Work/accept-v002/LumioSample/Engine/server/linux-x64';
+    // WSL 路径必须从本检出派生:此前硬编码 v0.0.2 时代的 accept-v002 路径,克隆挪位后
+    // linux-x64 发布物与迁移目录全部指向不存在的位置(os error 2)。
+    const wslRoot = '/mnt/' + ROOT[0].toLowerCase() + ROOT.slice(2).split(String.fromCharCode(92)).join('/');
+    const wslDir = wslRoot + '/' + relativePosix(ROOT, EVIDENCE) + '/wsl';
+    const engineLinux = wslRoot + '/Engine/server/linux-x64';
     run('wsl.exe', ['-d', 'Ubuntu-24.04', '--', 'rm', '-rf', wslDir]);
     mkdirSync(join(EVIDENCE, 'wsl'), { recursive: true });
     cpSync(store, join(EVIDENCE, 'wsl', 'ds-store'), { recursive: true });
     cpSync(join(ROOT, 'Server', 'Config', 'Tables'), join(EVIDENCE, 'wsl', 'Tables'), { recursive: true });
     cpSync(join(ROOT, 'Server', 'Assets', 'Maps'), join(EVIDENCE, 'wsl', 'Maps'), { recursive: true });
-    cpSync(join(ROOT, 'Gameplay', 'bin', 'Debug', 'net10.0', 'Lumio.Sample.Gameplay.dll'), join(EVIDENCE, 'wsl', 'gameplay.dll'));
+    cpSync(join(ROOT, 'Gameplay', 'bin', 'Debug', 'net10.0-client'), join(EVIDENCE, 'wsl', 'gameplay-client'), { recursive: true });
     const linuxConfig = structuredClone(boot2.config);
     const wslFxr = run('wsl.exe', ['-d', 'Ubuntu-24.04', '--', 'sh', '-c',
       'ls -1 /usr/lib/dotnet/host/fxr/*/libhostfxr.so 2>/dev/null | sort -V | tail -1']).output.trim();
@@ -439,7 +444,7 @@ async function main() {
     linuxConfig.voxel_catalog = `${wslDir}/Maps/official-catalog.json`;
     linuxConfig.base_map_path = `${wslDir}/Maps/sample.voxel`;
     linuxConfig.logging.dir = `${wslDir}/logs`;
-    linuxConfig.clr.registry_assembly = `${wslDir}/gameplay.dll`;
+    linuxConfig.clr.registry_assembly = `${wslDir}/gameplay-client/Lumio.Sample.Gameplay.dll`;
     linuxConfig.clr.engine_native = `${engineLinux}/SDK/Native/linux-x64/liblumio_engine_native.so`;
     linuxConfig.clr.assembly = `${engineLinux}/Application/Lumio.Server.HostEntry.dll`;
     linuxConfig.clr.runtime_config = `${engineLinux}/Application/Lumio.Server.HostEntry.runtimeconfig.json`;
@@ -452,7 +457,7 @@ async function main() {
     linuxConfig.transport = { ...linuxConfig.transport, listen_address: '127.0.0.1', listen_port: DS_PORT };
     const linuxPath = join(EVIDENCE, 'wsl', 'server.linux.json');
     writeFileSync(linuxPath, `${JSON.stringify(linuxConfig, null, 2)}\n`);
-    const linuxRel = '/mnt/c/Work/accept-v002/LumioSample/' + relativePosix(ROOT, linuxPath);
+    const linuxRel = wslRoot + '/' + relativePosix(ROOT, linuxPath);
     const linuxOut = run('wsl.exe', ['-d', 'Ubuntu-24.04', '--', 'sh', '-c',
       `mkdir -p ${wslDir}/logs && cd ${engineLinux} && DOTNET_ROOT=/usr/lib/dotnet ./lumio-ds --config ${linuxRel} --check-config`], 120000);
     check('wsl-check-config', /configuration_valid/.test(linuxOut.output), `linux-x64 lumio-ds --check-config: ${linuxOut.output.trim().split('\n').pop()}`);
@@ -461,11 +466,13 @@ async function main() {
     mkdirSync(raw3Dir, { recursive: true });
     const raw3 = join(raw3Dir, 'observer-raw.ndjson');
     rmSync(raw3, { force: true });
-    const wslRoot = '/mnt/c/Work/accept-v002/LumioSample';
     const raw3Rel = `${wslRoot}/${relativePosix(ROOT, raw3)}`;
     // wsl.exe 不透传普通 Windows env：经 sh -c 前缀注入账号密码（观察者账号已在 boot1 铸过）。
+    const wslGateway = run('wsl.exe', ['-d', 'Ubuntu-24.04', '--', 'sh', '-c',
+      "ip route show default | awk '{print $3}'"]).output.trim();
+    if (!wslGateway) throw new Error('WSL default gateway not found (Platform origin for the in-WSL recorder)');
     const recorder3 = spawn('wsl.exe', ['-d', 'Ubuntu-24.04', '--', 'sh', '-c',
-      `LUMIO_ACCOUNT_PASSWORD=${PASSWORD} exec node ${wslRoot}/integration/determinism/record-round.mjs --origin http://127.0.0.1:8080 --account ${ACCOUNT_OBS} --out ${raw3Rel} --base-map-sha ${baseMapSha} --retry-seconds 240`],
+      `LUMIO_ACCOUNT_PASSWORD=${PASSWORD} exec node ${wslRoot}/integration/determinism/record-round.mjs --origin http://${wslGateway}:8080 --account ${ACCOUNT_OBS} --out ${raw3Rel} --base-map-sha ${baseMapSha} --retry-seconds 240`],
     { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
     const recorder3Exit = new Promise((resolveExit) => recorder3.on('exit', resolveExit));
     await sleep(2000);
@@ -499,7 +506,7 @@ async function main() {
       '--kernel-config', kernelRel3,
       '--log-dir', aDir3Rel,
       '--account-from', ACCOUNT_A, '--account-to', ACCOUNT_A,
-      '--gameplay', `${wslDir}/gameplay.dll`,
+      '--gameplay', `${wslDir}/gameplay-client/Lumio.Sample.Gameplay.dll`,
       '--config-dir', `${wslRoot}/Client/Config/Tables`,
       '--voxel-config', `${wslDir}/Maps/bot-voxel-budget.json`,
       '--scenario', `${wslRoot}/Client/Bots/bin/Debug/net10.0/Lumio.Sample.Bots.dll`,

@@ -1,0 +1,2 @@
+{"ts":"2026-09-29T21:14:13.5277828Z","kind":"input.skipped","pid":23496,"accountId":"Player01","ownerFrame":2,"reason":"input_disabled"}
+{"kind":"scenario.finished","pid":23496,"ownerFrame":"3","uplinks":1,"passed":true}
