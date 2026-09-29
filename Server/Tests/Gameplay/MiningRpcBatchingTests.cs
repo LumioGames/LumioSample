@@ -60,7 +60,7 @@ public sealed class MiningRpcBatchingTests
         Assert.Equal(before, fixture.Stamina(fixture.A));
         Assert.Equal(before, fixture.Stamina(fixture.B));
         Assert.Empty(world.Each<OrePileComponent>());
-        VoxelResultCheckpoint rows = fixture.Adapter.CaptureResultCheckpoint();
+        VoxelResultCheckpoint rows = fixture.Adapter.CaptureResultCheckpoint().EnsureSucceeded();
         Assert.Equal(2, rows.Results.Length);
         Assert.Equal(2, rows.AppliedDigs.Length);
         Assert.Equal(2, rows.DestroyedEntities.Length);
@@ -90,7 +90,7 @@ public sealed class MiningRpcBatchingTests
         {
             using WorldManager cold = RpcWorld.Restore(capture.Value!.Value);
             HostVoxelWorldAdapter adapter = VoxelGameplayBinding.Resolve(cold)!;
-            Assert.Equal(2, adapter.CaptureResultCheckpoint().Results.Length);
+            Assert.Equal(2, adapter.CaptureResultCheckpoint().EnsureSucceeded().Results.Length);
             Assert.Equal(VoxelTxnState.Unknown, adapter.Abi.QueryReceipt(adapter.Handle, rows.Results[0].BatchTransactionId!).State);
             Assert.Empty(cold.DrainOutbox().Operations);
             Assert.Equal(before, RpcWorld.Stamina(cold.World, fixture.A));
@@ -98,7 +98,7 @@ public sealed class MiningRpcBatchingTests
             Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.A));
             Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.B));
             Assert.Equal(2, cold.World.Each<OrePileComponent>().Count());
-            Assert.Empty(adapter.CaptureResultCheckpoint().Results);
+            Assert.Empty(adapter.CaptureResultCheckpoint().EnsureSucceeded().Results);
             cold.Tick();
             Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.A));
             StableResult<DualCutCheckpointPayload?> settled = SampleWorldHarness.RequireService<Lumio.GameRuntime.Hosting.WorldPersistenceSubsystem>(cold).Capture();
@@ -134,7 +134,7 @@ public sealed class MiningRpcBatchingTests
         WorldOperationResult[] results = fixture.Manager.DrainOutbox().Operations.ToArray();
         Assert.Equal(OperationOutcomeKind.Succeeded, results.Single(row => row.Operation.Sender == fixture.A).Outcome.Kind);
         Assert.Equal(OperationOutcomeKind.BusinessReject, results.Single(row => row.Operation.Sender == fixture.B).Outcome.Kind);
-        Assert.Single(fixture.Adapter.CaptureResultCheckpoint().Results);
+        Assert.Single(fixture.Adapter.CaptureResultCheckpoint().EnsureSucceeded().Results);
         Assert.Equal(before, fixture.Stamina(fixture.A));
         Assert.Equal(before, fixture.Stamina(fixture.B));
         fixture.Manager.Tick();
@@ -175,7 +175,7 @@ public sealed class MiningRpcBatchingTests
         fixture.Adapter.DigApplied += _ =>
         {
             observations++;
-            Assert.Equal(2, fixture.Adapter.CaptureResultCheckpoint().Results.Length);
+            Assert.Equal(2, fixture.Adapter.CaptureResultCheckpoint().EnsureSucceeded().Results.Length);
             throw new InvalidOperationException("observer fault");
         };
         fixture.SendPair(1, fixture.Veins[0].Entity, fixture.Veins[1].Entity, true);
@@ -219,7 +219,7 @@ public sealed class MiningRpcBatchingTests
         Assert.Equal(OperationCommitFact.NotApplied, rejected.Outcome.CommitFact);
         Assert.Equal(5, rejected.NativeStatus);
         Assert.True(world.IsLive(rejectedVein));
-        VoxelResultCheckpoint outcomes = fixture.Adapter.CaptureResultCheckpoint();
+        VoxelResultCheckpoint outcomes = fixture.Adapter.CaptureResultCheckpoint().EnsureSucceeded();
         Assert.Equal(3, outcomes.Results.Length);
         Assert.Equal(2, outcomes.AppliedDigs.Length);
         Assert.Single(outcomes.Results.Select(row => row.BatchTransactionId).Distinct());
@@ -240,7 +240,7 @@ public sealed class MiningRpcBatchingTests
         Assert.True(capture.Succeeded, capture.ErrorId);
         using WorldManager cold = RpcWorld.Restore(capture.Value!.Value);
         Assert.Empty(cold.DrainOutbox().Operations);
-        Assert.Equal(4, VoxelGameplayBinding.Resolve(cold)!.CaptureResultCheckpoint().Results.Length);
+        Assert.Equal(4, VoxelGameplayBinding.Resolve(cold)!.CaptureResultCheckpoint().EnsureSucceeded().Results.Length);
         cold.Tick();
         long cost = SampleConfigBinding.For(cold.World).Mining.StaminaCost;
         Assert.Equal(before - cost, RpcWorld.Stamina(cold.World, fixture.A));

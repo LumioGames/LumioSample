@@ -187,7 +187,7 @@ public sealed class SampleWiringTests : IDisposable
         Assert.Equal(stamina, world.StaminaBase);
         Assert.Equal(otherStamina, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
         Assert.Empty(world.World.Each<OrePileComponent>());
-        Assert.Equal(2, world.Adapter.CaptureResultCheckpoint().Results.Length);
+        Assert.Equal(2, world.Adapter.CaptureResultCheckpoint().EnsureSucceeded().Results.Length);
         world.FlushCreates();
         Assert.Equal(stamina - cost, world.StaminaBase);
         Assert.Equal(otherStamina - cost, world.World.Get<AttributeComponent>(other).GetBaseValue("Stamina"));
