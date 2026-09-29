@@ -1,0 +1,15 @@
+﻿{"kind":"started","meaning":"process_up","account":"host","pid":46396,"state":"Disconnected","utc":"2026-09-29T04:11:32.5136088Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq82","pid":46396,"state":"Active","utc":"2026-09-29T04:11:35.0372279Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq82","pid":46396,"state":"Active","utc":"2026-09-29T04:11:35.0375710Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq83","pid":46396,"state":"Active","utc":"2026-09-29T04:11:36.1941514Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq83","pid":46396,"state":"Active","utc":"2026-09-29T04:11:36.1944100Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq84","pid":46396,"state":"Active","utc":"2026-09-29T04:11:37.4005253Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq84","pid":46396,"state":"Active","utc":"2026-09-29T04:11:37.4008011Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq85","pid":46396,"state":"Active","utc":"2026-09-29T04:11:38.5809459Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq85","pid":46396,"state":"Active","utc":"2026-09-29T04:11:38.5812224Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq86","pid":46396,"state":"Active","utc":"2026-09-29T04:11:39.7899624Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq86","pid":46396,"state":"Active","utc":"2026-09-29T04:11:39.7902325Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq87","pid":46396,"state":"Active","utc":"2026-09-29T04:11:41.0469637Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq87","pid":46396,"state":"Active","utc":"2026-09-29T04:11:41.0472259Z"}
+{"kind":"connected","meaning":"handshake_accepted","account":"AcctWq88","pid":46396,"state":"Active","utc":"2026-09-29T04:11:42.2434742Z"}
+{"kind":"admitted","meaning":"ticket_accepted","account":"AcctWq88","pid":46396,"state":"Active","utc":"2026-09-29T04:11:42.2437716Z"}

@@ -1,0 +1,61 @@
+{
+  "tables": [
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "3b3c6655b3cd2f0b687d19ec0b09e3226c5f68bcbb28f2cd51643cdc5209220e",
+          "path": "voxel/drops.json"
+        }
+      ],
+      "contentFingerprint": "ecfe5eac6dbffc298bb763bbbbf0993b0d5eb76312f28bed99de6bab611aebac",
+      "packageFingerprint": "3b3c6655b3cd2f0b687d19ec0b09e3226c5f68bcbb28f2cd51643cdc5209220e",
+      "path": "voxel/drops.json",
+      "sourceFingerprint": "3ea963e5ded01171a0ed4a0b70f2154688648f3d14055ef56d478b8ba1bd0357",
+      "table": "drops"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "ff7b75051010cda16ff599f7ff495bf86ac32d6736444b8a34005daa4b1c49d2",
+          "path": "voxel/effects.json"
+        }
+      ],
+      "contentFingerprint": "4d0b3bd5e0ada3869f3e269b3513159ce16dd73c6afb795809c68383f562e130",
+      "packageFingerprint": "ff7b75051010cda16ff599f7ff495bf86ac32d6736444b8a34005daa4b1c49d2",
+      "path": "voxel/effects.json",
+      "sourceFingerprint": "c800925661133fd9cb1b6591eeb3038de7253f813c6b03bbb2c9f05f622d2bf7",
+      "table": "effects"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "2c931b524f72321e454604487ea01d2c116809a90370b874b895680260465bd6",
+          "path": "voxel/map.json"
+        }
+      ],
+      "contentFingerprint": "cad70e55770cdc1b63120f0c6196bda73002b031016c21d3c706754b81f131e4",
+      "packageFingerprint": "2c931b524f72321e454604487ea01d2c116809a90370b874b895680260465bd6",
+      "path": "voxel/map.json",
+      "sourceFingerprint": "ed9b0d9718f41f272cd1a8f1a6d519a70d98f733d9d4909a74775704f6f7135f",
+      "table": "map"
+    },
+    {
+      "chunks": [
+        {
+          "id": 0,
+          "packageFingerprint": "eb702be1a22b52621714f4774fdfc00af1c99576f82241af472670f4f480f62d",
+          "path": "voxel/skills.json"
+        }
+      ],
+      "contentFingerprint": "8f3fc0fe732dc96d0bbaa00ddbfd3b0643ac4c768736644065e7c50606890e48",
+      "packageFingerprint": "eb702be1a22b52621714f4774fdfc00af1c99576f82241af472670f4f480f62d",
+      "path": "voxel/skills.json",
+      "sourceFingerprint": "a10eb3b674957381a510f243e95c4a55bd6b6a22af78405329af4184acfc3325",
+      "table": "skills"
+    }
+  ],
+  "target": "V"
+}

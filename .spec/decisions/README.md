@@ -33,3 +33,4 @@
 | [0001](0001-sample-config-is-json-files.md) | 玩法数值先读仓内 JSON 文件 | 生效 |
 | [0002](0002-sibling-generate-matches-sdk-pack.md) | sibling 模式调用 Runtime 生成器并对齐 SDK 包分析器豁免 | 被 [0003](0003-engine-from-submodule-only.md) 取代 |
 | [0003](0003-engine-from-submodule-only.md) | 引擎只从子模块 Engine/ 取，删掉 sibling 与 nuget 两条解析路径 | 生效 |
+| [0004](0004-bot-measurement-literal-guard.md) | Bot 数值扫描保留玩法保护并登记三条测量语句例外 | 生效 |

@@ -1,0 +1,15 @@
+{
+  "contentFingerprint": "a310a9f63a25f0a0bf38e900762e087163b88834ad1d2a952ec9c2e11f634216",
+  "rows": [
+    {
+      "cooldown_ticks": 1,
+      "id": 80001,
+      "name": "default",
+      "ore_per_vein": 4,
+      "stamina_cost": 13,
+      "vein_hits_to_break": 6
+    }
+  ],
+  "table": "mining",
+  "target": "S"
+}
