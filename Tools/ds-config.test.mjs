@@ -138,6 +138,19 @@ test('a run config is the template with absolute paths, a fresh store, its own d
   assert.equal(deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH }).checkpoint_seconds, committed.checkpoint_seconds);
 });
 
+test('a launch session pins the DS to the admission wsUrl port (B-00196)', () => {
+  const pinned = deriveRunDsConfig(committed, {
+    templatePath: TEMPLATE_PATH,
+    storePath: '/run/store',
+    logDir: '/run/ds-boot-1',
+    launch: { wsUrl: 'ws://127.0.0.1:9110/sample', serverAudience: 'a', gameId: 'g', gameReleaseId: 'r', contractId: 'c', roomId: 'room', allocationId: 'alloc', admissionExpiresAt: 1 },
+  });
+  assert.equal(pinned.transport.listen_port, 9110);
+  // Without a launch session (local/no-platform runs) the template value passes through.
+  const unpinned = deriveRunDsConfig(committed, { templatePath: TEMPLATE_PATH, storePath: '/run/store', logDir: '/run/ds-boot-1' });
+  assert.equal(unpinned.transport.listen_port, committed.transport.listen_port);
+});
+
 test('a run config takes the launch claims and the admission key from the operator and the engine half of clr from the release', () => {
   const launch = {
     serverAudience: 'aud-1', gameId: 'sample', gameReleaseId: 'rel-1', contractId: 'c-1', roomId: 'room-1', allocationId: 'alloc-1',
