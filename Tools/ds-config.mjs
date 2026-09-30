@@ -161,6 +161,15 @@ export function deriveRunDsConfig(template, {
   config.store_path = storePath;
   config.logging = { ...config.logging, dir: logDir, min_level: 'debug' };
   if (checkpointSeconds != null) config.checkpoint_seconds = checkpointSeconds;
+  // B-00196: platform mode must bind the DS to the port the admission tickets point at.
+  // The template's listen_port is 0 (OS-assigned); the launcher's own bots connect via the
+  // resolved real port, but every platform ticket's wsUrl names the seeded endpoint — any
+  // external observer following its ticket (determinism record-round, ...) is refused until
+  // the DS happens to land on that port. Pin the listen port to the launch wsUrl's port.
+  const launchPort = present(launch?.wsUrl) ? Number(new URL(String(launch.wsUrl)).port) : NaN;
+  if (Number.isInteger(launchPort) && launchPort > 0) {
+    config.transport = { ...config.transport, listen_port: launchPort };
+  }
   return config;
 }
 
